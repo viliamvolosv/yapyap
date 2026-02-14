@@ -988,9 +988,9 @@
 			for (let i = 0; i < particleCount; i++) {
 				const particle = document.createElement("div");
 				particle.className = "particle";
-				particle.style.left = Math.random() * 100 + "%";
-				particle.style.animationDelay = Math.random() * 15 + "s";
-				particle.style.animationDuration = Math.random() * 10 + 10 + "s";
+				particle.style.left = `${Math.random() * 100}%`;
+				particle.style.animationDelay = `${Math.random() * 15}s`;
+				particle.style.animationDuration = `${Math.random() * 10 + 10}s`;
 				container.appendChild(particle);
 			}
 		}
@@ -1021,7 +1021,9 @@
 				const mode = btn.dataset.mode;
 
 				// Update active button
-				modeBtns.forEach((b) => b.classList.remove("active"));
+				for (let i = 0; i < modeBtns.length; i++) {
+					modeBtns[i].classList.remove("active");
+				}
 				btn.classList.add("active");
 
 				// Show corresponding content
@@ -1039,7 +1041,7 @@
 
 		copyBtns.forEach((btn) => {
 			btn.addEventListener("click", async () => {
-				const cmd = btn.dataset.cmd;
+				const _cmd = btn.dataset.cmd;
 				const line = btn.closest(".code-line");
 				const text = line.querySelector(".cmd")
 					? line.querySelector(".cmd").textContent.trim()
