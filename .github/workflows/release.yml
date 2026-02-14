@@ -95,12 +95,6 @@ jobs:
           registry-url: https://registry.npmjs.org
 
       # ------------------------------
-      # Ensure dependencies exist for npm publish (optional)
-      # ------------------------------
-      - name: Install dependencies with npm
-        run: npm ci
-
-      # ------------------------------
       # Copy build artifacts to Node environment
       # ------------------------------
       - name: Copy build artifacts
