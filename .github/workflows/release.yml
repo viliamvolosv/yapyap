@@ -95,12 +95,6 @@ jobs:
           registry-url: https://registry.npmjs.org
 
       # ------------------------------
-      # Copy build artifacts to Node environment
-      # ------------------------------
-      - name: Copy build artifacts
-        run: cp -r dist ./dist
-
-      # ------------------------------
       # Publish via OIDC
       # ------------------------------
       - name: Publish to npm (OIDC)
