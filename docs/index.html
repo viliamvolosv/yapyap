@@ -1,704 +1,1062 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="YapYap - A decentralized, peer-to-peer messenger node and CLI library with end-to-end encryption, offline delivery, and no UI.">
-    <meta name="author" content="Viliam Volosv">
-    <title>YapYap Messenger - Decentralized P2P Messaging</title>
-    <style>
-        :root {
-            --primary: #6366f1;
-            --primary-dark: #4f46e5;
-            --secondary: #10b981;
-            --dark: #0f172a;
-            --dark-lighter: #1e293b;
-            --text: #f8fafc;
-            --text-muted: #94a3b8;
-            --border: #334155;
-            --card-bg: rgba(30, 41, 59, 0.8);
-        }
-
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            background: linear-gradient(135deg, var(--dark) 0%, #1e1b4b 50%, var(--dark) 100%);
-            color: var(--text);
-            min-height: 100vh;
-            line-height: 1.6;
-            overflow-x: hidden;
-        }
-
-        /* Animated background particles */
-        .particles {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            pointer-events: none;
-            overflow: hidden;
-            z-index: 0;
-        }
-
-        .particle {
-            position: absolute;
-            width: 4px;
-            height: 4px;
-            background: var(--primary);
-            border-radius: 50%;
-            animation: float 15s infinite;
-            opacity: 0.5;
-        }
-
-        @keyframes float {
-            0%, 100% {
-                transform: translateY(100vh) rotate(0deg);
-                opacity: 0;
-            }
-            10% {
-                opacity: 0.5;
-            }
-            90% {
-                opacity: 0.5;
-            }
-            100% {
-                transform: translateY(-100vh) rotate(720deg);
-                opacity: 0;
-            }
-        }
-
-        .container {
-            position: relative;
-            z-index: 1;
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 0 2rem;
-        }
-
-        /* Header */
-        header {
-            padding: 2rem 0;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .logo {
-            font-size: 1.5rem;
-            font-weight: 700;
-            background: linear-gradient(135deg, var(--primary), var(--secondary));
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-            text-decoration: none;
-        }
-
-        nav a {
-            color: var(--text-muted);
-            text-decoration: none;
-            margin-left: 2rem;
-            transition: color 0.3s;
-        }
-
-        nav a:hover {
-            color: var(--primary);
-        }
-
-        /* Hero Section */
-        .hero {
-            text-align: center;
-            padding: 8rem 0 6rem;
-        }
-
-        .hero h1 {
-            font-size: 4rem;
-            font-weight: 800;
-            margin-bottom: 1.5rem;
-            background: linear-gradient(135deg, var(--text) 0%, var(--text-muted) 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-        }
-
-        .hero h2 {
-            font-size: 1.5rem;
-            font-weight: 400;
-            color: var(--text-muted);
-            margin-bottom: 2rem;
-            max-width: 700px;
-            margin-left: auto;
-            margin-right: auto;
-        }
-
-        .hero-badge {
-            display: inline-block;
-            padding: 0.5rem 1rem;
-            background: rgba(99, 102, 241, 0.2);
-            border: 1px solid var(--primary);
-            border-radius: 2rem;
-            font-size: 0.875rem;
-            margin-bottom: 2rem;
-        }
-
-        .hero-badge span {
-            color: var(--secondary);
-            font-weight: 600;
-        }
-
-        /* Buttons */
-        .btn {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.5rem;
-            padding: 0.875rem 2rem;
-            border-radius: 0.5rem;
-            font-weight: 600;
-            text-decoration: none;
-            transition: all 0.3s;
-            border: none;
-            cursor: pointer;
-            font-size: 1rem;
-        }
-
-        .btn-primary {
-            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
-            color: white;
-            box-shadow: 0 4px 20px rgba(99, 102, 241, 0.4);
-        }
-
-        .btn-primary:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 30px rgba(99, 102, 241, 0.5);
-        }
-
-        .btn-secondary {
-            background: var(--dark-lighter);
-            color: var(--text);
-            border: 1px solid var(--border);
-            margin-left: 1rem;
-        }
-
-        .btn-secondary:hover {
-            background: var(--border);
-            transform: translateY(-2px);
-        }
-
-        /* Features Section */
-        .features {
-            padding: 6rem 0;
-        }
-
-        .section-title {
-            text-align: center;
-            font-size: 2.5rem;
-            font-weight: 700;
-            margin-bottom: 1rem;
-        }
-
-        .section-subtitle {
-            text-align: center;
-            color: var(--text-muted);
-            margin-bottom: 4rem;
-        }
-
-        .features-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 2rem;
-        }
-
-        .feature-card {
-            background: var(--card-bg);
-            border: 1px solid var(--border);
-            border-radius: 1rem;
-            padding: 2rem;
-            transition: all 0.3s;
-            backdrop-filter: blur(10px);
-        }
-
-        .feature-card:hover {
-            border-color: var(--primary);
-            transform: translateY(-5px);
-            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
-        }
-
-        .feature-icon {
-            width: 3rem;
-            height: 3rem;
-            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
-            border-radius: 0.75rem;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin-bottom: 1.5rem;
-            font-size: 1.5rem;
-        }
-
-        .feature-card h3 {
-            font-size: 1.25rem;
-            margin-bottom: 1rem;
-            color: var(--text);
-        }
-
-        .feature-card p {
-            color: var(--text-muted);
-            font-size: 0.95rem;
-        }
-
-        /* Getting Started Section */
-        .getting-started {
-            padding: 6rem 0;
-            background: rgba(0, 0, 0, 0.2);
-        }
-
-        .steps-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 2rem;
-            margin-top: 3rem;
-        }
-
-        .step {
-            text-align: center;
-        }
-
-        .step-number {
-            width: 3rem;
-            height: 3rem;
-            background: var(--primary);
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: 700;
-            margin: 0 auto 1rem;
-        }
-
-        .step h3 {
-            font-size: 1.1rem;
-            margin-bottom: 0.5rem;
-        }
-
-        .step p {
-            color: var(--text-muted);
-            font-size: 0.9rem;
-        }
-
-        .step-code {
-            background: var(--dark-lighter);
-            padding: 1rem;
-            border-radius: 0.5rem;
-            margin: 1rem 0;
-            font-family: 'Courier New', monospace;
-            font-size: 0.85rem;
-            color: var(--secondary);
-            border: 1px solid var(--border);
-        }
-
-        /* Tech Stack */
-        .tech-stack {
-            padding: 6rem 0;
-        }
-
-        .tech-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 2rem;
-            margin-top: 3rem;
-        }
-
-        .tech-item {
-            background: var(--card-bg);
-            border: 1px solid var(--border);
-            border-radius: 1rem;
-            padding: 2rem;
-            text-align: center;
-            transition: all 0.3s;
-        }
-
-        .tech-item:hover {
-            border-color: var(--secondary);
-            transform: scale(1.05);
-        }
-
-        .tech-item h3 {
-            font-size: 1.25rem;
-            margin-bottom: 0.5rem;
-        }
-
-        .tech-item p {
-            color: var(--text-muted);
-            font-size: 0.9rem;
-        }
-
-        /* Documentation Section */
-        .documentation {
-            padding: 6rem 0;
-            background: rgba(0, 0, 0, 0.2);
-        }
-
-        .docs-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 2rem;
-            margin-top: 3rem;
-        }
-
-        .doc-card {
-            background: var(--card-bg);
-            border: 1px solid var(--border);
-            border-radius: 1rem;
-            padding: 2rem;
-            transition: all 0.3s;
-        }
-
-        .doc-card:hover {
-            border-color: var(--primary);
-            transform: translateY(-5px);
-        }
-
-        .doc-card h3 {
-            font-size: 1.25rem;
-            margin-bottom: 1rem;
-            color: var(--text);
-        }
-
-        .doc-card p {
-            color: var(--text-muted);
-            margin-bottom: 1.5rem;
-        }
-
-        .doc-link {
-            color: var(--primary);
-            text-decoration: none;
-            font-weight: 600;
-            display: inline-flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-
-        .doc-link:hover {
-            text-decoration: underline;
-        }
-
-        /* Footer */
-        footer {
-            padding: 4rem 0 2rem;
-            border-top: 1px solid var(--border);
-            text-align: center;
-        }
-
-        .footer-links {
-            display: flex;
-            justify-content: center;
-            gap: 2rem;
-            margin-bottom: 2rem;
-        }
-
-        .footer-links a {
-            color: var(--text-muted);
-            text-decoration: none;
-            transition: color 0.3s;
-        }
-
-        .footer-links a:hover {
-            color: var(--primary);
-        }
-
-        .footer-text {
-            color: var(--text-muted);
-            font-size: 0.875rem;
-        }
-
-        /* Responsive */
-        @media (max-width: 768px) {
-            .hero h1 {
-                font-size: 2.5rem;
-            }
-
-            .hero h2 {
-                font-size: 1.1rem;
-            }
-
-            nav {
-                display: none;
-            }
-
-            .btn {
-                width: 100%;
-                margin: 0.5rem 0;
-            }
-
-            .btn-secondary {
-                margin-left: 0;
-            }
-
-            .features-grid,
-            .steps-grid,
-            .tech-grid,
-            .docs-grid {
-                grid-template-columns: 1fr;
-            }
-        }
-    </style>
-</head>
-<body>
-    <!-- Animated Particles -->
-    <div class="particles" id="particles"></div>
-
-    <div class="container">
-        <!-- Header -->
-        <header>
-            <a href="#" class="logo">YapYap</a>
-            <nav>
-                <a href="#features">Features</a>
-                <a href="#getting-started">Getting Started</a>
-                <a href="#tech-stack">Tech Stack</a>
-                <a href="#documentation">Documentation</a>
-                <a href="https://github.com/viliamvolosv/yapyap" target="_blank">GitHub</a>
-            </nav>
-        </header>
-
-        <!-- Hero Section -->
-        <section class="hero">
-            <div class="hero-badge">Version 0.0.1 (MVP)</div>
-            <h1>YapYap Messenger</h1>
-            <h2>A decentralized, peer-to-peer messenger node and CLI library with end-to-end encryption, offline delivery, and no UI.</h2>
-            <div>
-                <a href="#getting-started" class="btn btn-primary">
-                    Get Started
-                    <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"/>
-                    </svg>
-                </a>
-                <a href="https://github.com/viliamvolosv/yapyap" target="_blank" class="btn btn-secondary">
-                    <svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
-                    </svg>
-                    View on GitHub
-                </a>
-            </div>
-        </section>
-
-        <!-- Features Section -->
-        <section id="features" class="features">
-            <h2 class="section-title">Key Features</h2>
-            <p class="section-subtitle">Built for reliability, security, and seamless integration</p>
-            <div class="features-grid">
-                <div class="feature-card">
-                    <div class="feature-icon">
-                        <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
-                        </svg>
-                    </div>
-                    <h3>End-to-End Encryption</h3>
-                    <p>Secure messaging using Noise XX/IK and Ed25519 cryptography for all communications.</p>
-                </div>
-                <div class="feature-card">
-                    <div class="feature-icon">
-                        <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192l-3.536 3.536M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-5 0a4 4 0 11-8 0 4 4 0 018 0z"/>
-                        </svg>
-                    </div>
-                    <h3>Offline Delivery</h3>
-                    <p>Store-and-forward messaging with SQLite persistence and deduplication for reliable delivery.</p>
-                </div>
-                <div class="feature-card">
-                    <div class="feature-icon">
-                        <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
-                        </svg>
-                    </div>
-                    <h3>ACK-Driven Reliability</h3>
-                    <p>Message acknowledgment system with automatic retry and exponential backoff for guaranteed delivery.</p>
-                </div>
-                <div class="feature-card">
-                    <div class="feature-icon">
-                        <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"/>
-                        </svg>
-                    </div>
-                    <h3>Decentralized P2P</h3>
-                    <p>Bootstrap + DHT discovery with autonat/relay fallbacks for reliable peer connectivity.</p>
-                </div>
-                <div class="feature-card">
-                    <div class="feature-icon">
-                        <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-                        </svg>
-                    </div>
-                    <h3>CLI & Library</h3>
-                    <p>Run as standalone CLI or embed as a library in your applications with full control.</p>
-                </div>
-                <div class="feature-card">
-                    <div class="feature-icon">
-                        <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"/>
-                        </svg>
-                    </div>
-                    <h3>SQLite Persistence</h3>
-                    <p>Robust database schema with message queue, processed messages, and replica tables.</p>
-                </div>
-            </div>
-        </section>
-
-        <!-- Getting Started Section -->
-        <section id="getting-started" class="getting-started">
-            <h2 class="section-title">Getting Started</h2>
-            <p class="section-subtitle">Start using YapYap in minutes</p>
-            <div class="steps-grid">
-                <div class="step">
-                    <div class="step-number">1</div>
-                    <h3>Install Bun</h3>
-                    <p>Ensure you have Bun 1.3+ installed</p>
-                    <div class="step-code">bun --version</div>
-                </div>
-                <div class="step">
-                    <div class="step-number">2</div>
-                    <h3>Install Dependencies</h3>
-                    <p>Clone the repo and install packages</p>
-                    <div class="step-code">bun install</div>
-                </div>
-                <div class="step">
-                    <div class="step-number">3</div>
-                    <h3>Build the Project</h3>
-                    <p>Compile the CLI and library</p>
-                    <div class="step-code">bun run build:cli</div>
-                </div>
-                <div class="step">
-                    <div class="step-number">4</div>
-                    <h3>Run YapYap</h3>
-                    <p>Start the node and start messaging</p>
-                    <div class="step-code">./dist/cli.js</div>
-                </div>
-            </div>
-            <div style="text-align: center; margin-top: 3rem;">
-                <a href="https://github.com/viliamvolosv/yapyap" target="_blank" class="btn btn-primary">
-                    Download on GitHub
-                </a>
-            </div>
-        </section>
-
-        <!-- Tech Stack Section -->
-        <section id="tech-stack" class="tech-stack">
-            <h2 class="section-title">Tech Stack</h2>
-            <p class="section-subtitle">Built with modern, production-ready technologies</p>
-            <div class="tech-grid">
-                <div class="tech-item">
-                    <h3>Bun</h3>
-                    <p>Runtime & Package Manager</p>
-                </div>
-                <div class="tech-item">
-                    <h3>TypeScript</h3>
-                    <p>Strictly Typed Codebase</p>
-                </div>
-                <div class="tech-item">
-                    <h3>libp2p</h3>
-                    <p>Decentralized Networking Stack</p>
-                </div>
-                <div class="tech-item">
-                    <h3>SQLite</h3>
-                    <p>Embedded Database</p>
-                </div>
-                <div class="tech-item">
-                    <h3>Node.js APIs</h3>
-                    <p>crypto, events, fs</p>
-                </div>
-                <div class="tech-item">
-                    <h3>Biome</h3>
-                    <p>Linting & Formatting</p>
-                </div>
-            </div>
-        </section>
-
-        <!-- Documentation Section -->
-        <section id="documentation" class="documentation">
-            <h2 class="section-title">Documentation</h2>
-            <p class="section-subtitle">Comprehensive guides for developers</p>
-            <div class="docs-grid">
-                <div class="doc-card">
-                    <h3>Message Flow</h3>
-                    <p>Learn about the complete message lifecycle, from enqueue to ACK, including retry strategies and deduplication.</p>
-                    <a href="#" class="doc-link">
-                        Read Documentation
-                        <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
-                        </svg>
-                    </a>
-                </div>
-                <div class="doc-card">
-                    <h3>Architecture</h3>
-                    <p>Understand the core components, networking stack, and design decisions behind YapYap.</p>
-                    <a href="#" class="doc-link">
-                        Read Documentation
-                        <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
-                        </svg>
-                    </a>
-                </div>
-                <div class="doc-card">
-                    <h3>MVP Roadmap</h3>
-                    <p>Explore the roadmap, milestones, and stabilization plan for the project.</p>
-                    <a href="#" class="doc-link">
-                        Read Documentation
-                        <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
-                        </svg>
-                    </a>
-                </div>
-            </div>
-        </section>
-
-        <!-- Footer -->
-        <footer>
-            <div class="footer-links">
-                <a href="https://github.com/viliamvolosv/yapyap" target="_blank">GitHub</a>
-                <a href="https://github.com/viliamvolosv/yapyap/issues" target="_blank">Issues</a>
-                <a href="https://github.com/viliamvolosv/yapyap/blob/main/LICENSE" target="_blank">License</a>
-            </div>
-            <p class="footer-text">© 2026 YapYap Messenger. MIT License.</p>
-            <p class="footer-text">Built with Bun + TypeScript</p>
-        </footer>
-    </div>
-
-    <script>
-        // Generate floating particles
-        function createParticles() {
-            const container = document.getElementById('particles');
-            const particleCount = 50;
-
-            for (let i = 0; i < particleCount; i++) {
-                const particle = document.createElement('div');
-                particle.className = 'particle';
-                particle.style.left = Math.random() * 100 + '%';
-                particle.style.animationDelay = Math.random() * 15 + 's';
-                particle.style.animationDuration = (Math.random() * 10 + 10) + 's';
-                container.appendChild(particle);
-            }
-        }
-
-        // Smooth scrolling for anchor links
-        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
-            anchor.addEventListener('click', function (e) {
-                e.preventDefault();
-                const target = document.querySelector(this.getAttribute('href'));
-                if (target) {
-                    target.scrollIntoView({
-                        behavior: 'smooth',
-                        block: 'start'
-                    });
-                }
-            });
-        });
-
-        // Initialize
-        createParticles();
-    </script>
-</body>
+	<head>
+		<meta charset="UTF-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0">
+		<meta
+			name="description"
+			content="YapYap - A decentralized, peer-to-peer messenger node and CLI library with end-to-end encryption, offline delivery, and no UI."
+		>
+		<meta name="author" content="Viliam Volosv">
+		<title>YapYap Messenger - Decentralized P2P Messaging</title>
+		<style>
+		:root {
+			--primary: #6366f1;
+			--primary-dark: #4f46e5;
+			--secondary: #10b981;
+			--dark: #0f172a;
+			--dark-lighter: #1e293b;
+			--text: #f8fafc;
+			--text-muted: #94a3b8;
+			--border: #334155;
+			--card-bg: rgba(30, 41, 59, 0.8);
+		}
+
+		* {
+			margin: 0;
+			padding: 0;
+			box-sizing: border-box;
+		}
+
+		body {
+			font-family:
+				-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu,
+				Cantarell, sans-serif;
+			background: linear-gradient(
+				135deg,
+				var(--dark) 0%,
+				#1e1b4b 50%,
+				var(--dark) 100%
+			);
+			color: var(--text);
+			min-height: 100vh;
+			line-height: 1.6;
+			overflow-x: hidden;
+		}
+
+		/* Animated background particles */
+		.particles {
+			position: fixed;
+			top: 0;
+			left: 0;
+			width: 100%;
+			height: 100%;
+			pointer-events: none;
+			overflow: hidden;
+			z-index: 0;
+		}
+
+		.particle {
+			position: absolute;
+			width: 4px;
+			height: 4px;
+			background: var(--primary);
+			border-radius: 50%;
+			animation: float 15s infinite;
+			opacity: 0.5;
+		}
+
+		@keyframes float {
+			0%,
+			100% {
+				transform: translateY(100vh) rotate(0deg);
+				opacity: 0;
+			}
+			10% {
+				opacity: 0.5;
+			}
+			90% {
+				opacity: 0.5;
+			}
+			100% {
+				transform: translateY(-100vh) rotate(720deg);
+				opacity: 0;
+			}
+		}
+
+		.container {
+			position: relative;
+			z-index: 1;
+			max-width: 1200px;
+			margin: 0 auto;
+			padding: 0 2rem;
+		}
+
+		/* Header */
+		header {
+			padding: 2rem 0;
+			display: flex;
+			justify-content: space-between;
+			align-items: center;
+		}
+
+		.logo {
+			font-size: 1.5rem;
+			font-weight: 700;
+			background: linear-gradient(135deg, var(--primary), var(--secondary));
+			-webkit-background-clip: text;
+			-webkit-text-fill-color: transparent;
+			background-clip: text;
+			text-decoration: none;
+		}
+
+		nav a {
+			color: var(--text-muted);
+			text-decoration: none;
+			margin-left: 2rem;
+			transition: color 0.3s;
+		}
+
+		nav a:hover {
+			color: var(--primary);
+		}
+
+		nav a[href="#getting-started"] {
+			display: none;
+		}
+
+		/* Hero Section */
+		.hero {
+			text-align: center;
+			padding: 4rem 0 3rem;
+		}
+
+		.hero h1 {
+			font-size: 4rem;
+			font-weight: 800;
+			margin-bottom: 1.5rem;
+			background: linear-gradient(
+				135deg,
+				var(--text) 0%,
+				var(--text-muted) 100%
+			);
+			-webkit-background-clip: text;
+			-webkit-text-fill-color: transparent;
+			background-clip: text;
+		}
+
+		.hero h2 {
+			font-size: 1.5rem;
+			font-weight: 400;
+			color: var(--text-muted);
+			margin-bottom: 2rem;
+			max-width: 700px;
+			margin-left: auto;
+			margin-right: auto;
+		}
+
+		.hero-badge {
+			display: inline-block;
+			padding: 0.5rem 1rem;
+			background: rgba(99, 102, 241, 0.2);
+			border: 1px solid var(--primary);
+			border-radius: 2rem;
+			font-size: 0.875rem;
+			margin-bottom: 2rem;
+		}
+
+		.hero-badge span {
+			color: var(--secondary);
+			font-weight: 600;
+		}
+
+		/* Buttons */
+		.btn {
+			display: inline-flex;
+			align-items: center;
+			gap: 0.5rem;
+			padding: 0.875rem 2rem;
+			border-radius: 0.5rem;
+			font-weight: 600;
+			text-decoration: none;
+			transition: all 0.3s;
+			border: none;
+			cursor: pointer;
+			font-size: 1rem;
+		}
+
+		.btn-primary {
+			background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+			color: white;
+			box-shadow: 0 4px 20px rgba(99, 102, 241, 0.4);
+		}
+
+		.btn-primary:hover {
+			transform: translateY(-2px);
+			box-shadow: 0 6px 30px rgba(99, 102, 241, 0.5);
+		}
+
+		.btn-secondary {
+			background: var(--dark-lighter);
+			color: var(--text);
+			border: 1px solid var(--border);
+			margin-left: 1rem;
+		}
+
+		.btn-secondary:hover {
+			background: var(--border);
+			transform: translateY(-2px);
+		}
+
+		/* For Agents Section */
+		.agents {
+			padding: 3rem 0;
+			text-align: center;
+		}
+
+		/* Quick Start Section */
+		.quickstart {
+			padding: 3rem 0;
+			text-align: center;
+		}
+
+		.quickstart-content {
+			background: var(--card-bg);
+			border: 1px solid var(--border);
+			border-radius: 1rem;
+			padding: 0;
+			max-width: 800px;
+			margin: 0 auto;
+			backdrop-filter: blur(10px);
+			overflow: hidden;
+		}
+
+		.section-title {
+			text-align: center;
+			font-size: 2rem;
+			font-weight: 700;
+			margin-bottom: 2rem;
+			color: var(--text);
+		}
+
+		.section-title span {
+			color: var(--primary);
+		}
+
+		/* Code Block */
+		.code-block {
+			background: var(--dark-lighter);
+			border-radius: 0.5rem;
+			overflow: hidden;
+			margin-bottom: 1.5rem;
+		}
+
+		.code-header {
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			padding: 1rem 1.5rem;
+			border-bottom: 1px solid var(--border);
+			flex-wrap: wrap;
+			gap: 1rem;
+		}
+
+		.code-dots {
+			display: flex;
+			gap: 0.5rem;
+		}
+
+		.code-dot {
+			width: 12px;
+			height: 12px;
+			border-radius: 50%;
+		}
+
+		.code-dot:nth-child(1) {
+			background: #ff5f56;
+		}
+		.code-dot:nth-child(2) {
+			background: #ffbd2e;
+		}
+		.code-dot:nth-child(3) {
+			background: #27ca40;
+		}
+
+		/* Mode Switcher */
+		.mode-switch {
+			display: flex;
+			gap: 0.5rem;
+		}
+
+		.mode-btn {
+			padding: 0.5rem 1rem;
+			background: transparent;
+			border: 1px solid var(--border);
+			border-radius: 2rem;
+			color: var(--text-muted);
+			font-size: 0.875rem;
+			cursor: pointer;
+			transition: all 0.3s;
+		}
+
+		.mode-btn:hover {
+			border-color: var(--primary);
+			color: var(--text);
+		}
+
+		.mode-btn.active {
+			background: var(--primary);
+			border-color: var(--primary);
+			color: white;
+		}
+
+		/* Code Content */
+		.code-content {
+			display: none;
+			padding: 1.5rem;
+			overflow-x: auto;
+		}
+
+		.code-content.active {
+			display: block;
+		}
+
+		.code-line {
+			display: flex;
+			align-items: flex-start;
+			gap: 1rem;
+			margin-bottom: 0.5rem;
+			font-family: "Courier New", monospace;
+			font-size: 0.95rem;
+			line-height: 1.6;
+		}
+
+		.code-line:last-child {
+			margin-bottom: 0;
+		}
+
+		.code-line.comment {
+			color: var(--text-muted);
+			font-style: italic;
+		}
+
+		.code-line.cmd {
+			color: var(--secondary);
+		}
+
+		.code-prompt {
+			color: var(--primary);
+			user-select: none;
+			min-width: 1rem;
+		}
+
+		/* Copy Button */
+		.copy-line-btn {
+			background: transparent;
+			border: none;
+			cursor: pointer;
+			padding: 0.25rem;
+			border-radius: 0.25rem;
+			transition: all 0.2s;
+			opacity: 0;
+			color: var(--text-muted);
+		}
+
+		.copy-line-btn:hover {
+			background: rgba(99, 102, 241, 0.2);
+			color: var(--primary);
+		}
+
+		.code-line:hover .copy-line-btn {
+			opacity: 1;
+		}
+
+		.copy-line-btn svg {
+			width: 18px;
+			height: 18px;
+		}
+
+		.copy-line-btn .copy-icon {
+			display: block;
+		}
+
+		.copy-line-btn .check-icon {
+			display: none;
+		}
+
+		.copy-line-btn.copied .copy-icon {
+			display: none;
+		}
+
+		.copy-line-btn.copied .check-icon {
+			display: block;
+			color: var(--secondary);
+		}
+
+		.macos-app-content {
+			text-align: center;
+			padding: 2rem;
+		}
+
+		.macos-description {
+			margin-bottom: 2rem;
+		}
+
+		.macos-tagline {
+			display: inline-block;
+			background: rgba(99, 102, 241, 0.2);
+			border: 1px solid var(--primary);
+			border-radius: 2rem;
+			padding: 0.25rem 1rem;
+			font-size: 0.875rem;
+			margin-bottom: 1rem;
+			color: var(--primary);
+		}
+
+		.macos-subtitle {
+			color: var(--text-muted);
+			font-size: 0.95rem;
+		}
+
+		.macos-download-btn {
+			display: inline-flex;
+			align-items: center;
+			gap: 0.5rem;
+			padding: 0.875rem 2rem;
+			background: var(--primary);
+			color: white;
+			border: none;
+			border-radius: 0.5rem;
+			font-weight: 600;
+			text-decoration: none;
+			transition: all 0.3s;
+			margin-bottom: 1rem;
+		}
+
+		.macos-download-btn:hover {
+			background: var(--primary-dark);
+			transform: translateY(-2px);
+		}
+
+		.macos-download-btn svg {
+			width: 20px;
+			height: 20px;
+		}
+
+		.macos-meta {
+			color: var(--text-muted);
+			font-size: 0.875rem;
+		}
+
+		.quickstart-note {
+			color: var(--text-muted);
+			font-size: 1.1rem;
+			margin-bottom: 2rem;
+		}
+
+		.agents-card {
+			display: inline-block;
+			background: rgba(99, 102, 241, 0.1);
+			border: 1px solid var(--primary);
+			border-radius: 0.5rem;
+			padding: 1.5rem 2.5rem;
+			text-align: left;
+			margin-top: 2rem;
+		}
+
+		.agents-card h3 {
+			color: var(--primary);
+			font-size: 1rem;
+			font-weight: 700;
+			margin-bottom: 1rem;
+			text-transform: uppercase;
+			letter-spacing: 0.05em;
+		}
+
+		.agents-card ul {
+			list-style: none;
+			padding: 0;
+			margin: 0;
+		}
+
+		.agents-card li {
+			color: var(--text-muted);
+			font-size: 0.95rem;
+			margin-bottom: 0.5rem;
+			padding-left: 1.5rem;
+			position: relative;
+		}
+
+		.agents-card li::before {
+			content: "→";
+			position: absolute;
+			left: 0;
+			color: var(--secondary);
+			font-weight: bold;
+		}
+
+		.agents-card li:last-child {
+			margin-bottom: 0;
+		}
+
+		/* Features Section */
+		.features {
+			padding: 4rem 0;
+		}
+
+		.section-title {
+			text-align: center;
+			font-size: 2.5rem;
+			font-weight: 700;
+			margin-bottom: 1rem;
+		}
+
+		.section-subtitle {
+			text-align: center;
+			color: var(--text-muted);
+			margin-bottom: 2rem;
+		}
+
+		.features-grid {
+			display: grid;
+			grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+			gap: 2rem;
+		}
+
+		.feature-card {
+			background: var(--card-bg);
+			border: 1px solid var(--border);
+			border-radius: 1rem;
+			padding: 2rem;
+			transition: all 0.3s;
+			backdrop-filter: blur(10px);
+		}
+
+		.feature-card:hover {
+			border-color: var(--primary);
+			transform: translateY(-5px);
+			box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+		}
+
+		.feature-icon {
+			width: 3rem;
+			height: 3rem;
+			background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+			border-radius: 0.75rem;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			margin-bottom: 1.5rem;
+			font-size: 1.5rem;
+		}
+
+		.feature-card h3 {
+			font-size: 1.25rem;
+			margin-bottom: 1rem;
+			color: var(--text);
+		}
+
+		.feature-card p {
+			color: var(--text-muted);
+			font-size: 0.95rem;
+		}
+
+		/* Getting Started Section */
+		.getting-started {
+			padding: 4rem 0;
+			background: rgba(0, 0, 0, 0.2);
+		}
+
+		.steps-grid {
+			display: grid;
+			grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+			gap: 2rem;
+			margin-top: 3rem;
+		}
+
+		.step {
+			text-align: center;
+		}
+
+		.step-number {
+			width: 3rem;
+			height: 3rem;
+			background: var(--primary);
+			border-radius: 50%;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			font-weight: 700;
+			margin: 0 auto 1rem;
+		}
+
+		.step h3 {
+			font-size: 1.1rem;
+			margin-bottom: 0.5rem;
+		}
+
+		.step p {
+			color: var(--text-muted);
+			font-size: 0.9rem;
+		}
+
+		.step-code {
+			background: var(--dark-lighter);
+			padding: 1rem;
+			border-radius: 0.5rem;
+			margin: 1rem 0;
+			font-family: "Courier New", monospace;
+			font-size: 0.85rem;
+			color: var(--secondary);
+			border: 1px solid var(--border);
+		}
+
+		/* Footer */
+		footer {
+			padding: 3rem 0 2rem;
+			border-top: 1px solid var(--border);
+			text-align: center;
+		}
+
+		.footer-links {
+			display: flex;
+			justify-content: center;
+			gap: 2rem;
+			margin-bottom: 2rem;
+		}
+
+		.footer-links a {
+			color: var(--text-muted);
+			text-decoration: none;
+			transition: color 0.3s;
+		}
+
+		.footer-links a:hover {
+			color: var(--primary);
+		}
+
+		.footer-text {
+			color: var(--text-muted);
+			font-size: 0.875rem;
+		}
+
+		/* Responsive */
+		@media (max-width: 768px) {
+			.hero h1 {
+				font-size: 2.5rem;
+			}
+
+			.hero h2 {
+				font-size: 1.1rem;
+			}
+
+			nav {
+				display: none;
+			}
+
+			.btn {
+				width: 100%;
+				margin: 0.5rem 0;
+			}
+
+			.btn-secondary {
+				margin-left: 0;
+			}
+
+			.features-grid {
+				grid-template-columns: 1fr;
+			}
+			.steps-grid {
+				grid-template-columns: 1fr;
+			}
+			.tech-grid {
+				grid-template-columns: 1fr;
+			}
+		}
+		</style>
+	</head>
+	<body>
+		<!-- Animated Particles -->
+		<div class="particles" id="particles"></div>
+		<div class="container">
+			<!-- Hero Section -->
+			<section class="hero">
+				<h1>YapYap</h1>
+				<h2>A decentralized, peer-to-peer messenger for Agents</h2>
+				<div>
+					<a
+						href="https://github.com/viliamvolosv/yapyap"
+						target="_blank"
+						class="btn btn-secondary"
+					>
+						<svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24">
+							<path
+								d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"
+							/>
+						</svg>
+						View on GitHub
+					</a>
+				</div>
+			</section>
+			<!-- For Agents Section -->
+			<section class="agents">
+				<h2 class="section-title">For Agents</h2>
+				<div class="code-block">
+					<div class="code-header">
+						<div class="code-dots">
+							<span class="code-dot"></span>
+							<span class="code-dot"></span>
+							<span class="code-dot"></span>
+						</div>
+					</div>
+					<div class="code-content active">
+						<div class="code-line cmd">
+							<span class="code-prompt">$</span>
+							<span
+								>curl -s
+								https://raw.githubusercontent.com/viliamvolosv/yapyap/main/skill.md</span
+							>
+							<button class="copy-line-btn" data-cmd="agents-install">
+								<svg
+									class="copy-icon"
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="2"
+								>
+									<rect x="9" y="9" width="13" height="13" rx="2"></rect>
+									<path
+										d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"
+									></path>
+								</svg>
+								<svg
+									class="check-icon"
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="2"
+								>
+									<polyline points="20 6 9 17 4 12"></polyline>
+								</svg>
+							</button>
+						</div>
+						<div class="code-line comment">
+							# Run the command above to get started. Start your YapYap journey!
+						</div>
+					</div>
+				</div>
+			</section>
+
+			<!-- Quick Start Section -->
+			<section class="quickstart">
+				<h2 class="section-title">For Humans</h2>
+				<div class="code-block">
+					<div class="code-header">
+						<div class="code-dots">
+							<span class="code-dot"></span>
+							<span class="code-dot"></span>
+							<span class="code-dot"></span>
+						</div>
+						<div class="mode-switch">
+							<button class="mode-btn active" data-mode="oneliner">
+								One-liner
+							</button>
+							<button class="mode-btn" data-mode="quick">npm</button>
+							<button class="mode-btn" data-mode="pnpm">pnpm</button>
+							<button class="mode-btn" data-mode="hackable">Hackable</button>
+						</div>
+					</div>
+					<div id="code-oneliner" class="code-content active">
+						<div class="code-line comment">
+							# Works everywhere. Installs everything. You're welcome.
+						</div>
+						<div class="code-line cmd">
+							<span class="code-prompt">$</span>
+							<span
+								>curl -fsSL
+								https://raw.githubusercontent.com/viliamvolosv/yapyap/main/install.sh
+								| bash</span
+							>
+							<button class="copy-line-btn" data-cmd="oneliner">
+								<svg
+									class="copy-icon"
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="2"
+								>
+									<rect x="9" y="9" width="13" height="13" rx="2"></rect>
+									<path
+										d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"
+									></path>
+								</svg>
+								<svg
+									class="check-icon"
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="2"
+								>
+									<polyline points="20 6 9 17 4 12"></polyline>
+								</svg>
+							</button>
+						</div>
+					</div>
+					<div id="code-quick" class="code-content">
+						<div class="code-line comment"># Install YapYap</div>
+						<div class="code-line cmd">
+							<span class="code-prompt">$</span>
+							<span>npm i -g yapyap</span>
+							<button class="copy-line-btn" data-cmd="install">
+								<svg
+									class="copy-icon"
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="2"
+								>
+									<rect x="9" y="9" width="13" height="13" rx="2"></rect>
+									<path
+										d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"
+									></path>
+								</svg>
+								<svg
+									class="check-icon"
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="2"
+								>
+									<polyline points="20 6 9 17 4 12"></polyline>
+								</svg>
+							</button>
+						</div>
+						<div class="code-line comment"># Run YapYap</div>
+						<div class="code-line cmd">
+							<span class="code-prompt">$</span>
+							<span>yapyap</span>
+							<button class="copy-line-btn" data-cmd="run">
+								<svg
+									class="copy-icon"
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="2"
+								>
+									<rect x="9" y="9" width="13" height="13" rx="2"></rect>
+									<path
+										d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"
+									></path>
+								</svg>
+								<svg
+									class="check-icon"
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="2"
+								>
+									<polyline points="20 6 9 17 4 12"></polyline>
+								</svg>
+							</button>
+						</div>
+					</div>
+					<div id="code-pnpm" class="code-content">
+						<div class="code-line comment"># Install YapYap</div>
+						<div class="code-line cmd">
+							<span class="code-prompt">$</span>
+							<span>pnpm add -g yapyap</span>
+							<button class="copy-line-btn" data-cmd="install-pnpm">
+								<svg
+									class="copy-icon"
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="2"
+								>
+									<rect x="9" y="9" width="13" height="13" rx="2"></rect>
+									<path
+										d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"
+									></path>
+								</svg>
+								<svg
+									class="check-icon"
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="2"
+								>
+									<polyline points="20 6 9 17 4 12"></polyline>
+								</svg>
+							</button>
+						</div>
+						<div class="code-line comment"># Run YapYap</div>
+						<div class="code-line cmd">
+							<span class="code-prompt">$</span>
+							<span>yapyap</span>
+							<button class="copy-line-btn" data-cmd="run-pnpm">
+								<svg
+									class="copy-icon"
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="2"
+								>
+									<rect x="9" y="9" width="13" height="13" rx="2"></rect>
+									<path
+										d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"
+									></path>
+								</svg>
+								<svg
+									class="check-icon"
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="2"
+								>
+									<polyline points="20 6 9 17 4 12"></polyline>
+								</svg>
+							</button>
+						</div>
+					</div>
+					<div id="code-hackable" class="code-content">
+						<div class="code-line comment">
+							# Use the installer with git method
+						</div>
+						<div class="code-line cmd">
+							<span class="code-prompt">$</span>
+							<span
+								>curl -fsSL
+								https://raw.githubusercontent.com/viliamvolosv/yapyap/main/install.sh
+								| bash -s -- --install-method git</span
+							>
+							<button class="copy-line-btn" data-cmd="hackable">
+								<svg
+									class="copy-icon"
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="2"
+								>
+									<rect x="9" y="9" width="13" height="13" rx="2"></rect>
+									<path
+										d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"
+									></path>
+								</svg>
+								<svg
+									class="check-icon"
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="2"
+								>
+									<polyline points="20 6 9 17 4 12"></polyline>
+								</svg>
+							</button>
+						</div>
+					</div>
+				</div>
+			</section>
+
+			<!-- Footer -->
+			<footer>
+				<div class="footer-links">
+					<a href="https://github.com/viliamvolosv/yapyap" target="_blank"
+						>GitHub</a
+					>
+					<a
+						href="https://github.com/viliamvolosv/yapyap/issues"
+						target="_blank"
+						>Issues</a
+					>
+					<a
+						href="https://github.com/viliamvolosv/yapyap/blob/main/LICENSE"
+						target="_blank"
+						>License</a
+					>
+				</div>
+				<p class="footer-text">© 2026 YapYap Messenger. MIT License.</p>
+				<p class="footer-text">Built with Bun + TypeScript</p>
+			</footer>
+		</div>
+
+		<script>
+		// Generate floating particles
+		function createParticles() {
+			const container = document.getElementById("particles");
+			const particleCount = 50;
+
+			for (let i = 0; i < particleCount; i++) {
+				const particle = document.createElement("div");
+				particle.className = "particle";
+				particle.style.left = Math.random() * 100 + "%";
+				particle.style.animationDelay = Math.random() * 15 + "s";
+				particle.style.animationDuration = Math.random() * 10 + 10 + "s";
+				container.appendChild(particle);
+			}
+		}
+
+		// Smooth scrolling for anchor links
+		document.querySelectorAll('a[href^="#"]').forEach((anchor) => {
+			anchor.addEventListener("click", function (e) {
+				e.preventDefault();
+				const target = document.querySelector(this.getAttribute("href"));
+				if (target) {
+					target.scrollIntoView({
+						behavior: "smooth",
+						block: "start",
+					});
+				}
+			});
+		});
+
+		// Initialize
+		createParticles();
+
+		// Mode switching
+		const modeBtns = document.querySelectorAll(".mode-btn");
+		const codeContents = document.querySelectorAll(".code-content");
+
+		modeBtns.forEach((btn) => {
+			btn.addEventListener("click", () => {
+				const mode = btn.dataset.mode;
+
+				// Update active button
+				modeBtns.forEach((b) => b.classList.remove("active"));
+				btn.classList.add("active");
+
+				// Show corresponding content
+				codeContents.forEach((content) => {
+					content.classList.remove("active");
+					if (content.id === `code-${mode}`) {
+						content.classList.add("active");
+					}
+				});
+			});
+		});
+
+		// Copy functionality
+		const copyBtns = document.querySelectorAll(".copy-line-btn");
+
+		copyBtns.forEach((btn) => {
+			btn.addEventListener("click", async () => {
+				const cmd = btn.dataset.cmd;
+				const line = btn.closest(".code-line");
+				const text = line.querySelector(".cmd")
+					? line.querySelector(".cmd").textContent.trim()
+					: "";
+
+				try {
+					await navigator.clipboard.writeText(text);
+					btn.classList.add("copied");
+
+					setTimeout(() => {
+						btn.classList.remove("copied");
+					}, 2000);
+				} catch (err) {
+					console.error("Failed to copy:", err);
+				}
+			});
+		});
+		</script>
+	</body>
 </html>
