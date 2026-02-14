@@ -1,0 +1,7 @@
+scenario:
+  name: basic-messaging
+  steps:
+    - start: [node1, node2]
+    - wait: discovery
+    - send: node1 -> node2
+    - expect: delivered

@@ -1,0 +1,9 @@
+scenario:
+  name: basic-reconnect
+  steps:
+    - start: [node1, node2]
+    - wait: discovery
+    - disconnect: node1 <-> node2
+    - send: node1 -> node2
+    - wait: reconnect
+    - expect: delivered

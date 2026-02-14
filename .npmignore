@@ -1,0 +1,24 @@
+# Build artifacts
+dist/
+*.tgz
+
+# Development files
+.DS_Store
+node_modules/
+*.log
+
+# Testing
+coverage/
+test-data/
+
+# Documentation (keep README.md and LICENSE)
+!README.md
+!LICENSE
+
+# Private configuration
+opencode.json
+.axonrc
+.env
+.env.*
+.vscode/
+.idea/

@@ -1,0 +1,19 @@
+
+
+FROM oven/bun:latest AS build
+WORKDIR /app
+COPY package.json ./
+COPY bunfig.toml ./
+COPY src ./src
+COPY tests/integration/docker/entrypoint.sh ./entrypoint.sh
+RUN chmod +x ./entrypoint.sh
+RUN bun install
+RUN bun run build:all
+
+FROM oven/bun:latest
+WORKDIR /app
+COPY --from=build /app/dist ./dist
+COPY --from=build /app/node_modules ./node_modules
+COPY --from=build /app/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+ENTRYPOINT ["/entrypoint.sh"]

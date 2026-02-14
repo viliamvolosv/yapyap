@@ -1,0 +1,16 @@
+node_modules/
+dist/
+tmp
+.env
+.env.*
+.DS_Store
+coverage/
+*.log
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+.idea/
+.vscode/
+test-data/
+opencode.json
+CLAUDE.md

@@ -1,0 +1,58 @@
+version: 2
+
+updates:
+  # =========================
+  # NPM (Bun project uses package.json)
+  # =========================
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Europe/Kiev"
+
+    open-pull-requests-limit: 10
+
+    versioning-strategy: increase-if-necessary
+
+    rebase-strategy: auto
+
+    commit-message:
+      prefix: "deps"
+      include: "scope"
+
+    labels:
+      - "dependencies"
+      - "npm"
+
+    allow:
+      - dependency-type: "all"
+
+    ignore:
+      - dependency-name: "@chainsafe/libp2p-noise"
+        versions: ["^18.0.0"]
+
+      - dependency-name: "@chainsafe/libp2p-yamux"
+        versions: ["^9.0.0"]
+
+  # =========================
+  # GitHub Actions updates
+  # =========================
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "10:00"
+      timezone: "Europe/Kiev"
+
+    open-pull-requests-limit: 5
+
+    commit-message:
+      prefix: "ci"
+      include: "scope"
+
+    labels:
+      - "dependencies"
+      - "ci"

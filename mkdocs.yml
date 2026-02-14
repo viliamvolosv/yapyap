@@ -1,0 +1,10 @@
+site_name: YapYap
+repo_url: https://github.com/viliamvolosv/yapyap
+theme:
+  name: material
+nav:
+  - Home: index.md
+  - Architecture: architecture/overview.md
+  - Protocols: protocols/overview.md
+  - API: api/overview.md
+  - Testing: testing/overview.md

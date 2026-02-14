@@ -1,0 +1,105 @@
+{
+	"name": "yapyap",
+	"version": "0.0.1",
+	"description": "YapYap is a decentralized, peer-to-peer messenger node and CLI library built with Bun + TypeScript. It prioritizes reliable end-to-end encrypted delivery, offline/store-and-forward support, deduplication, and ACK-driven reliability inside a small-footprint CLI package (no UI) so other applications can embed YapYap as a dependency or run it as an executable.",
+	"license": "MIT",
+	"type": "module",
+	"main": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"publishConfig": {
+		"access": "public"
+	},
+	"bin": {
+		"yapyap": "dist/cli.js"
+	},
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"default": "./dist/index.js"
+		},
+		"./cli": "./dist/cli.js"
+	},
+	"files": [
+		"dist",
+		"README.md",
+		"LICENSE"
+	],
+	"scripts": {
+		"build": "bun build src/index.ts --outdir dist --target node",
+		"build:cli": "bun build src/cli/index.ts --outfile dist/cli.js --target node",
+		"build:all": "bun run build && bun run build:cli",
+		"build:compile": "bun build src/cli/index.ts --compile --outfile dist/yapyap",
+		"build:compile:prod": "bun build src/cli/index.ts --compile --minify --sourcemap=linked --bytecode --outfile dist/yapyap",
+		"build:compile:linux": "bun build src/cli/index.ts --compile --target=bun-linux-x64 --outfile dist/yapyap-linux",
+		"build:compile:linux:baseline": "bun build src/cli/index.ts --compile --target=bun-linux-x64-baseline --outfile dist/yapyap-linux-baseline",
+		"build:compile:linux:modern": "bun build src/cli/index.ts --compile --target=bun-linux-x64-modern --outfile dist/yapyap-linux-modern",
+		"build:compile:linux:arm64": "bun build src/cli/index.ts --compile --target=bun-linux-arm64 --outfile dist/yapyap-linux-arm64",
+		"build:compile:linux:arm64:musl": "bun build src/cli/index.ts --compile --target=bun-linux-arm64-musl --outfile dist/yapyap-linux-arm64-musl",
+		"build:compile:macos": "bun build src/cli/index.ts --compile --target=bun-darwin-arm64 --outfile dist/yapyap-macos",
+		"build:compile:macos:x64": "bun build src/cli/index.ts --compile --target=bun-darwin-x64 --outfile dist/yapyap-macos-x64",
+		"build:compile:macos:x64:baseline": "bun build src/cli/index.ts --compile --target=bun-darwin-x64-baseline --outfile dist/yapyap-macos-x64-baseline",
+		"build:compile:windows": "bun build src/cli/index.ts --compile --target=bun-windows-x64 --outfile dist/yapyap.exe",
+		"build:compile:windows:baseline": "bun build src/cli/index.ts --compile --target=bun-windows-x64-baseline --outfile dist/yapyap-baseline.exe",
+		"build:compile:all:linux": "bun run build:compile:linux && bun run build:compile:linux:baseline && bun run build:compile:linux:modern && bun run build:compile:linux:arm64 && bun run build:compile:linux:arm64:musl",
+		"build:compile:all:macos": "bun run build:compile:macos && bun run build:compile:macos:x64 && bun run build:compile:macos:x64:baseline",
+		"build:compile:all:windows": "bun run build:compile:windows && bun run build:compile:windows:baseline",
+		"build:compile:all:platforms": "bun run build:compile:all:linux && bun run build:compile:all:macos && bun run build:compile:all:windows",
+		"build:compile:all:platforms:prod": "NODE_ENV=production bun run build.ts && bun run build:compile:all:platforms",
+		"test": "bun test",
+		"test:integration:docker": "bash tests/integration/docker/run-basic-suite.sh",
+		"test:integration:docker:scenario": "bash tests/integration/docker/run.sh",
+		"lint": "bun biome lint .",
+		"format": "bun biome format . --write",
+		"check": "bun biome check .",
+		"typecheck": "tsc --noEmit"
+	},
+	"engines": {
+		"bun": ">=1.1.0"
+	},
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/viliamvolosv/yapyap.git"
+	},
+	"bugs": {
+		"url": "https://github.com/viliamvolosv/yapyap/issues"
+	},
+	"homepage": "https://github.com/viliamvolosv/yapyap#readme",
+	"keywords": [
+		"p2p",
+		"messenger",
+		"libp2p",
+		"decentralized",
+		"e2ee"
+	],
+	"sideEffects": false,
+	"devDependencies": {
+		"@biomejs/biome": "^2.3.15",
+		"@types/bun": "^1.3.9"
+	},
+	"peerDependencies": {
+		"typescript": "^5.9.3"
+	},
+	"dependencies": {
+		"@chainsafe/libp2p-noise": "^17.0.0",
+		"@chainsafe/libp2p-yamux": "^8.0.1",
+		"@libp2p/autonat": "^3.0.10",
+		"@libp2p/bootstrap": "^12.0.11",
+		"@libp2p/circuit-relay-v2": "^4.1.3",
+		"@libp2p/identify": "^4.0.10",
+		"@libp2p/kad-dht": "^16.1.3",
+		"@libp2p/peer-id-factory": "^4.2.4",
+		"@libp2p/tcp": "^11.0.10",
+		"@libp2p/webrtc": "^6.0.11",
+		"@libp2p/websockets": "^10.1.3",
+		"@multiformats/multiaddr": "^13.0.1",
+		"commander": "^14.0.3",
+		"libp2p": "^3.1.3",
+		"msgpackr": "^1.11.8",
+		"node-datachannel": "^0.32.1",
+		"pino": "^10.3.1",
+		"pino-pretty": "^13.1.3"
+	},
+	"trustedDependencies": [
+		"node-datachannel"
+	]
+}

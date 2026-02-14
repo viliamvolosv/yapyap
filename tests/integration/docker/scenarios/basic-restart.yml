@@ -1,0 +1,9 @@
+scenario:
+  name: basic-restart
+  steps:
+    - start: [node1, node2]
+    - wait: discovery
+    - restart: node2
+    - wait: discovery
+    - send: node1 -> node2
+    - expect: delivered

@@ -1,0 +1,8 @@
+FROM oven/bun:latest
+WORKDIR /app
+COPY docker/controller.sh ./controller.sh
+COPY docker/scenarios ./scenarios
+COPY docker/results ./results
+COPY docker/scripts ./scripts
+RUN chmod +x ./controller.sh ./scripts/*.sh
+ENTRYPOINT ["/app/controller.sh"]

@@ -1,0 +1,109 @@
+networks:
+  yapyap-test-net:
+    driver: bridge
+
+volumes:
+  node1-data:
+  node2-data:
+  node3-data:
+
+services:
+  node1:
+    build:
+      context: ../../..
+      dockerfile: tests/integration/docker/Dockerfile.node
+    hostname: node1
+    networks:
+      yapyap-test-net:
+    restart: always
+    tmpfs:
+      - /data
+    environment:
+      - YAPYAP_NODE_NAME=node1
+      - YAPYAP_DATA_DIR=/data
+      - YAPYAP_API_PORT=3000
+      - YAPYAP_LISTEN_ADDR=/ip4/0.0.0.0/tcp/4001
+      - YAPYAP_TEST_MODE=true
+      - NODE_ENV=development
+      - YAPYAP_LOG_LEVEL=debug
+    healthcheck:
+      test: ["CMD", "bun", "-e", "fetch('http://127.0.0.1:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  node2:
+    build:
+      context: ../../..
+      dockerfile: tests/integration/docker/Dockerfile.node
+    hostname: node2
+    networks:
+      yapyap-test-net:
+    restart: always
+    tmpfs:
+      - /data
+    environment:
+      - YAPYAP_NODE_NAME=node2
+      - YAPYAP_DATA_DIR=/data
+      - YAPYAP_API_PORT=3000
+      - YAPYAP_LISTEN_ADDR=/ip4/0.0.0.0/tcp/4001
+      - YAPYAP_BOOTSTRAP_ADDRS=/dns4/node1/tcp/4001
+      - YAPYAP_TEST_MODE=true
+      - NODE_ENV=development
+      - YAPYAP_LOG_LEVEL=debug
+    healthcheck:
+      test: ["CMD", "bun", "-e", "fetch('http://127.0.0.1:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    depends_on:
+      node1:
+        condition: service_healthy
+
+  node3:
+    build:
+      context: ../../..
+      dockerfile: tests/integration/docker/Dockerfile.node
+    hostname: node3
+    networks:
+      yapyap-test-net:
+    restart: always
+    tmpfs:
+      - /data
+    environment:
+      - YAPYAP_NODE_NAME=node3
+      - YAPYAP_DATA_DIR=/data
+      - YAPYAP_API_PORT=3000
+      - YAPYAP_LISTEN_ADDR=/ip4/0.0.0.0/tcp/4001
+      - YAPYAP_BOOTSTRAP_ADDRS=/dns4/node1/tcp/4001
+      - YAPYAP_TEST_MODE=true
+      - NODE_ENV=development
+      - YAPYAP_LOG_LEVEL=debug
+    healthcheck:
+      test: ["CMD", "bun", "-e", "fetch('http://127.0.0.1:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    depends_on:
+      node1:
+        condition: service_healthy
+
+  controller:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.controller
+    hostname: controller
+    networks:
+      yapyap-test-net:
+    depends_on:
+      node1:
+        condition: service_healthy
+      node2:
+        condition: service_healthy
+      node3:
+        condition: service_healthy
+    environment:
+      - TEST_SCENARIO=${TEST_SCENARIO:-basic-messaging}
+    volumes:
+      - ./scenarios:/scenarios:ro
+      - ./results:/results
