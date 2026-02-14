@@ -26,6 +26,9 @@ jobs:
         with:
           fetch-depth: 0
 
+      # ------------------------------
+      # Setup Node.js
+      # ------------------------------
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
@@ -52,13 +55,13 @@ jobs:
           key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
 
       # ------------------------------
-      # Install dependencies (Bun)
+      # Install dependencies
       # ------------------------------
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
       # ------------------------------
-      # Version check
+      # Ensure Git tag matches package.json version
       # ------------------------------
       - name: Ensure tag matches package.json
         run: |
@@ -81,14 +84,25 @@ jobs:
       - name: Typecheck
         run: bun run typecheck
 
-      - name: Build
+      - name: Build all
         run: bun run build:all
 
       # ------------------------------
-      # Run tests (Bun)
+      # Run tests
       # ------------------------------
       - name: Run tests with Bun
         run: bun test --bun
 
       - run: bun ci
-      - run: bunx npm publish  --provenance
+
+      # ------------------------------
+      # Setup npm authentication
+      # ------------------------------
+      - name: Set npm auth token
+        run: echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > ~/.npmrc
+
+      # ------------------------------
+      # Publish to npm
+      # ------------------------------
+      - name: Publish to npm
+        run: bunx npm publish --provenance
