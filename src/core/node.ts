@@ -20,7 +20,7 @@ import {
 import { SessionManager } from "../crypto/session-manager";
 import type { DatabaseManager } from "../database";
 import { EventBus } from "../events/event-bus";
-import { type YapYapEvent, Events } from "../events/event-types";
+import { Events, type YapYapEvent } from "../events/event-types";
 import type { AckMessage, YapYapMessage } from "../message/message";
 import type { MessageQueueEntryInternal } from "../message/message-router";
 import { MessageRouter } from "../message/message-router";

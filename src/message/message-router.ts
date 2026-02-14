@@ -2,8 +2,8 @@ import { createHash } from "node:crypto";
 import type { Libp2p, Stream } from "@libp2p/interface";
 import { peerIdFromString } from "@libp2p/peer-id";
 import type { DatabaseManager } from "../database";
-import { type YapYapEvent, Events } from "../events/event-types";
-import type { AckMessage, YapYapMessage, NakMessage } from "./message";
+import { Events, type YapYapEvent } from "../events/event-types";
+import type { AckMessage, NakMessage, YapYapMessage } from "./message";
 
 /**
  * Node context interface for MessageRouter with proper type safety

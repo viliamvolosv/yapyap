@@ -1,10 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import type {
 	AckMessage,
-	YapYapMessage,
 	MessageQueueEntry,
 	NakMessage,
 	StoreAndForwardMessage,
+	YapYapMessage,
 } from "../../../src/core/message";
 
 describe("message types", () => {
