@@ -19,10 +19,16 @@ jobs:
       id-token: write  # REQUIRED for OIDC trusted publishing
 
     steps:
+      # ------------------------------
+      # Checkout code
+      # ------------------------------
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
+      # ------------------------------
+      # Setup Bun
+      # ------------------------------
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
@@ -30,6 +36,9 @@ jobs:
           registries: |
             https://registry.npmjs.org
 
+      # ------------------------------
+      # Cache Bun dependencies
+      # ------------------------------
       - name: Cache Bun
         uses: actions/cache@v5
         with:
@@ -37,18 +46,27 @@ jobs:
             ~/.bun/install/cache
           key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
 
+      # ------------------------------
+      # Install dependencies (Bun)
+      # ------------------------------
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
+      # ------------------------------
+      # Version check
+      # ------------------------------
       - name: Ensure tag matches package.json
         run: |
           VERSION=$(node -p "require('./package.json').version")
           TAG=${GITHUB_REF#refs/tags/v}
           if [ "$VERSION" != "$TAG" ]; then
-            echo "Version mismatch!"
+            echo "Version mismatch! package.json=$VERSION, tag=$TAG"
             exit 1
           fi
 
+      # ------------------------------
+      # Lint, typecheck, build
+      # ------------------------------
       - name: Lint
         run: bun run lint
 
@@ -61,17 +79,35 @@ jobs:
       - name: Build
         run: bun run build:all
 
+      # ------------------------------
+      # Run tests (Bun)
+      # ------------------------------
+      - name: Run tests with Bun
+        run: bun test --bun
+
+      # ------------------------------
+      # Setup Node for publishing
+      # ------------------------------
       - name: Setup Node
         uses: actions/setup-node@v6
         with:
           node-version: 22
           registry-url: https://registry.npmjs.org
 
-      - name: Run tests with Node
-        run: bun test --bun
+      # ------------------------------
+      # Ensure dependencies exist for npm publish (optional)
+      # ------------------------------
+      - name: Install dependencies with npm
+        run: npm ci
 
       # ------------------------------
-      # Trusted publishing via OIDC
+      # Copy build artifacts to Node environment
+      # ------------------------------
+      - name: Copy build artifacts
+        run: cp -r dist ./dist
+
+      # ------------------------------
+      # Publish via OIDC
       # ------------------------------
       - name: Publish to npm (OIDC)
         run: npm publish
