@@ -22,7 +22,7 @@ export const PROTOCOLS = {
 	PROTOCOL_SYNC,
 } as const;
 
-export const MAX_FRAME_SIZE_BYTES = 1024 * 1024; // 1 MiB
+export const MAX_FRAME_SIZE_BYTES = 256 * 1024; // 256 KB
 
 /* -------------------------------------------------------------------------- */
 /*                              Message Codec                                 */
