@@ -1,7 +1,12 @@
 import { createHash } from "node:crypto";
 import type { Libp2p, Stream } from "@libp2p/interface";
 import { peerIdFromString } from "@libp2p/peer-id";
-import type { DatabaseManager, MessageReplicaEntry, PendingMessageEntry, RoutingCacheEntry } from "../database/index.js";
+import type {
+	DatabaseManager,
+	MessageReplicaEntry,
+	PendingMessageEntry,
+	RoutingCacheEntry,
+} from "../database/index.js";
 import { Events, type YapYapEvent } from "../events/event-types.js";
 import type { AckMessage, NakMessage, YapYapMessage } from "./message.js";
 
@@ -1098,7 +1103,10 @@ export class MessageRouter {
 		const db = this.nodeContext.db;
 		const pending = db
 			.getPendingMessagesSince(sinceTimestamp)
-			.map((entry: PendingMessageEntry) => JSON.parse(entry.message_data) as YapYapMessage);
+			.map(
+				(entry: PendingMessageEntry) =>
+					JSON.parse(entry.message_data) as YapYapMessage,
+			);
 		return {
 			originPeerId: this.nodeContext.getPeerId(),
 			sinceTimestamp,
