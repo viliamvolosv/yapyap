@@ -23,7 +23,7 @@ fi
 echo "[assert] Controller result:"
 cat "$RESULT_FILE"
 
-ASSERT_OK="$(grep -q '"passed":true' "$RESULT_FILE" && echo 'true' || echo 'false')"
+ASSERT_OK=$(jq -e '.passed' "$RESULT_FILE" 2>/dev/null > /dev/null && echo 'true' || echo 'false')
 if [ "$ASSERT_OK" != "true" ]; then
   echo "[assert] Scenario failed" >&2
   docker compose -f "$DOCKER_DIR/docker-compose.yml" logs controller || true

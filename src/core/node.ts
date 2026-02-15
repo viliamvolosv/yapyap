@@ -178,6 +178,37 @@ export class YapYapNode {
 		this.messageRouter.startRetryScheduler();
 	}
 
+	async stop(): Promise<void> {
+		// Stop the retry scheduler first
+		this.messageRouter.stopRetryScheduler();
+
+		// Clear all pending ACK timeouts
+		for (const [messageId, ackEntry] of this.pendingAcks.entries()) {
+			clearTimeout(ackEntry.timeout);
+			this.pendingAcks.delete(messageId);
+		}
+
+		// Clear all message queues
+		this.messageQueues.clear();
+
+		// Stop libp2p
+		if (this.libp2p) {
+			await this.libp2p.stop();
+		}
+
+		// Close database connections
+		this.db.close();
+
+		// Emit node stopped event (best effort)
+		await this.emitEvent({
+			id: `evt_${Date.now()}_node_stopped`,
+			type: Events.Node.Stopped,
+			timestamp: Date.now(),
+			nodeId: this.getPeerId(),
+			stoppedAt: Date.now(),
+		});
+	}
+
 	private registerProtocols() {
 		if (!this.libp2p) return;
 

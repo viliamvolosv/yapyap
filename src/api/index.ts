@@ -236,11 +236,21 @@ export class ApiModule {
 		} else if (method === "POST" && path === "/api/node/stop") {
 			if (process.env.NODE_ENV !== "development")
 				return this.jsonResponse("Forbidden", 403, true);
-			await this.stop();
-			setTimeout(() => {
-				process.exit(0);
-			}, 50);
-			return this.jsonResponse({ message: "API stopped successfully" });
+			// Start shutdown process asynchronously after sending response
+			setImmediate(async () => {
+				try {
+					// Stop API module first
+					await this.stop();
+					// Stop the YapYap node (libp2p, message router, database)
+					await this.yapyapNode.stop();
+					// Exit process
+					process.exit(0);
+				} catch (error) {
+					console.error("Error during stop:", error);
+					process.exit(1);
+				}
+			});
+			return this.jsonResponse({ message: "Node shutdown initiated" });
 		}
 		return this.jsonResponse({ error: "Endpoint not found" }, 404);
 	}

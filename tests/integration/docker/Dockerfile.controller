@@ -1,6 +1,6 @@
 FROM node:22-alpine
 WORKDIR /app
-RUN apk add --no-cache bash curl
+RUN apk add --no-cache bash curl jq
 COPY docker/controller.sh ./controller.sh
 COPY docker/scenarios ./scenarios
 COPY docker/results ./results
