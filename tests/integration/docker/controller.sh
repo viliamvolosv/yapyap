@@ -46,7 +46,7 @@ wait_health() {
 assert_node_info() {
   HOST="$1"
   JSON="$(fetch_json "http://$HOST:3000/api/node/info")"
-  echo "$JSON" | node -e "const data=JSON.parse(await new Promise(r => { let d=""; process.stdin.on("data", c => d+=c); process.stdin.on("end", () => r(d)); })); if(!data.peerId || typeof data.peerId !== 'string'){console.error('missing peerId'); process.exit(1)}"
+  echo "$JSON" | node -e "const data=JSON.parse(await new Promise(r => { let d=\"\"; process.stdin.on(\"data\", c => d+=c); process.stdin.on(\"end\", () => r(d)); })); if(!data.peerId || typeof data.peerId !== 'string'){console.error('missing peerId'); process.exit(1)}"
 }
 
 wait_peer_connected() {
@@ -129,7 +129,7 @@ run_common_setup() {
 }
 
 run_basic_messaging() {
-  NODE2_PEER_ID="$(fetch_json http://node2:3000/api/node/info | node -e "const data=JSON.parse(await new Promise(r => { let d=""; process.stdin.on("data", c => d+=c); process.stdin.on("end", () => r(d)); })); console.log(data.peerId)")"
+  NODE2_PEER_ID="$(fetch_json http://node2:3000/api/node/info | node -e "const data=JSON.parse(await new Promise(r => { let d=\"\"; process.stdin.on(\"data\", c => d+=c); process.stdin.on(\"end\", () => r(d)); })); console.log(data.peerId)")"
 
   echo "[controller] Waiting for node1 to connect to node2..."
   wait_peer_connected node1 "$NODE2_PEER_ID"
@@ -147,14 +147,14 @@ if(!Array.isArray(data.contacts) || !data.contacts.some((c)=>c.peer_id===peerId)
   SEND_RAW="$(node -e "const res=await fetch('http://node1:3000/api/messages/send',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({to:process.argv[1],payload:{kind:'docker-smoke',t:Date.now()}})});
 const body=await res.text();
 console.log(JSON.stringify({status:res.status,body}));" "$NODE2_PEER_ID")"
-  SEND_STATUS="$(echo "$SEND_RAW" | node -e "const d=JSON.parse(await new Promise(r => { let d=""; process.stdin.on("data", c => d+=c); process.stdin.on("end", () => r(d)); })); console.log(d.status)")"
-  SEND_BODY="$(echo "$SEND_RAW" | node -e "const d=JSON.parse(await new Promise(r => { let d=""; process.stdin.on("data", c => d+=c); process.stdin.on("end", () => r(d)); })); console.log(d.body)")"
+  SEND_STATUS="$(echo "$SEND_RAW" | node -e "const d=JSON.parse(await new Promise(r => { let d=\"\"; process.stdin.on(\"data\", c => d+=c); process.stdin.on(\"end\", () => r(d)); })); console.log(d.status)")"
+  SEND_BODY="$(echo "$SEND_RAW" | node -e "const d=JSON.parse(await new Promise(r => { let d=\"\"; process.stdin.on(\"data\", c => d+=c); process.stdin.on(\"end\", () => r(d)); })); console.log(d.body)")"
 
   echo "[controller] Executing compatibility send-message using targetId..."
   SEND_TARGET_RAW="$(node -e "const res=await fetch('http://node1:3000/api/messages/send',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({targetId:process.argv[1],payload:{kind:'docker-smoke-target',t:Date.now()}})});
 const body=await res.text();
 console.log(JSON.stringify({status:res.status,body}));" "$NODE2_PEER_ID")"
-  SEND_TARGET_STATUS="$(echo "$SEND_TARGET_RAW" | node -e "const d=JSON.parse(await new Promise(r => { let d=""; process.stdin.on("data", c => d+=c); process.stdin.on("end", () => r(d)); })); console.log(d.status)")"
+  SEND_TARGET_STATUS="$(echo "$SEND_TARGET_RAW" | node -e "const d=JSON.parse(await new Promise(r => { let d=\"\"; process.stdin.on(\"data\", c => d+=c); process.stdin.on(\"end\", () => r(d)); })); console.log(d.status)")"
 
   echo "[controller] Executing negative send-message validation..."
   INVALID_SEND_STATUS="$(node -e "const res=await fetch('http://node1:3000/api/messages/send',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({to:'invalid-peer-id',payload:{kind:'invalid'}})}); console.log(res.status);")"
@@ -178,8 +178,8 @@ console.log(JSON.stringify({status:res.status,body}));" "$NODE2_PEER_ID")"
 }
 
 run_basic_reconnect() {
-  NODE1_PEER_ID="$(fetch_json http://node1:3000/api/node/info | node -e "const data=JSON.parse(await new Promise(r => { let d=""; process.stdin.on("data", c => d+=c); process.stdin.on("end", () => r(d)); })); console.log(data.peerId)")"
-  NODE2_PEER_ID="$(fetch_json http://node2:3000/api/node/info | node -e "const data=JSON.parse(await new Promise(r => { let d=""; process.stdin.on("data", c => d+=c); process.stdin.on("end", () => r(d)); })); console.log(data.peerId)")"
+  NODE1_PEER_ID="$(fetch_json http://node1:3000/api/node/info | node -e "const data=JSON.parse(await new Promise(r => { let d=\"\"; process.stdin.on(\"data\", c => d+=c); process.stdin.on(\"end\", () => r(d)); })); console.log(data.peerId)")"
+  NODE2_PEER_ID="$(fetch_json http://node2:3000/api/node/info | node -e "const data=JSON.parse(await new Promise(r => { let d=\"\"; process.stdin.on(\"data\", c => d+=c); process.stdin.on(\"end\", () => r(d)); })); console.log(data.peerId)")"
 
   echo "[controller] Waiting for initial node1 <-> node2 connectivity..."
   wait_peer_connected node1 "$NODE2_PEER_ID"
@@ -194,8 +194,8 @@ run_basic_reconnect() {
   RECONNECT_RAW="$(node -e "const res=await fetch('http://node1:3000/api/messages/send',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({to:process.argv[1],payload:{kind:'docker-reconnect',t:Date.now()}})});
 const body=await res.text();
 console.log(JSON.stringify({status:res.status,body}));" "$NODE2_PEER_ID")"
-  SEND_RECONNECT_STATUS="$(echo "$RECONNECT_RAW" | node -e "const d=JSON.parse(await new Promise(r => { let d=""; process.stdin.on("data", c => d+=c); process.stdin.on("end", () => r(d)); })); console.log(d.status)")"
-  SEND_RECONNECT_BODY="$(echo "$RECONNECT_RAW" | node -e "const d=JSON.parse(await new Promise(r => { let d=""; process.stdin.on("data", c => d+=c); process.stdin.on("end", () => r(d)); })); console.log(d.body)")"
+  SEND_RECONNECT_STATUS="$(echo "$RECONNECT_RAW" | node -e "const d=JSON.parse(await new Promise(r => { let d=\"\"; process.stdin.on(\"data\", c => d+=c); process.stdin.on(\"end\", () => r(d)); })); console.log(d.status)")"
+  SEND_RECONNECT_BODY="$(echo "$RECONNECT_RAW" | node -e "const d=JSON.parse(await new Promise(r => { let d=\"\"; process.stdin.on(\"data\", c => d+=c); process.stdin.on(\"end\", () => r(d)); })); console.log(d.body)")"
 
   echo "[controller] Waiting for reconnect..."
   wait_peer_connected node1 "$NODE2_PEER_ID"
@@ -210,7 +210,7 @@ console.log(JSON.stringify({status:res.status,body}));" "$NODE2_PEER_ID")"
 }
 
 run_basic_restart() {
-  NODE2_BEFORE_RESTART="$(fetch_json http://node2:3000/api/node/info | node -e "const data=JSON.parse(await new Promise(r => { let d=""; process.stdin.on("data", c => d+=c); process.stdin.on("end", () => r(d)); })); console.log(data.peerId)")"
+  NODE2_BEFORE_RESTART="$(fetch_json http://node2:3000/api/node/info | node -e "const data=JSON.parse(await new Promise(r => { let d=\"\"; process.stdin.on(\"data\", c => d+=c); process.stdin.on(\"end\", () => r(d)); })); console.log(data.peerId)")"
 
   echo "[controller] Waiting for initial node1 -> node2 connectivity..."
   wait_peer_connected node1 "$NODE2_BEFORE_RESTART"
@@ -220,7 +220,7 @@ run_basic_restart() {
 
   echo "[controller] Waiting for node2 health after restart..."
   wait_health node2
-  NODE2_AFTER_RESTART="$(fetch_json http://node2:3000/api/node/info | node -e "const data=JSON.parse(await new Promise(r => { let d=""; process.stdin.on("data", c => d+=c); process.stdin.on("end", () => r(d)); })); console.log(data.peerId)")"
+  NODE2_AFTER_RESTART="$(fetch_json http://node2:3000/api/node/info | node -e "const data=JSON.parse(await new Promise(r => { let d=\"\"; process.stdin.on(\"data\", c => d+=c); process.stdin.on(\"end\", () => r(d)); })); console.log(data.peerId)")"
 
   echo "[controller] Waiting for node1 connectivity to restarted node2..."
   wait_peer_connected node1 "$NODE2_AFTER_RESTART"
@@ -229,8 +229,8 @@ run_basic_restart() {
   RESTART_RAW="$(node -e "const res=await fetch('http://node1:3000/api/messages/send',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({to:process.argv[1],payload:{kind:'docker-restart',t:Date.now()}})});
 const body=await res.text();
 console.log(JSON.stringify({status:res.status,body}));" "$NODE2_AFTER_RESTART")"
-  SEND_RESTART_STATUS="$(echo "$RESTART_RAW" | node -e "const d=JSON.parse(await new Promise(r => { let d=""; process.stdin.on("data", c => d+=c); process.stdin.on("end", () => r(d)); })); console.log(d.status)")"
-  SEND_RESTART_BODY="$(echo "$RESTART_RAW" | node -e "const d=JSON.parse(await new Promise(r => { let d=""; process.stdin.on("data", c => d+=c); process.stdin.on("end", () => r(d)); })); console.log(d.body)")"
+  SEND_RESTART_STATUS="$(echo "$RESTART_RAW" | node -e "const d=JSON.parse(await new Promise(r => { let d=\"\"; process.stdin.on(\"data\", c => d+=c); process.stdin.on(\"end\", () => r(d)); })); console.log(d.status)")"
+  SEND_RESTART_BODY="$(echo "$RESTART_RAW" | node -e "const d=JSON.parse(await new Promise(r => { let d=\"\"; process.stdin.on(\"data\", c => d+=c); process.stdin.on(\"end\", () => r(d)); })); console.log(d.body)")"
 
   echo "[controller] Verifying delivery after restart..."
   wait_inbox_delivery node2 docker-restart
@@ -271,9 +271,9 @@ cat > "$RESULT_FILE" <<EOF
   "invalidSendStatus": $INVALID_SEND_STATUS,
   "sendReconnectStatus": $SEND_RECONNECT_STATUS,
   "sendRestartStatus": $SEND_RESTART_STATUS,
-  "sendBody": $(printf '%s' "$SEND_BODY" | node -e "const t=await new Promise(r => { let d=""; process.stdin.on("data", c => d+=c); process.stdin.on("end", () => r(d)); }); console.log(JSON.stringify(t))"),
-  "sendReconnectBody": $(printf '%s' "$SEND_RECONNECT_BODY" | node -e "const t=await new Promise(r => { let d=""; process.stdin.on("data", c => d+=c); process.stdin.on("end", () => r(d)); }); console.log(JSON.stringify(t))"),
-  "sendRestartBody": $(printf '%s' "$SEND_RESTART_BODY" | node -e "const t=await new Promise(r => { let d=""; process.stdin.on("data", c => d+=c); process.stdin.on("end", () => r(d)); }); console.log(JSON.stringify(t))"),
+  "sendBody": $(printf '%s' "$SEND_BODY" | node -e "const t=await new Promise(r => { let d=\"\"; process.stdin.on(\"data\", c => d+=c); process.stdin.on(\"end\", () => r(d)); }); console.log(JSON.stringify(t))"),
+  "sendReconnectBody": $(printf '%s' "$SEND_RECONNECT_BODY" | node -e "const t=await new Promise(r => { let d=\"\"; process.stdin.on(\"data\", c => d+=c); process.stdin.on(\"end\", () => r(d)); }); console.log(JSON.stringify(t))"),
+  "sendRestartBody": $(printf '%s' "$SEND_RESTART_BODY" | node -e "const t=await new Promise(r => { let d=\"\"; process.stdin.on(\"data\", c => d+=c); process.stdin.on(\"end\", () => r(d)); }); console.log(JSON.stringify(t))"),
   "errors": "$(echo "$ERRORS" | xargs)"
 }
 EOF

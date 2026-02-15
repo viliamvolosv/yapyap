@@ -86,7 +86,9 @@ jobs:
 
       - name: Run tests
         run: npm test
-        continue-on-error: true  # Tests have some remaining expect() calls being migrated
+
+      - name: Build CLI for testing
+        run: npm run build:all
 
       - name: Test CLI
         run: |
