@@ -22,8 +22,8 @@ describe("YapYapNode", () => {
 	test("exposes core getters", () => {
 		const node = new YapYapNode(db);
 		assert.strictEqual(node.getDatabase(), db);
-		expect(node.getNodeState()).toBeDefined();
-		expect(node.getRoutingTable()).toBeDefined();
+		assert.ok(node.getNodeState());
+		assert.ok(node.getRoutingTable());
 		assert.strictEqual(node.getPeerId(), "");
 	});
 
@@ -40,7 +40,7 @@ describe("YapYapNode", () => {
 		};
 
 		await node.init(libp2pMock as unknown as Libp2p);
-		expect(node.getPeerId()).toContain("12D3KooW");
+		assert.ok(node.getPeerId().includes("12D3KooW"));
 		assert.ok(handled.includes("/yapyap/message/1.0.0"));
 		assert.ok(handled.includes("/yapyap/handshake/1.0.0"));
 		assert.ok(handled.includes("/yapyap/route/1.0.0"));

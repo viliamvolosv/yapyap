@@ -16,7 +16,7 @@ export class RoutingCacheDatabase {
 			entry.peer_id,
 			JSON.stringify(entry.multiaddrs),
 			now,
-			entry.is_available,
+			entry.is_available ? 1 : 0,
 			entry.ttl,
 		);
 	}

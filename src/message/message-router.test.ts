@@ -589,12 +589,10 @@ describe("MessageRouter", () => {
 
 		await router.receive(ack);
 		assert.strictEqual(messageQueues.get("peer-remote")?.length, 0);
-		expect(
+		assert.ok(
 			events.some((event) => event.type === Events.Message.AckReceived),
-		).toBe(true);
-		expect(
-			events.some((event) => event.type === Events.Message.Delivered),
-		).toBe(true);
+		);
+		assert.ok(events.some((event) => event.type === Events.Message.Delivered));
 	});
 
 	test("retry marks message as failed after max attempts", async () => {
@@ -633,9 +631,7 @@ describe("MessageRouter", () => {
 
 		await router.retry();
 		assert.strictEqual(failedMessageId, "msg-fail");
-		expect(events.some((event) => event.type === Events.Message.Failed)).toBe(
-			true,
-		);
+		assert.ok(events.some((event) => event.type === Events.Message.Failed));
 	});
 
 	test("retry attempts fallback relay routing after repeated failures", async () => {
@@ -1346,7 +1342,7 @@ describe("MessageRouter", () => {
 			timestamp: Date.now(),
 		});
 
-		expect(router.getPeerScore("peer-bad")).toBeLessThan(0);
+		assert.ok(router.getPeerScore("peer-bad") < 0);
 	});
 
 	test("selectReplicaPeers excludes blocked low-score peers", async () => {

@@ -112,9 +112,9 @@ describe("EventBus", () => {
 			const eventType = "test.event";
 			const handler = (_event: YapYapEvent) => {};
 
-			expect(() => {
+			assert.throws(() => {
 				eventBus.addListener(eventType, handler);
-			}).toThrow("Cannot add listeners after shutdown");
+			}, /Cannot add listeners after shutdown/);
 		});
 	});
 
@@ -451,9 +451,9 @@ describe("EventBus", () => {
 			const eventType = "test.event";
 			const handler = (_event: YapYapEvent) => {};
 
-			expect(() => {
+			assert.throws(() => {
 				scope.addListener(eventType, handler);
-			}).toThrow();
+			});
 		});
 
 		it("should track total listener count", () => {
@@ -476,9 +476,9 @@ describe("EventBus", () => {
 		it("should prevent adding listeners after shutdown", () => {
 			eventBus.shutdown();
 
-			expect(() => {
+			assert.throws(() => {
 				eventBus.addListener("test.event", () => {});
-			}).toThrow("Cannot add listeners after shutdown");
+			}, /Cannot add listeners after shutdown/);
 		});
 
 		it("should prevent emitting events after shutdown", async () => {

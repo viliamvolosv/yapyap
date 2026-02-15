@@ -31,7 +31,7 @@ export class SessionDatabase {
 			now,
 			session.expires_at,
 			now,
-			session.is_active,
+			session.is_active ? 1 : 0,
 		);
 	}
 

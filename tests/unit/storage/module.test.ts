@@ -47,21 +47,24 @@ describe("StorageModule", () => {
 			is_available: true,
 			ttl: 60_000,
 		});
-		expect(storage.routing.getRoutingEntry("peer-a")?.multiaddrs).toEqual([
-			"/ip4/127.0.0.1/tcp/9000",
-		]);
+		assert.deepStrictEqual(
+			storage.routing.getRoutingEntry("peer-a")?.multiaddrs,
+			["/ip4/127.0.0.1/tcp/9000"],
+		);
 
 		const messageId = storage.messages.queueMessage(
 			{ id: "m1", payload: { text: "hello" } },
 			"peer-a",
 			60_000,
 		);
-		expect(storage.messages.getMessageQueueEntry(messageId)?.status).toBe(
+		assert.strictEqual(
+			storage.messages.getMessageQueueEntry(messageId)?.status,
 			"pending",
 		);
 
 		storage.messages.updateMessageStatus(messageId, "delivered");
-		expect(storage.messages.getMessageQueueEntry(messageId)?.status).toBe(
+		assert.strictEqual(
+			storage.messages.getMessageQueueEntry(messageId)?.status,
 			"delivered",
 		);
 
@@ -78,7 +81,8 @@ describe("StorageModule", () => {
 		assert.strictEqual(storage.sessions.getSession("sess-1")?.is_active, true);
 
 		storage.metadata.savePeerMetadata("peer-a", "public_key", "abcd");
-		expect(storage.metadata.getPeerMetadata("peer-a", "public_key")).toBe(
+		assert.strictEqual(
+			storage.metadata.getPeerMetadata("peer-a", "public_key"),
 			"abcd",
 		);
 	});

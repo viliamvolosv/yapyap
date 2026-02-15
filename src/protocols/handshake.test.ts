@@ -277,7 +277,8 @@ test("Handshake protocol - rejects unsupported version", async () => {
 				localKeys.privateKey,
 				localKeys.publicKey,
 			),
-		).rejects.toThrow("Unsupported handshake protocol version");
+			/Unsupported handshake protocol version/,
+		);
 	} finally {
 		console.error = origConsoleErr;
 	}

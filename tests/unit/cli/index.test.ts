@@ -4,7 +4,7 @@ import { describe, test } from "node:test";
 
 describe("CLI", () => {
 	test("prints help successfully", async () => {
-		const proc = cp.spawn("node", ["src/cli/index.ts", "--help"], {
+		const proc = cp.spawn("npx", ["tsx", "src/cli/index.ts", "--help"], {
 			stdio: ["ignore", "pipe", "pipe"],
 		});
 
