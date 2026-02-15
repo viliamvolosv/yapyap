@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import type { Libp2p, Stream } from "@libp2p/interface";
 import { peerIdFromString } from "@libp2p/peer-id";
-import type { DatabaseManager } from "../database.js";
+import type { DatabaseManager, MessageReplicaEntry, PendingMessageEntry } from "../database/index.js";
 import { Events, type YapYapEvent } from "../events/event-types.js";
 import type { AckMessage, NakMessage, YapYapMessage } from "./message.js";
 
@@ -920,11 +920,11 @@ export class MessageRouter {
 		const existingAssignments = this.nodeContext.db
 			.getMessageReplicas(message.id)
 			.filter(
-				(replica) =>
+				(replica: MessageReplicaEntry) =>
 					replica.status !== "failed" &&
 					!this.isPeerBlocked(replica.replica_peer_id),
 			)
-			.map((replica) => replica.replica_peer_id);
+			.map((replica: MessageReplicaEntry) => replica.replica_peer_id);
 		const relayCandidates =
 			existingAssignments.length > 0
 				? existingAssignments.slice(0, MAX_FALLBACK_RELAYS)
@@ -1098,7 +1098,7 @@ export class MessageRouter {
 		const db = this.nodeContext.db;
 		const pending = db
 			.getPendingMessagesSince(sinceTimestamp)
-			.map((entry) => JSON.parse(entry.message_data) as YapYapMessage);
+			.map((entry: PendingMessageEntry) => JSON.parse(entry.message_data) as YapYapMessage);
 		return {
 			originPeerId: this.nodeContext.getPeerId(),
 			sinceTimestamp,

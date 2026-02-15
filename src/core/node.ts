@@ -44,7 +44,7 @@ import {
 	PROTOCOL_ROUTE,
 	PROTOCOL_SYNC,
 	RoutingTable,
-} from "./protocols";
+} from "./protocols.js";
 
 /* -------------------------------------------------------------------------- */
 /*                                Type Guards                                 */

@@ -1,8 +1,8 @@
-import type * as Database from "better-sqlite3";
+import type Database from "better-sqlite3";
 import type { RoutingCacheEntry } from "../index.js";
 
 export class RoutingCacheDatabase {
-	constructor(private db: Database) {}
+	constructor(private db: Database.Database) {}
 
 	// Save or update a routing cache entry
 	saveRoutingEntry(entry: Omit<RoutingCacheEntry, "last_seen">): void {

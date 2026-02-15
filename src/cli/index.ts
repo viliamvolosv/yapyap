@@ -14,7 +14,7 @@ import { ApiModule } from "../api/index.js";
 import { YapYapNode } from "../core/node.js";
 import { DatabaseManager } from "../database/index.js";
 import type { YapYapMessage } from "../message/message.js";
-import { APP_VERSION, BUILD_ENV, BUILD_TIME } from "./version";
+import { APP_VERSION, BUILD_ENV, BUILD_TIME } from "./version.js";
 
 const logger = pino({
 	level: process.env.YAPYAP_LOG_LEVEL || "info",

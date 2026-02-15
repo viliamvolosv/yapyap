@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
-import type { Database } from "better-sqlite3";
+import Database from "better-sqlite3";
 import type { YapYapNodeOptions } from "../core/node.js";
 import { yapyapSchema } from "./schema.js";
 
@@ -155,7 +155,7 @@ export interface PersistIncomingMessageResult {
 }
 
 export class DatabaseManager {
-	private db: Database;
+	private db: Database.Database;
 	private readonly dbPath: string;
 
 	constructor(options: YapYapNodeOptions) {

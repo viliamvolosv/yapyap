@@ -144,7 +144,7 @@ async function handleRouteAnnounce(
 	/* ---------------------------- Verify Signature --------------------------- */
 
 	try {
-		const { verifySignature } = await import("../crypto/index");
+		const { verifySignature } = await import("../crypto/index.js");
 
 		const announceData = JSON.stringify({
 			type: message.type,
@@ -194,7 +194,7 @@ async function handleRouteAnnounce(
 	/* -------------------------- Reputation Update ---------------------------- */
 
 	try {
-		const { RoutingModule } = await import("../routing/index");
+		const { RoutingModule } = await import("../routing/index.js");
 		const routingModule = new RoutingModule(remotePeerId.toString());
 		routingModule.bumpReputation?.(peerId, 1);
 	} catch {
@@ -285,7 +285,7 @@ export async function createRouteAnnounce(
 	routingHints?: RoutingHint[],
 ): Promise<RouteAnnounceMessage> {
 	const { generateIdentityKeyPair, signMessage } = await import(
-		"../crypto/index"
+		"../crypto/index.js"
 	);
 
 	const keyPair = await generateIdentityKeyPair();
