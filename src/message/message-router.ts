@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import type { Libp2p, Stream } from "@libp2p/interface";
 import { peerIdFromString } from "@libp2p/peer-id";
-import type { DatabaseManager, MessageReplicaEntry, PendingMessageEntry } from "../database/index.js";
+import type { DatabaseManager, MessageReplicaEntry, PendingMessageEntry, RoutingCacheEntry } from "../database/index.js";
 import { Events, type YapYapEvent } from "../events/event-types.js";
 import type { AckMessage, NakMessage, YapYapMessage } from "./message.js";
 
@@ -1161,14 +1161,14 @@ export class MessageRouter {
 		const routingCandidates = this.nodeContext.db
 			.getAllRoutingEntries()
 			.filter(
-				(entry) =>
+				(entry: RoutingCacheEntry) =>
 					entry.is_available &&
 					!unavailable.has(entry.peer_id) &&
 					!this.isPeerBlocked(entry.peer_id),
 			)
-			.map((entry) => entry.peer_id);
+			.map((entry: RoutingCacheEntry) => entry.peer_id);
 
-		const sortedByDistance = routingCandidates.sort((a, b) => {
+		const sortedByDistance = routingCandidates.sort((a: string, b: string) => {
 			const scoreDiff = this.getPeerScore(b) - this.getPeerScore(a);
 			if (scoreDiff !== 0) {
 				return scoreDiff;

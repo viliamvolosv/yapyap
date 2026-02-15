@@ -201,7 +201,7 @@ export class DatabaseManager {
 		this.db.close();
 	}
 
-	public getDatabase(): Database {
+	public getDatabase(): Database.Database {
 		return this.db;
 	}
 

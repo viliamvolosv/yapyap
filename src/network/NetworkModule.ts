@@ -62,7 +62,7 @@ export class NetworkModule {
 	public nodeState: NodeState;
 
 	private privateKey?: import("@libp2p/interface").PrivateKey;
-	protected connectionTimer?: NodeJS.Timer;
+	protected connectionTimer?: NodeJS.Timeout;
 
 	private readonly DEFAULT_LISTEN = ["/ip4/0.0.0.0/tcp/0"];
 

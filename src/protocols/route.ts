@@ -264,7 +264,7 @@ async function handleRouteResult(
 		});
 
 		try {
-			const { RoutingModule } = await import("../routing/index");
+			const { RoutingModule } = await import("../routing/index.js");
 			const routingModule = new RoutingModule(remotePeerId.toString());
 			routingModule.bumpReputation?.(message.originPeerId, 1);
 		} catch {
