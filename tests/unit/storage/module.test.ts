@@ -1,6 +1,7 @@
-import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { StorageModule } from "../../../src/storage/StorageModule";
-import { cleanupTempDir, createTempDir } from "../../helpers/test-utils";
+import assert from "node:assert";
+import { afterEach, beforeEach, describe, test } from "node:test";
+import { StorageModule } from "../../../src/storage/StorageModule.js";
+import { cleanupTempDir, createTempDir } from "../../helpers/test-utils.js";
 
 describe("StorageModule", () => {
 	let dataDir: string;
@@ -17,20 +18,20 @@ describe("StorageModule", () => {
 	});
 
 	test("exposes main domain databases", () => {
-		expect(storage.contacts).toBeDefined();
-		expect(storage.messages).toBeDefined();
-		expect(storage.routing).toBeDefined();
-		expect(storage.sessions).toBeDefined();
-		expect(storage.keys).toBeDefined();
-		expect(storage.metadata).toBeDefined();
-		expect(storage.search).toBeDefined();
-		expect(storage.manager).toBeDefined();
+		assert.notStrictEqual(storage.contacts, undefined);
+		assert.notStrictEqual(storage.messages, undefined);
+		assert.notStrictEqual(storage.routing, undefined);
+		assert.notStrictEqual(storage.sessions, undefined);
+		assert.notStrictEqual(storage.keys, undefined);
+		assert.notStrictEqual(storage.metadata, undefined);
+		assert.notStrictEqual(storage.search, undefined);
+		assert.notStrictEqual(storage.manager, undefined);
 	});
 
 	test("persists and retrieves records across core domains", () => {
 		const keyId = storage.keys.saveNodeKey("pub-1", "priv-1");
-		expect(keyId).toBeGreaterThan(0);
-		expect(storage.keys.getNodeKey("pub-1")?.private_key).toBe("priv-1");
+		assert.ok(keyId > 0);
+		assert.strictEqual(storage.keys.getNodeKey("pub-1")?.private_key, "priv-1");
 
 		storage.contacts.saveContact({
 			peer_id: "peer-a",
@@ -38,7 +39,7 @@ describe("StorageModule", () => {
 			metadata: "{}",
 			is_trusted: true,
 		});
-		expect(storage.contacts.getContact("peer-a")?.alias).toBe("Alice");
+		assert.strictEqual(storage.contacts.getContact("peer-a")?.alias, "Alice");
 
 		storage.routing.saveRoutingEntry({
 			peer_id: "peer-a",
@@ -74,7 +75,7 @@ describe("StorageModule", () => {
 			last_used: Date.now(),
 			is_active: true,
 		});
-		expect(storage.sessions.getSession("sess-1")?.is_active).toBe(true);
+		assert.strictEqual(storage.sessions.getSession("sess-1")?.is_active, true);
 
 		storage.metadata.savePeerMetadata("peer-a", "public_key", "abcd");
 		expect(storage.metadata.getPeerMetadata("peer-a", "public_key")).toBe(

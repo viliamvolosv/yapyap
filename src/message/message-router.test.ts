@@ -1,10 +1,11 @@
-import { describe, expect, test } from "bun:test";
+import assert from "node:assert";
 import { createHash } from "node:crypto";
+import { describe, test } from "node:test";
 import { peerIdFromString } from "@libp2p/peer-id";
-import type { YapYapEvent } from "../events/event-types";
-import { Events } from "../events/event-types";
-import type { AckMessage, YapYapMessage } from "./message";
-import { MessageRouter } from "./message-router";
+import type { YapYapEvent } from "../events/event-types.js";
+import { Events } from "../events/event-types.js";
+import type { AckMessage, YapYapMessage } from "./message.js";
+import { MessageRouter } from "./message-router.js";
 
 const VALID_PEER_ID = "12D3KooWCJDjHYFsC3TJzDE6rtmyL6wRonuY9qEKnBH1r5y1jRWx";
 const RELAY_PEER_ID = "12D3KooWQv6UQhEMaXbYJHseY4R4vkc7x4S76QfW8D2V6Q3cQJjX";
@@ -488,9 +489,12 @@ describe("MessageRouter", () => {
 
 		await router.receive(incoming);
 
-		expect(db.markProcessedCalls).toEqual(["msg-1"]);
-		expect(db.lastSequences.get(VALID_PEER_ID)).toBe(1);
-		expect(streams.some((msg) => msg.type === "ack")).toBe(true);
+		assert.deepStrictEqual(db.markProcessedCalls, ["msg-1"]);
+		assert.strictEqual(db.lastSequences.get(VALID_PEER_ID), 1);
+		assert.strictEqual(
+			streams.some((msg) => msg.type === "ack"),
+			true,
+		);
 		expect(events.some((event) => event.type === Events.Message.Received)).toBe(
 			true,
 		);
@@ -521,7 +525,7 @@ describe("MessageRouter", () => {
 			timestamp: Date.now(),
 		});
 
-		expect(db.markProcessedCalls.length).toBe(0);
+		assert.strictEqual(db.markProcessedCalls.length, 0);
 	});
 
 	test("receive enforces monotonic peer sequence", async () => {
@@ -544,7 +548,7 @@ describe("MessageRouter", () => {
 			sequenceNumber: 8,
 		});
 
-		expect(db.markProcessedCalls.length).toBe(0);
+		assert.strictEqual(db.markProcessedCalls.length, 0);
 	});
 
 	test("receive routes ACK to handleAck path", async () => {
@@ -581,7 +585,7 @@ describe("MessageRouter", () => {
 		};
 
 		await router.receive(ack);
-		expect(messageQueues.get("peer-remote")?.length).toBe(0);
+		assert.strictEqual(messageQueues.get("peer-remote")?.length, 0);
 		expect(
 			events.some((event) => event.type === Events.Message.AckReceived),
 		).toBe(true);
@@ -625,7 +629,7 @@ describe("MessageRouter", () => {
 		});
 
 		await router.retry();
-		expect(failedMessageId).toBe("msg-fail");
+		assert.strictEqual(failedMessageId, "msg-fail");
 		expect(events.some((event) => event.type === Events.Message.Failed)).toBe(
 			true,
 		);
@@ -699,10 +703,10 @@ describe("MessageRouter", () => {
 		});
 
 		await router.retry();
-		expect(dialedPeers).toContain(VALID_PEER_ID);
-		expect(dialedPeers).toContain(RELAY_PEER_ID);
-		expect(assignedReplicas).toContain(RELAY_PEER_ID);
-		expect(scheduledReason?.startsWith("fallback-routed:")).toBe(true);
+		assert.ok(dialedPeers.includes(VALID_PEER_ID));
+		assert.ok(dialedPeers.includes(RELAY_PEER_ID));
+		assert.ok(assignedReplicas.includes(RELAY_PEER_ID));
+		assert.strictEqual(scheduledReason?.startsWith("fallback-routed:"), true);
 	});
 
 	test("retry uses existing replica assignments for fallback relays", async () => {
@@ -783,10 +787,10 @@ describe("MessageRouter", () => {
 		});
 
 		await router.retry();
-		expect(dialedPeers).toContain(VALID_PEER_ID);
-		expect(dialedPeers).toContain(RELAY_PEER_ID);
-		expect(dialedPeers).not.toContain(PEER_A);
-		expect(assignedReplicas).toHaveLength(0);
+		assert.ok(dialedPeers.includes(VALID_PEER_ID));
+		assert.ok(dialedPeers.includes(RELAY_PEER_ID));
+		assert.ok(!dialedPeers.includes(PEER_A));
+		assert.strictEqual(assignedReplicas.length, 0);
 	});
 
 	test("send retries dial once before succeeding", async () => {
@@ -831,7 +835,7 @@ describe("MessageRouter", () => {
 			timestamp: Date.now(),
 		});
 
-		expect(dialAttempts).toBe(2);
+		assert.strictEqual(dialAttempts, 2);
 	});
 
 	test("retry classifies stalled send timeout as send-timeout", async () => {
@@ -891,7 +895,7 @@ describe("MessageRouter", () => {
 		);
 
 		await router.retry();
-		expect(scheduledReason?.startsWith("send-timeout:")).toBe(true);
+		assert.strictEqual(scheduledReason?.startsWith("send-timeout:"), true);
 	});
 
 	test("selectReplicaPeers prefers closest routing peers", () => {
@@ -929,7 +933,7 @@ describe("MessageRouter", () => {
 		const expected = [PEER_B, PEER_A, RELAY_PEER_ID]
 			.sort((a, b) => compareDistance(VALID_PEER_ID, a, b))
 			.slice(0, 2);
-		expect(selected).toEqual(expected);
+		assert.deepStrictEqual(selected, expected);
 	});
 
 	test("selectReplicaPeers falls back to bootstrap peers", () => {
@@ -944,7 +948,7 @@ describe("MessageRouter", () => {
 		});
 
 		const selected = router.selectReplicaPeers(VALID_PEER_ID, 1);
-		expect(selected).toEqual([BOOTSTRAP_PEER_ID]);
+		assert.deepStrictEqual(selected, [BOOTSTRAP_PEER_ID]);
 	});
 
 	test("receive triggers handover delivery for reconnected peer", async () => {
@@ -999,8 +1003,8 @@ describe("MessageRouter", () => {
 			timestamp: Date.now(),
 		});
 
-		expect(dialedPeers).toContain(VALID_PEER_ID);
-		expect(deliveredMessageId).toBe("handover-1");
+		assert.ok(dialedPeers.includes(VALID_PEER_ID));
+		assert.strictEqual(deliveredMessageId, "handover-1");
 	});
 
 	test("receive stores valid relay envelope for later handover", async () => {
@@ -1045,7 +1049,7 @@ describe("MessageRouter", () => {
 			timestamp: Date.now(),
 		});
 
-		expect(storedPendingMessageId).toBe("orig-1");
+		assert.strictEqual(storedPendingMessageId, "orig-1");
 	});
 
 	test("receive drops invalid relay envelope hash", async () => {
@@ -1090,7 +1094,7 @@ describe("MessageRouter", () => {
 			timestamp: Date.now(),
 		});
 
-		expect(storedPendingMessageId).toBeUndefined();
+		assert.strictEqual(storedPendingMessageId, undefined);
 	});
 
 	test("receive rejects stale vector clock", async () => {
@@ -1113,7 +1117,7 @@ describe("MessageRouter", () => {
 			vectorClock: { "peer-remote": 3 },
 		});
 
-		expect(db.markProcessedCalls).toEqual([]);
+		assert.deepStrictEqual(db.markProcessedCalls, []);
 	});
 
 	test("receive accepts and merges newer vector clock", async () => {
@@ -1136,9 +1140,9 @@ describe("MessageRouter", () => {
 			vectorClock: { "peer-remote": 6, "peer-x": 4 },
 		});
 
-		expect(db.markProcessedCalls).toEqual(["fresh-vc"]);
-		expect(db.getVectorClock("peer-remote")).toBe(6);
-		expect(db.getVectorClock("peer-x")).toBe(4);
+		assert.deepStrictEqual(db.markProcessedCalls, ["fresh-vc"]);
+		assert.strictEqual(db.getVectorClock("peer-remote"), 6);
+		assert.strictEqual(db.getVectorClock("peer-x"), 4);
 	});
 
 	test("createDeltaSyncPayload includes pending and processed windows", () => {
@@ -1173,9 +1177,9 @@ describe("MessageRouter", () => {
 		});
 
 		const payload = router.createDeltaSyncPayload(Date.now() - 10_000);
-		expect(payload.processedMessageIds).toEqual(["processed-1"]);
-		expect(payload.pendingMessages.length).toBe(1);
-		expect(payload.vectorClock["peer-local"]).toBe(3);
+		assert.deepStrictEqual(payload.processedMessageIds, ["processed-1"]);
+		assert.strictEqual(payload.pendingMessages.length, 1);
+		assert.strictEqual(payload.vectorClock["peer-local"], 3);
 	});
 
 	test("applyDeltaSyncPayload replays missing pending messages", () => {
@@ -1219,8 +1223,8 @@ describe("MessageRouter", () => {
 			],
 		});
 
-		expect(upserted).toEqual(["missing-1"]);
-		expect(db.getVectorClock("peer-remote")).toBe(4);
+		assert.deepStrictEqual(upserted, ["missing-1"]);
+		assert.strictEqual(db.getVectorClock("peer-remote"), 4);
 	});
 
 	test("receive buffers out-of-order messages and flushes when gap closes", async () => {
@@ -1241,7 +1245,7 @@ describe("MessageRouter", () => {
 			timestamp: Date.now(),
 			sequenceNumber: 3,
 		});
-		expect(db.markProcessedCalls).toEqual([]);
+		assert.deepStrictEqual(db.markProcessedCalls, []);
 
 		await router.receive({
 			id: "seq-1",
@@ -1252,7 +1256,7 @@ describe("MessageRouter", () => {
 			timestamp: Date.now(),
 			sequenceNumber: 1,
 		});
-		expect(db.markProcessedCalls).toEqual(["seq-1"]);
+		assert.deepStrictEqual(db.markProcessedCalls, ["seq-1"]);
 
 		await router.receive({
 			id: "seq-2",
@@ -1263,8 +1267,8 @@ describe("MessageRouter", () => {
 			timestamp: Date.now(),
 			sequenceNumber: 2,
 		});
-		expect(db.markProcessedCalls).toEqual(["seq-1", "seq-2", "seq-3"]);
-		expect(db.lastSequences.get("peer-remote")).toBe(3);
+		assert.deepStrictEqual(db.markProcessedCalls, ["seq-1", "seq-2", "seq-3"]);
+		assert.strictEqual(db.lastSequences.get("peer-remote"), 3);
 	});
 
 	test("receive enforces inbound per-peer rate limit", async () => {
@@ -1301,7 +1305,7 @@ describe("MessageRouter", () => {
 			timestamp: Date.now(),
 		});
 
-		expect(db.markProcessedCalls).toEqual(["rl-1"]);
+		assert.deepStrictEqual(db.markProcessedCalls, ["rl-1"]);
 	});
 
 	test("penalizes tampered relay envelopes in peer score", async () => {
@@ -1398,8 +1402,8 @@ describe("MessageRouter", () => {
 		}
 
 		const selected = router.selectReplicaPeers(VALID_PEER_ID, 2);
-		expect(selected).not.toContain(PEER_A);
-		expect(selected).toContain(PEER_B);
+		assert.ok(!selected.includes(PEER_A));
+		assert.ok(selected.includes(PEER_B));
 	});
 
 	test("receive enforces shared-origin throttling across peers", async () => {
@@ -1442,6 +1446,6 @@ describe("MessageRouter", () => {
 			timestamp: Date.now(),
 		});
 
-		expect(db.markProcessedCalls).toEqual(["origin-1"]);
+		assert.deepStrictEqual(db.markProcessedCalls, ["origin-1"]);
 	});
 });

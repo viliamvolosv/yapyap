@@ -16,25 +16,25 @@ import {
 	generateIdentityKeyPair,
 	signMessage,
 	verifySignature,
-} from "../crypto";
-import { SessionManager } from "../crypto/session-manager";
-import type { DatabaseManager } from "../database";
-import { EventBus } from "../events/event-bus";
-import { Events, type YapYapEvent } from "../events/event-types";
-import type { AckMessage, YapYapMessage } from "../message/message";
-import type { MessageQueueEntryInternal } from "../message/message-router";
-import { MessageRouter } from "../message/message-router";
+} from "../crypto/index.js";
+import { SessionManager } from "../crypto/session-manager.js";
+import type { DatabaseManager } from "../database/index.js";
+import { EventBus } from "../events/event-bus.js";
+import { Events, type YapYapEvent } from "../events/event-types.js";
+import type { AckMessage, YapYapMessage } from "../message/message.js";
+import type { MessageQueueEntryInternal } from "../message/message-router.js";
+import { MessageRouter } from "../message/message-router.js";
 // ...existing fields...
-import type { HandshakeMessage } from "../protocols/handshake";
+import type { HandshakeMessage } from "../protocols/handshake.js";
 import type {
 	RouteAnnounceMessage,
 	RouteQueryMessage,
 	RouteResultMessage,
-} from "../protocols/route";
+} from "../protocols/route.js";
 import type {
 	SyncRequestMessage,
 	SyncResponseMessage,
-} from "../protocols/sync";
+} from "../protocols/sync.js";
 import {
 	decodeMessage,
 	MAX_FRAME_SIZE_BYTES,
@@ -465,7 +465,9 @@ export class YapYapNode {
 		}
 		// Optionally: fallback to session public key
 		const sessions = this.db.getAllActiveSessions();
-		const session = sessions.find((s) => s.peer_id === peerId);
+		const session = sessions.find(
+			(s: { peer_id: string }) => s.peer_id === peerId,
+		);
 		if (session?.public_key) {
 			return Buffer.from(session.public_key, "hex");
 		}

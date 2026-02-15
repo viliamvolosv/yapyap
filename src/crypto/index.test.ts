@@ -1,4 +1,5 @@
-import { expect, test } from "bun:test";
+import assert from "node:assert";
+import { test } from "node:test";
 import {
 	decryptE2EMessage,
 	decryptMessage,
@@ -11,41 +12,41 @@ import {
 	generateIdentityKeyPair,
 	signMessage,
 	verifySignature,
-} from "./index";
+} from "./index.js";
 
 // Test basic function exports and structure
 test("crypto module exports all expected functions", () => {
-	expect(typeof generateIdentityKeyPair).toBe("function");
-	expect(typeof generateEphemeralKeyPair).toBe("function");
-	expect(typeof deriveSharedSecret).toBe("function");
-	expect(typeof encryptMessage).toBe("function");
-	expect(typeof decryptMessage).toBe("function");
-	expect(typeof signMessage).toBe("function");
-	expect(typeof verifySignature).toBe("function");
-	expect(typeof deriveKeyFromPassword).toBe("function");
-	expect(typeof encryptE2EMessage).toBe("function");
-	expect(typeof decryptE2EMessage).toBe("function");
-	expect(typeof deriveMessageKey).toBe("function");
+	assert.strictEqual(typeof generateIdentityKeyPair, "function");
+	assert.strictEqual(typeof generateEphemeralKeyPair, "function");
+	assert.strictEqual(typeof deriveSharedSecret, "function");
+	assert.strictEqual(typeof encryptMessage, "function");
+	assert.strictEqual(typeof decryptMessage, "function");
+	assert.strictEqual(typeof signMessage, "function");
+	assert.strictEqual(typeof verifySignature, "function");
+	assert.strictEqual(typeof deriveKeyFromPassword, "function");
+	assert.strictEqual(typeof encryptE2EMessage, "function");
+	assert.strictEqual(typeof decryptE2EMessage, "function");
+	assert.strictEqual(typeof deriveMessageKey, "function");
 });
 
 test("generateIdentityKeyPair creates valid key pairs", async () => {
 	const keyPair = await generateIdentityKeyPair();
 
-	expect(keyPair).toBeDefined();
-	expect(keyPair.publicKey).toBeInstanceOf(Uint8Array);
-	expect(keyPair.privateKey).toBeInstanceOf(Uint8Array);
-	expect(keyPair.publicKey.length).toBeGreaterThan(0);
-	expect(keyPair.privateKey.length).toBeGreaterThan(0);
+	assert.notStrictEqual(keyPair, undefined);
+	assert.ok(keyPair.publicKey instanceof Uint8Array);
+	assert.ok(keyPair.privateKey instanceof Uint8Array);
+	assert.ok(keyPair.publicKey.length > 0);
+	assert.ok(keyPair.privateKey.length > 0);
 });
 
 test("generateEphemeralKeyPair creates valid key pairs", async () => {
 	const keyPair = await generateEphemeralKeyPair();
 
-	expect(keyPair).toBeDefined();
-	expect(keyPair.publicKey).toBeInstanceOf(Uint8Array);
-	expect(keyPair.privateKey).toBeInstanceOf(Uint8Array);
-	expect(keyPair.publicKey.length).toBeGreaterThan(0);
-	expect(keyPair.privateKey.length).toBeGreaterThan(0);
+	assert.notStrictEqual(keyPair, undefined);
+	assert.ok(keyPair.publicKey instanceof Uint8Array);
+	assert.ok(keyPair.privateKey instanceof Uint8Array);
+	assert.ok(keyPair.publicKey.length > 0);
+	assert.ok(keyPair.privateKey.length > 0);
 });
 
 test("deriveSharedSecret creates shared secrets", async () => {
@@ -59,11 +60,11 @@ test("deriveSharedSecret creates shared secrets", async () => {
 		keyPairA.publicKey,
 		keyPairB.privateKey,
 	);
-	expect(sharedSecretA).toBeInstanceOf(Uint8Array);
-	expect(sharedSecretB).toBeInstanceOf(Uint8Array);
-	expect(sharedSecretA.length).toBeGreaterThan(0);
-	expect(sharedSecretB.length).toBeGreaterThan(0);
-	expect(sharedSecretA).toEqual(sharedSecretB);
+	assert.ok(sharedSecretA instanceof Uint8Array);
+	assert.ok(sharedSecretB instanceof Uint8Array);
+	assert.ok(sharedSecretA.length > 0);
+	assert.ok(sharedSecretB.length > 0);
+	assert.deepStrictEqual(sharedSecretA, sharedSecretB);
 });
 
 test("encryptMessage and decryptMessage work together", async () => {
@@ -73,9 +74,9 @@ test("encryptMessage and decryptMessage work together", async () => {
 
 	const encrypted = await encryptMessage(plaintext, key, nonce);
 
-	expect(encrypted).toBeDefined();
-	expect(encrypted.ciphertext).toBeInstanceOf(Uint8Array);
-	expect(encrypted.nonce).toBeInstanceOf(Uint8Array);
+	assert.notStrictEqual(encrypted, undefined);
+	assert.ok(encrypted.ciphertext instanceof Uint8Array);
+	assert.ok(encrypted.nonce instanceof Uint8Array);
 
 	const decrypted = await decryptMessage(
 		encrypted.ciphertext,
@@ -83,7 +84,7 @@ test("encryptMessage and decryptMessage work together", async () => {
 		encrypted.nonce,
 	);
 
-	expect(decrypted).toEqual(plaintext);
+	assert.deepStrictEqual(decrypted, plaintext);
 });
 
 test("signMessage and verifySignature work together", async () => {
@@ -92,11 +93,11 @@ test("signMessage and verifySignature work together", async () => {
 
 	const signature = await signMessage(message, keyPair.privateKey);
 
-	expect(signature).toBeInstanceOf(Uint8Array);
+	assert.ok(signature instanceof Uint8Array);
 
 	const isValid = await verifySignature(message, signature, keyPair.publicKey);
 
-	expect(isValid).toBe(true);
+	assert.strictEqual(isValid, true);
 });
 
 test("deriveKeyFromPassword creates deterministic keys", async () => {
@@ -106,9 +107,9 @@ test("deriveKeyFromPassword creates deterministic keys", async () => {
 	const key1 = await deriveKeyFromPassword(password, salt);
 	const key2 = await deriveKeyFromPassword(password, salt);
 
-	expect(key1).toBeInstanceOf(Uint8Array);
-	expect(key2).toBeInstanceOf(Uint8Array);
-	expect(key1).toEqual(key2); // Should be deterministic
+	assert.ok(key1 instanceof Uint8Array);
+	assert.ok(key2 instanceof Uint8Array);
+	assert.deepStrictEqual(key1, key2); // Should be deterministic
 });
 
 test("encryptE2EMessage and decryptE2EMessage work together", async () => {
@@ -123,11 +124,11 @@ test("encryptE2EMessage and decryptE2EMessage work together", async () => {
 		senderIdentityKeyPair.privateKey,
 	);
 
-	expect(encrypted).toBeDefined();
-	expect(encrypted.ciphertext).toBeInstanceOf(Uint8Array);
-	expect(encrypted.nonce).toBeInstanceOf(Uint8Array);
-	expect(encrypted.ephemeralPublicKey).toBeInstanceOf(Uint8Array);
-	expect(encrypted.signature).toBeInstanceOf(Uint8Array);
+	assert.notStrictEqual(encrypted, undefined);
+	assert.ok(encrypted.ciphertext instanceof Uint8Array);
+	assert.ok(encrypted.nonce instanceof Uint8Array);
+	assert.ok(encrypted.ephemeralPublicKey instanceof Uint8Array);
+	assert.ok(encrypted.signature instanceof Uint8Array);
 
 	const decrypted = await decryptE2EMessage(
 		encrypted,
@@ -135,7 +136,7 @@ test("encryptE2EMessage and decryptE2EMessage work together", async () => {
 		recipientEphemeralKeyPair.privateKey,
 	);
 
-	expect(decrypted).toBe(plaintext);
+	assert.strictEqual(decrypted, plaintext);
 });
 
 test("encryptE2EMessage handles edge cases", async () => {
@@ -150,7 +151,7 @@ test("encryptE2EMessage handles edge cases", async () => {
 		senderIdentityKeyPair.privateKey,
 	);
 
-	expect(encrypted).toBeDefined();
+	assert.notStrictEqual(encrypted, undefined);
 
 	const decrypted = await decryptE2EMessage(
 		encrypted,
@@ -158,7 +159,7 @@ test("encryptE2EMessage handles edge cases", async () => {
 		recipientEphemeralKeyPair.privateKey,
 	);
 
-	expect(decrypted).toBe(plaintext);
+	assert.strictEqual(decrypted, plaintext);
 });
 
 test("deriveMessageKey creates deterministic keys from message and peer identity", () => {
@@ -168,7 +169,7 @@ test("deriveMessageKey creates deterministic keys from message and peer identity
 	const key1 = deriveMessageKey(message, peerIdentity);
 	const key2 = deriveMessageKey(message, peerIdentity);
 
-	expect(key1).toBeInstanceOf(Uint8Array);
-	expect(key2).toBeInstanceOf(Uint8Array);
-	expect(key1).toEqual(key2); // Should be deterministic
+	assert.ok(key1 instanceof Uint8Array);
+	assert.ok(key2 instanceof Uint8Array);
+	assert.deepStrictEqual(key1, key2); // Should be deterministic
 });

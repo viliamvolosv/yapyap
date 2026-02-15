@@ -2,9 +2,9 @@
  * Convenience utilities for the YapYap Event Bus
  */
 
-import type { EventBus } from "./event-bus";
-import type { EventHandler, EventMap } from "./event-listener-types";
-import type { YapYapEvent } from "./event-types";
+import type { EventBus } from "./event-bus.js";
+import type { EventHandler, EventMap } from "./event-listener-types.js";
+import type { YapYapEvent } from "./event-types.js";
 
 /**
  * Create a logging event handler for a specific event type

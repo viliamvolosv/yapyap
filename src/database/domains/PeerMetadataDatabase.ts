@@ -1,5 +1,5 @@
-import type { Database } from "bun:sqlite";
-import type { MetadataValue } from "../index";
+import type Database from "better-sqlite3";
+import type { MetadataValue } from "../index.js";
 
 export class PeerMetadataDatabase {
 	constructor(private db: Database) {}

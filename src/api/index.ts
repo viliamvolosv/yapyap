@@ -1,6 +1,14 @@
 import crypto from "node:crypto";
-import type { YapYapNode } from "../core/node";
-import type { YapYapMessage } from "../message/message";
+import {
+	createServer,
+	type IncomingMessage,
+	type Server,
+	type ServerResponse,
+} from "node:http";
+import type { Socket } from "node:net";
+import { WebSocket, WebSocketServer } from "ws";
+import type { YapYapNode } from "../core/node.js";
+import type { YapYapMessage } from "../message/message.js";
 
 type JsonObject = Record<string, unknown>;
 
@@ -8,25 +16,13 @@ function isJsonObject(value: unknown): value is JsonObject {
 	return typeof value === "object" && value !== null;
 }
 
-/**
- * Default YapYapMessage for WebSocket upgrades
- */
-function createDefaultYapYapMessage(): YapYapMessage {
-	return {
-		id: crypto.randomUUID(),
-		type: "data",
-		from: "",
-		to: "",
-		payload: {},
-		timestamp: Date.now(),
-	};
-}
-
 export class ApiModule {
 	private yapyapNode: YapYapNode;
-	private apiServer?: Bun.Server<YapYapMessage>;
-	private websocketClients = new Set<Bun.ServerWebSocket<YapYapMessage>>();
+	private apiServer?: Server;
+	private wss?: WebSocketServer;
+	private websocketClients = new Set<WebSocket>();
 	private heartbeatInterval?: NodeJS.Timeout;
+	private actualPort?: number;
 
 	constructor(yapyapNode: YapYapNode) {
 		this.yapyapNode = yapyapNode;
@@ -54,31 +50,55 @@ export class ApiModule {
 
 		while (retries <= maxRetries) {
 			try {
-				this.apiServer = Bun.serve({
-					port,
-					fetch: (req, server) => {
-						if (server.upgrade(req, { data: createDefaultYapYapMessage() })) {
-							return;
-						}
-						return this.handleRequest(req);
-					},
-					websocket: {
-						open: (ws: Bun.ServerWebSocket<YapYapMessage>) => {
-							this.websocketClients.add(ws);
+				await new Promise<void>((resolve, reject) => {
+					this.apiServer = createServer(
+						async (req: IncomingMessage, res: ServerResponse) => {
+							const request = await this.nodeRequestToFetchRequest(req);
+							const response = await this.handleRequest(request);
+							this.writeFetchResponseToNode(response, res);
 						},
-						message: (ws: Bun.ServerWebSocket<YapYapMessage>, message) => {
-							this.handleWebSocketMessage(ws, message);
-						},
-						close: (ws: Bun.ServerWebSocket<YapYapMessage>) => {
+					);
+
+					this.wss = new WebSocketServer({ noServer: true });
+
+					this.apiServer.on("upgrade", (request, socket, head) => {
+						this.wss?.handleUpgrade(request, socket, head, (ws) => {
+							this.wss?.emit("connection", ws, request);
+						});
+					});
+
+					this.wss.on("connection", (ws: WebSocket) => {
+						this.websocketClients.add(ws);
+
+						ws.on("message", (data) => {
+							this.handleWebSocketMessage(ws, data);
+						});
+
+						ws.on("close", () => {
 							this.websocketClients.delete(ws);
-						},
-					},
+						});
+					});
+
+					this.apiServer.on("error", (error: NodeJS.ErrnoException) => {
+						if (error.code === "EADDRINUSE" && retries < maxRetries) {
+							reject(error);
+						} else {
+							reject(error);
+						}
+					});
+
+					this.apiServer.listen(port, () => {
+						const addr = this.apiServer?.address();
+						this.actualPort =
+							typeof addr === "object" && addr !== null ? addr.port : port;
+						console.log(`API server started on port ${this.actualPort}`);
+						resolve();
+					});
 				});
-				console.log(`API server started on port ${this.apiServer.port}`);
 
 				this.heartbeatInterval = setInterval(() => {
 					for (const ws of this.websocketClients) {
-						if (ws.readyState !== 1) {
+						if (ws.readyState !== WebSocket.OPEN) {
 							ws.close();
 							this.websocketClients.delete(ws);
 						}
@@ -95,7 +115,7 @@ export class ApiModule {
 					console.warn(
 						`Port ${port} in use, trying next available port (attempt ${retries + 1}/${maxRetries})`,
 					);
-					port = 0; // Let Bun assign a port
+					port = 0; // Let OS assign a port
 					retries++;
 					await new Promise((resolve) =>
 						setTimeout(resolve, baseDelayMs * 2 ** (retries - 1)),
@@ -109,8 +129,48 @@ export class ApiModule {
 		throw new Error(`Failed to start API server after ${maxRetries} attempts`);
 	}
 
+	private async nodeRequestToFetchRequest(
+		req: IncomingMessage,
+	): Promise<Request> {
+		const protocol = (req.socket as Socket & { encrypted?: boolean }).encrypted
+			? "https"
+			: "http";
+		const host = req.headers.host || "localhost";
+		const url = `${protocol}://${host}${req.url}`;
+
+		const body = await new Promise<Buffer>((resolve) => {
+			const chunks: Buffer[] = [];
+			req.on("data", (chunk) => chunks.push(chunk));
+			req.on("end", () => resolve(Buffer.concat(chunks)));
+		});
+
+		return new Request(url, {
+			method: req.method,
+			headers: req.headers as HeadersInit,
+			body: body.length > 0 ? (body as BodyInit) : undefined,
+		});
+	}
+
+	private writeFetchResponseToNode(
+		fetchResponse: Response,
+		res: ServerResponse,
+	): void {
+		res.statusCode = fetchResponse.status;
+		fetchResponse.headers.forEach((value, key) => {
+			res.setHeader(key, value);
+		});
+
+		if (fetchResponse.body) {
+			fetchResponse.arrayBuffer().then((buffer) => {
+				res.end(Buffer.from(buffer));
+			});
+		} else {
+			res.end();
+		}
+	}
+
 	public get apiPort(): number | undefined {
-		return this.apiServer?.port;
+		return this.actualPort;
 	}
 
 	public async handleRequest(request: Request): Promise<Response> {
@@ -437,23 +497,28 @@ export class ApiModule {
 		const inbox = this.yapyapNode
 			.getDatabase()
 			.getRecentMessageQueueEntries(200)
-			.map((entry) => {
+			.map((entry: unknown) => {
 				let message: YapYapMessage | null = null;
 				try {
-					message = JSON.parse(entry.message_data) as YapYapMessage;
+					message = JSON.parse(
+						(entry as { message_data: string }).message_data,
+					) as YapYapMessage;
 				} catch {
 					message = null;
 				}
 				return {
-					id: entry.id,
-					targetPeerId: entry.target_peer_id,
-					status: entry.status,
-					attempts: entry.attempts,
-					queuedAt: entry.queued_at,
+					id: (entry as { id: string }).id,
+					targetPeerId: (entry as { target_peer_id: string }).target_peer_id,
+					status: (entry as { status: string }).status,
+					attempts: (entry as { attempts: number }).attempts,
+					queuedAt: (entry as { queued_at: number }).queued_at,
 					message,
 				};
 			})
-			.filter((entry) => entry.message?.to === selfPeerId);
+			.filter(
+				(entry: unknown) =>
+					(entry as { message?: YapYapMessage }).message?.to === selfPeerId,
+			);
 		return this.jsonResponse({ inbox });
 	}
 
@@ -462,24 +527,29 @@ export class ApiModule {
 		const outbox = this.yapyapNode
 			.getDatabase()
 			.getRecentMessageQueueEntries(200)
-			.map((entry) => {
+			.map((entry: unknown) => {
 				let message: YapYapMessage | null = null;
 				try {
-					message = JSON.parse(entry.message_data) as YapYapMessage;
+					message = JSON.parse(
+						(entry as { message_data: string }).message_data,
+					) as YapYapMessage;
 				} catch {
 					message = null;
 				}
 				return {
-					id: entry.id,
-					targetPeerId: entry.target_peer_id,
-					status: entry.status,
-					attempts: entry.attempts,
-					queuedAt: entry.queued_at,
-					nextRetryAt: entry.next_retry_at,
+					id: (entry as { id: string }).id,
+					targetPeerId: (entry as { target_peer_id: string }).target_peer_id,
+					status: (entry as { status: string }).status,
+					attempts: (entry as { attempts: number }).attempts,
+					queuedAt: (entry as { queued_at: number }).queued_at,
+					nextRetryAt: (entry as { next_retry_at: number }).next_retry_at,
 					message,
 				};
 			})
-			.filter((entry) => entry.message?.from === selfPeerId);
+			.filter(
+				(entry: unknown) =>
+					(entry as { message?: YapYapMessage }).message?.from === selfPeerId,
+			);
 		return this.jsonResponse({ outbox });
 	}
 
@@ -551,20 +621,27 @@ export class ApiModule {
 	}
 
 	private handleWebSocketMessage(
-		ws: Bun.ServerWebSocket<unknown>,
-		message: string | Buffer<ArrayBuffer>,
+		ws: WebSocket,
+		message: Buffer | ArrayBuffer | Buffer[],
 	): void {
 		try {
 			let data: JsonObject | null = null;
-			if (typeof message === "string") {
-				data = this.parseJsonString(message);
+			let messageStr: string;
+
+			if (Buffer.isBuffer(message)) {
+				messageStr = message.toString("utf8");
 			} else if (message instanceof ArrayBuffer) {
-				const str = new TextDecoder().decode(message);
-				data = this.parseJsonString(str);
+				messageStr = new TextDecoder().decode(message);
+			} else if (Array.isArray(message)) {
+				messageStr = Buffer.concat(message).toString("utf8");
+			} else {
+				throw new Error("Unsupported WebSocket message type");
 			}
 
+			data = this.parseJsonString(messageStr);
+
 			if (!data) {
-				throw new Error("Unsupported WebSocket message type");
+				throw new Error("Invalid JSON in WebSocket message");
 			}
 
 			const eventType = typeof data.type === "string" ? data.type : undefined;
@@ -588,16 +665,28 @@ export class ApiModule {
 			timestamp: Date.now(),
 		});
 		this.websocketClients.forEach((client) => {
-			if (client.readyState === 1) client.send(event);
+			if (client.readyState === WebSocket.OPEN) client.send(event);
 		});
 	}
 
 	async stop(): Promise<void> {
-		if (this.apiServer) this.apiServer.stop();
 		if (this.heartbeatInterval) clearInterval(this.heartbeatInterval);
+
 		this.websocketClients.forEach((client) => {
 			client.close();
 		});
-		console.log("API module stopped");
+
+		if (this.wss) {
+			this.wss.close();
+		}
+
+		if (this.apiServer) {
+			await new Promise<void>((resolve) => {
+				this.apiServer?.close(() => {
+					console.log("API module stopped");
+					resolve();
+				});
+			});
+		}
 	}
 }

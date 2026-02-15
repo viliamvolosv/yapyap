@@ -1,13 +1,13 @@
-import type { BunPlugin } from "bun";
+import * as esbuild from "esbuild";
 
 /**
  * Build-time constants plugin
- * Injects version, build time, and environment information into the compiled binary
+ * Injects version, build time, and environment information into the build
  */
-const versionPlugin: BunPlugin = {
+const versionPlugin: esbuild.Plugin = {
 	name: "version-injection",
 	setup(build) {
-		build.onLoad({ filter: /version\.ts/ }, async () => {
+		build.onLoad({ filter: /version\.ts$/ }, async () => {
 			return {
 				contents: `export const APP_VERSION = "${process.env.npm_package_version || "0.0.0"}";\nexport const BUILD_TIME = "${new Date().toISOString()}";\nexport const BUILD_ENV = "${process.env.NODE_ENV || "development"}";\n`,
 				loader: "ts",
@@ -26,50 +26,45 @@ async function build() {
 	console.log(`Building YapYap Messenger v${version}...`);
 	console.log(`Environment: ${isProduction ? "production" : "development"}`);
 
-	const result = await Bun.build({
-		entrypoints: ["./src/cli/index.ts"],
-		compile: {
-			outfile: isProduction ? "./dist/yapyap" : "./dist/yapyap-dev",
-			// Embed runtime arguments for production
-			execArgv: isProduction ? ["--smol"] : [],
-			// Enable .env and bunfig.toml loading at runtime (optional)
-			autoloadDotenv: true,
-			autoloadBunfig: true,
-		},
-		// Production optimizations
-		minify: isProduction,
-		sourcemap: isProduction ? "linked" : "inline",
-		bytecode: isProduction,
-		// Build-time constants
-		define: {
-			APP_VERSION: JSON.stringify(version),
-			BUILD_TIME: JSON.stringify(new Date().toISOString()),
-			NODE_ENV: JSON.stringify(process.env.NODE_ENV || "development"),
-		},
-		// Plugins for build-time transformations
-		plugins: [versionPlugin],
-	});
+	try {
+		const _result = await esbuild.build({
+			entryPoints: ["./src/cli/index.ts"],
+			bundle: true,
+			platform: "node",
+			target: "node22",
+			format: "esm",
+			outfile: isProduction ? "./dist/yapyap.js" : "./dist/yapyap-dev.js",
+			minify: isProduction,
+			sourcemap: isProduction ? "linked" : "inline",
+			define: {
+				"process.env.APP_VERSION": JSON.stringify(version),
+				"process.env.BUILD_TIME": JSON.stringify(new Date().toISOString()),
+				"process.env.NODE_ENV": JSON.stringify(
+					process.env.NODE_ENV || "development",
+				),
+			},
+			plugins: [versionPlugin],
+			banner: {
+				js: "#!/usr/bin/env node",
+			},
+		});
 
-	if (result.success) {
-		console.log(`✓ Build successful: ${result.outputs[0].path}`);
+		console.log("✓ Build successful!");
 		console.log(
-			`  Size: ${(result.outputs[0].size / 1024 / 1024).toFixed(2)} MB`,
+			`  Output: ${isProduction ? "./dist/yapyap.js" : "./dist/yapyap-dev.js"}`,
 		);
 
 		if (isProduction) {
 			console.log("\nProduction build ready!");
-			console.log("Run with: ./dist/yapyap [command] [options]");
+			console.log("Run with: node ./dist/yapyap.js [command] [options]");
 		} else {
 			console.log("\nDevelopment build ready!");
-			console.log("Run with: bun run dist/yapyap-dev [command] [options]");
+			console.log("Run with: node ./dist/yapyap-dev.js [command] [options]");
 		}
-	} else {
-		console.error("Build failed!");
-		for (const error of result.logs) {
-			console.error(error);
-		}
+	} catch (error) {
+		console.error("Build failed!", error);
 		process.exit(1);
 	}
 }
 
-await build();
+build();

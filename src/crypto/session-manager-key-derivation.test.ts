@@ -1,8 +1,9 @@
-import { expect, test } from "bun:test";
+import assert from "node:assert";
 import * as crypto from "node:crypto";
-import { DatabaseManager, type Session } from "../database/index";
-import type { NoiseSessionInfo } from "../protocols/handshake";
-import { SessionManager } from "./session-manager";
+import { test } from "node:test";
+import { DatabaseManager, type Session } from "../database/index.js";
+import type { NoiseSessionInfo } from "../protocols/handshake.js";
+import { SessionManager } from "./session-manager.js";
 
 // Mock database manager to avoid actual database operations during tests
 class MockDatabaseManager extends DatabaseManager {
@@ -67,15 +68,15 @@ test("SessionManager can be instantiated", () => {
 	const mockDb = new MockDatabaseManager();
 	const sessionManager = new SessionManager(mockDb);
 
-	expect(sessionManager).toBeDefined();
-	expect(sessionManager).toBeInstanceOf(SessionManager);
+	assert.notStrictEqual(sessionManager, undefined);
+	assert.ok(sessionManager instanceof SessionManager);
 });
 
 test("SessionManager init method works", async () => {
 	const mockDb = new MockDatabaseManager();
 	const sessionManager = new SessionManager(mockDb);
 
-	await expect(sessionManager.init()).resolves.toBeUndefined();
+	await assert.doesNotReject(async () => await sessionManager.init());
 });
 
 test("createE2ESession creates a new session", async () => {
@@ -89,12 +90,12 @@ test("createE2ESession creates a new session", async () => {
 
 	const session = await sessionManager.createSession(peerId);
 
-	expect(session).toBeDefined();
-	expect(session.id).toBeDefined();
-	expect(session.peerId).toBe(peerId);
-	expect(session.createdAt).toBeGreaterThan(0);
-	expect(session.expiresAt).toBeGreaterThan(session.createdAt);
-	expect(session.isActive).toBe(true);
+	assert.notStrictEqual(session, undefined);
+	assert.notStrictEqual(session.id, undefined);
+	assert.strictEqual(session.peerId, peerId);
+	assert.ok(session.createdAt > 0);
+	assert.ok(session.expiresAt > session.createdAt);
+	assert.strictEqual(session.isActive, true);
 });
 
 test("getOrCreateE2ESession returns existing session when one exists", async () => {
@@ -112,7 +113,7 @@ test("getOrCreateE2ESession returns existing session when one exists", async () 
 	// Get or create should return the existing session
 	const secondSession = await sessionManager.getOrCreateSession(peerId);
 
-	expect(secondSession.id).toBe(firstSession.id);
+	assert.strictEqual(secondSession.id, firstSession.id);
 });
 
 test("getOrCreateE2ESession creates new session when none exists", async () => {
@@ -127,8 +128,8 @@ test("getOrCreateE2ESession creates new session when none exists", async () => {
 	// Get or create should create a new session
 	const session = await sessionManager.getOrCreateSession(peerId);
 
-	expect(session).toBeDefined();
-	expect(session.peerId).toBe(peerId);
+	assert.notStrictEqual(session, undefined);
+	assert.strictEqual(session.peerId, peerId);
 });
 
 test("createSession creates a new session", async () => {
@@ -142,12 +143,12 @@ test("createSession creates a new session", async () => {
 
 	const session = await sessionManager.createSession(peerId);
 
-	expect(session).toBeDefined();
-	expect(session.id).toBeDefined();
-	expect(session.peerId).toBe(peerId);
-	expect(session.createdAt).toBeGreaterThan(0);
-	expect(session.expiresAt).toBeGreaterThan(session.createdAt);
-	expect(session.isActive).toBe(true);
+	assert.notStrictEqual(session, undefined);
+	assert.notStrictEqual(session.id, undefined);
+	assert.strictEqual(session.peerId, peerId);
+	assert.ok(session.createdAt > 0);
+	assert.ok(session.expiresAt > session.createdAt);
+	assert.strictEqual(session.isActive, true);
 });
 
 test("getOrCreateE2ESession returns existing session when one exists", async () => {
@@ -165,7 +166,7 @@ test("getOrCreateE2ESession returns existing session when one exists", async () 
 	// Get or create should return the existing session
 	const secondSession = await sessionManager.getOrCreateSession(peerId);
 
-	expect(secondSession.id).toBe(firstSession.id);
+	assert.strictEqual(secondSession.id, firstSession.id);
 });
 
 test("getOrCreateE2ESession creates new session when none exists", async () => {
@@ -180,8 +181,8 @@ test("getOrCreateE2ESession creates new session when none exists", async () => {
 	// Get or create should create a new session
 	const session = await sessionManager.getOrCreateSession(peerId);
 
-	expect(session).toBeDefined();
-	expect(session.peerId).toBe(peerId);
+	assert.notStrictEqual(session, undefined);
+	assert.strictEqual(session.peerId, peerId);
 });
 
 test("getSession retrieves existing session", async () => {
@@ -197,8 +198,8 @@ test("getSession retrieves existing session", async () => {
 
 	const retrievedSession = sessionManager.getSession(session.id);
 
-	expect(retrievedSession).toBeDefined();
-	expect(retrievedSession?.id).toBe(session.id);
+	assert.notStrictEqual(retrievedSession, undefined);
+	assert.strictEqual(retrievedSession?.id, session.id);
 });
 
 test("getSession returns null for expired session", async () => {
@@ -221,7 +222,7 @@ test("getSession returns null for expired session", async () => {
 	session.expiresAt = Date.now() - 1000;
 
 	const retrievedSession = sessionManager.getSession(session.id);
-	expect(retrievedSession).toBeNull();
+	assert.strictEqual(retrievedSession, null);
 });
 
 test("updateSessionUsage updates last used timestamp", async () => {
@@ -255,7 +256,7 @@ test("invalidateSession marks session as inactive", async () => {
 
 	// Get session should return null since it's invalidated
 	const retrievedSession = sessionManager.getSession(session.id);
-	expect(retrievedSession).toBeNull();
+	assert.strictEqual(retrievedSession, null);
 });
 
 test("isValidSession returns true for valid session", async () => {
@@ -270,7 +271,7 @@ test("isValidSession returns true for valid session", async () => {
 	const session = await sessionManager.createSession(peerId);
 
 	const isValid = sessionManager.getSession(session.id) !== null;
-	expect(isValid).toBe(true);
+	assert.strictEqual(isValid, true);
 });
 
 test("isValidSession returns false for expired session", async () => {
@@ -288,7 +289,7 @@ test("isValidSession returns false for expired session", async () => {
 	session.expiresAt = Date.now() - 1000;
 
 	const isValid = sessionManager.getSession(session.id) !== null;
-	expect(isValid).toBe(false);
+	assert.strictEqual(isValid, false);
 });
 
 test("getActiveSessionsForPeer returns active sessions for peer", async () => {
@@ -306,9 +307,9 @@ test("getActiveSessionsForPeer returns active sessions for peer", async () => {
 
 	const activeSessions = sessionManager.getActiveSessionsForPeer(peerId);
 
-	expect(activeSessions.length).toBe(2);
-	expect(activeSessions[0]?.peerId).toBe(peerId);
-	expect(activeSessions[1]?.peerId).toBe(peerId);
+	assert.strictEqual(activeSessions.length, 2);
+	assert.strictEqual(activeSessions[0]?.peerId, peerId);
+	assert.strictEqual(activeSessions[1]?.peerId, peerId);
 });
 
 test("cleanupExpiredSessions removes expired sessions", async () => {
@@ -328,7 +329,7 @@ test("cleanupExpiredSessions removes expired sessions", async () => {
 
 	// Cleanup should remove expired sessions
 	const expiredCount = await sessionManager.cleanupExpired();
-	expect(expiredCount).toBe(1);
+	assert.strictEqual(expiredCount, 1);
 });
 
 test("getOrCreateE2ESessionWithHandshake creates new session when none exists", async () => {
@@ -356,9 +357,9 @@ test("getOrCreateE2ESessionWithHandshake creates new session when none exists", 
 		noiseSessionInfo,
 	);
 
-	expect(session).toBeDefined();
-	expect(session.peerId).toBe(peerId);
-	expect(session.noiseSessionInfo).toEqual(noiseSessionInfo);
+	assert.notStrictEqual(session, undefined);
+	assert.strictEqual(session.peerId, peerId);
+	assert.deepStrictEqual(session.noiseSessionInfo, noiseSessionInfo);
 });
 
 test("getOrCreateE2ESessionWithHandshake updates existing session with handshake info", async () => {
@@ -387,7 +388,7 @@ test("getOrCreateE2ESessionWithHandshake updates existing session with handshake
 		noiseSessionInfo,
 	);
 
-	expect(updatedSession.noiseSessionInfo).toEqual(noiseSessionInfo);
+	assert.deepStrictEqual(updatedSession.noiseSessionInfo, noiseSessionInfo);
 });
 
 test("getSessionKeys returns null for session without noise session info", async () => {
@@ -403,7 +404,7 @@ test("getSessionKeys returns null for session without noise session info", async
 
 	const keys = sessionManager.getSessionKeys(session.id);
 
-	expect(keys).toBeNull();
+	assert.strictEqual(keys, null);
 });
 
 test("getSessionKeys returns encryption/decryption keys for session with noise session info", async () => {
@@ -430,11 +431,13 @@ test("getSessionKeys returns encryption/decryption keys for session with noise s
 
 	const keys = sessionManager.getSessionKeys(session.id);
 
-	expect(keys).not.toBeNull();
-	expect(keys?.encryptionKey).toEqual(
+	assert.notStrictEqual(keys, null);
+	assert.deepStrictEqual(
+		keys?.encryptionKey,
 		noiseSessionInfo.sessionKeys?.encryptionKey,
 	);
-	expect(keys?.decryptionKey).toEqual(
+	assert.deepStrictEqual(
+		keys?.decryptionKey,
 		noiseSessionInfo.sessionKeys?.decryptionKey,
 	);
 });
@@ -454,9 +457,9 @@ test("getStatistics returns correct statistics", async () => {
 
 	const stats = sessionManager.getStatistics();
 
-	expect(stats).toBeDefined();
-	expect(stats.total).toBe(2);
-	expect(stats.active).toBe(2);
+	assert.notStrictEqual(stats, undefined);
+	assert.strictEqual(stats.total, 2);
+	assert.strictEqual(stats.active, 2);
 });
 
 // Additional tests for new functionality
@@ -481,9 +484,9 @@ test("deriveAndStoreSessionKeys derives and stores session keys", async () => {
 	);
 
 	const keys = sessionManager.getSessionKeys(session.id);
-	expect(keys).not.toBeNull();
-	expect(keys?.encryptionKey).toBeDefined();
-	expect(keys?.decryptionKey).toBeDefined();
+	assert.notStrictEqual(keys, null);
+	assert.notStrictEqual(keys?.encryptionKey, undefined);
+	assert.notStrictEqual(keys?.decryptionKey, undefined);
 });
 
 test("createSession with noiseSessionInfo includes it in the session", async () => {
@@ -508,5 +511,5 @@ test("createSession with noiseSessionInfo includes it in the session", async () 
 
 	const session = await sessionManager.createSession(peerId, noiseSessionInfo);
 
-	expect(session.noiseSessionInfo).toEqual(noiseSessionInfo);
+	assert.deepStrictEqual(session.noiseSessionInfo, noiseSessionInfo);
 });

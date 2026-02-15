@@ -1,8 +1,9 @@
-import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import assert from "node:assert";
+import { afterEach, beforeEach, describe, test } from "node:test";
 import type { Libp2p } from "@libp2p/interface";
-import { YapYapNode } from "../../../src/core/node";
-import { DatabaseManager } from "../../../src/database";
-import { cleanupTempDir, createTempDir } from "../../helpers/test-utils";
+import { YapYapNode } from "../../../src/core/node.js";
+import { DatabaseManager } from "../../../src/database.js";
+import { cleanupTempDir, createTempDir } from "../../helpers/test-utils.js";
 
 describe("YapYapNode", () => {
 	let dataDir: string;
@@ -20,10 +21,10 @@ describe("YapYapNode", () => {
 
 	test("exposes core getters", () => {
 		const node = new YapYapNode(db);
-		expect(node.getDatabase()).toBe(db);
+		assert.strictEqual(node.getDatabase(), db);
 		expect(node.getNodeState()).toBeDefined();
 		expect(node.getRoutingTable()).toBeDefined();
-		expect(node.getPeerId()).toBe("");
+		assert.strictEqual(node.getPeerId(), "");
 	});
 
 	test("registers protocol handlers on init and shuts down cleanly", async () => {
@@ -40,10 +41,10 @@ describe("YapYapNode", () => {
 
 		await node.init(libp2pMock as unknown as Libp2p);
 		expect(node.getPeerId()).toContain("12D3KooW");
-		expect(handled).toContain("/yapyap/message/1.0.0");
-		expect(handled).toContain("/yapyap/handshake/1.0.0");
-		expect(handled).toContain("/yapyap/route/1.0.0");
-		expect(handled).toContain("/yapyap/sync/1.0.0");
+		assert.ok(handled.includes("/yapyap/message/1.0.0"));
+		assert.ok(handled.includes("/yapyap/handshake/1.0.0"));
+		assert.ok(handled.includes("/yapyap/route/1.0.0"));
+		assert.ok(handled.includes("/yapyap/sync/1.0.0"));
 
 		await node.shutdown();
 	});

@@ -3,10 +3,11 @@
  * Tests EventBus integration with other modules
  */
 
-import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import { EventBus } from "../../../src/events/event-bus";
-import type { YapYapEvent } from "../../../src/events/event-types";
-import { Events } from "../../../src/events/event-types";
+import assert from "node:assert";
+import { afterEach, beforeEach, describe, it } from "node:test";
+import { EventBus } from "../../../src/events/event-bus.js";
+import type { YapYapEvent } from "../../../src/events/event-types.js";
+import { Events } from "../../../src/events/event-types.js";
 
 describe("EventBus Integration", () => {
 	let eventBus: EventBus;
@@ -46,8 +47,8 @@ describe("EventBus Integration", () => {
 
 			await eventBus.emit(testEvent);
 
-			expect(receivedEvents.length).toBe(1);
-			expect(receivedEvents[0]).toEqual(testEvent);
+			assert.strictEqual(receivedEvents.length, 1);
+			assert.deepStrictEqual(receivedEvents[0], testEvent);
 		});
 
 		it("should emit database.message.queued events", async () => {
@@ -72,8 +73,8 @@ describe("EventBus Integration", () => {
 
 			await eventBus.emit(testEvent);
 
-			expect(queuedEvents.length).toBe(1);
-			expect(queuedEvents[0]).toEqual(testEvent);
+			assert.strictEqual(queuedEvents.length, 1);
+			assert.deepStrictEqual(queuedEvents[0], testEvent);
 		});
 	});
 
@@ -97,8 +98,8 @@ describe("EventBus Integration", () => {
 
 			await eventBus.emit(testEvent);
 
-			expect(updatedEvents.length).toBe(1);
-			expect(updatedEvents[0]).toEqual(testEvent);
+			assert.strictEqual(updatedEvents.length, 1);
+			assert.deepStrictEqual(updatedEvents[0], testEvent);
 		});
 
 		it("should emit database.routing.updated events", async () => {
@@ -123,8 +124,8 @@ describe("EventBus Integration", () => {
 
 			await eventBus.emit(testEvent);
 
-			expect(routingEvents.length).toBe(1);
-			expect(routingEvents[0]).toEqual(testEvent);
+			assert.strictEqual(routingEvents.length, 1);
+			assert.deepStrictEqual(routingEvents[0], testEvent);
 		});
 
 		it("should emit database.contact.saved events", async () => {
@@ -148,8 +149,8 @@ describe("EventBus Integration", () => {
 
 			await eventBus.emit(testEvent);
 
-			expect(contactEvents.length).toBe(1);
-			expect(contactEvents[0]).toEqual(testEvent);
+			assert.strictEqual(contactEvents.length, 1);
+			assert.deepStrictEqual(contactEvents[0], testEvent);
 		});
 	});
 
@@ -172,8 +173,8 @@ describe("EventBus Integration", () => {
 
 			await eventBus.emit(testEvent);
 
-			expect(startedEvents.length).toBe(1);
-			expect(startedEvents[0]).toEqual(testEvent);
+			assert.strictEqual(startedEvents.length, 1);
+			assert.deepStrictEqual(startedEvents[0], testEvent);
 		});
 
 		it("should emit node.stopped events", async () => {
@@ -194,8 +195,8 @@ describe("EventBus Integration", () => {
 
 			await eventBus.emit(testEvent);
 
-			expect(stoppedEvents.length).toBe(1);
-			expect(stoppedEvents[0]).toEqual(testEvent);
+			assert.strictEqual(stoppedEvents.length, 1);
+			assert.deepStrictEqual(stoppedEvents[0], testEvent);
 		});
 
 		it("should emit node.error events", async () => {
@@ -217,8 +218,8 @@ describe("EventBus Integration", () => {
 
 			await eventBus.emit(testEvent);
 
-			expect(errorEvents.length).toBe(1);
-			expect(errorEvents[0]).toEqual(testEvent);
+			assert.strictEqual(errorEvents.length, 1);
+			assert.deepStrictEqual(errorEvents[0], testEvent);
 		});
 	});
 
@@ -252,10 +253,10 @@ describe("EventBus Integration", () => {
 
 			await eventBus.emit(testEvent);
 
-			expect(subscriber1Events.length).toBe(1);
-			expect(subscriber2Events.length).toBe(1);
-			expect(subscriber1Events[0]).toEqual(testEvent);
-			expect(subscriber2Events[0]).toEqual(testEvent);
+			assert.strictEqual(subscriber1Events.length, 1);
+			assert.strictEqual(subscriber2Events.length, 1);
+			assert.deepStrictEqual(subscriber1Events[0], testEvent);
+			assert.deepStrictEqual(subscriber2Events[0], testEvent);
 		});
 
 		it("should allow removing specific subscribers", async () => {
@@ -287,16 +288,16 @@ describe("EventBus Integration", () => {
 
 			await eventBus.emit(testEvent);
 
-			expect(subscriber1Events.length).toBe(1);
-			expect(subscriber2Events.length).toBe(1);
+			assert.strictEqual(subscriber1Events.length, 1);
+			assert.strictEqual(subscriber2Events.length, 1);
 
 			// Remove subscriber1
 			remove1();
 
 			await eventBus.emit(testEvent);
 
-			expect(subscriber1Events.length).toBe(1);
-			expect(subscriber2Events.length).toBe(2);
+			assert.strictEqual(subscriber1Events.length, 1);
+			assert.strictEqual(subscriber2Events.length, 2);
 		});
 	});
 
@@ -325,10 +326,10 @@ describe("EventBus Integration", () => {
 
 			const history = eventBus.getHistory(eventType);
 
-			expect(history.length).toBe(3);
+			assert.strictEqual(history.length, 3);
 
 			for (let i = 0; i < 3; i++) {
-				expect(history[i].event).toEqual(events[i]);
+				assert.deepStrictEqual(history[i].event, events[i]);
 			}
 		});
 
@@ -354,7 +355,7 @@ describe("EventBus Integration", () => {
 
 			// Default maxHistorySize is 100, so this should not be limited
 			const history = eventBus.getHistory(eventType);
-			expect(history.length).toBe(5);
+			assert.strictEqual(history.length, 5);
 		});
 	});
 });

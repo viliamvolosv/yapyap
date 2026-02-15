@@ -1,4 +1,5 @@
-import { expect, test } from "bun:test";
+import assert from "node:assert";
+import { test } from "node:test";
 import type { PeerId } from "@libp2p/interface";
 import {
 	deriveSharedSecret,
@@ -6,7 +7,7 @@ import {
 	generateIdentityKeyPair,
 	signMessage,
 	verifySignature,
-} from "../crypto/index";
+} from "../crypto/index.js";
 import {
 	deriveSessionKeys,
 	generateHandshakeMessage,
@@ -16,7 +17,7 @@ import {
 	isSupportedHandshakeVersion,
 	processNoiseXXHandshake,
 	verifyHandshakeMessage,
-} from "./handshake";
+} from "./handshake.js";
 
 test("Noise XX handshake protocol - generate and process messages", async () => {
 	// Generate Ed25519 key pairs for signatures
@@ -36,10 +37,10 @@ test("Noise XX handshake protocol - generate and process messages", async () => 
 	const initiatorMessage = initiatorResult.message;
 	const initiatorEphemeralPrivateKey = initiatorResult.ephemeralPrivateKey;
 
-	expect(initiatorMessage.type).toBe("initiator");
-	expect(initiatorMessage.ephemeralPublicKey).toBeDefined();
-	expect(initiatorMessage.staticPublicKey).toBeDefined();
-	expect(initiatorMessage.signature).toBeDefined();
+	assert.strictEqual(initiatorMessage.type, "initiator");
+	assert.notStrictEqual(initiatorMessage.ephemeralPublicKey, undefined);
+	assert.notStrictEqual(initiatorMessage.staticPublicKey, undefined);
+	assert.notStrictEqual(initiatorMessage.signature, undefined);
 
 	const responderResult = await generateNoiseXXResponderMessage(
 		responderStatic.publicKey,
@@ -48,10 +49,10 @@ test("Noise XX handshake protocol - generate and process messages", async () => 
 	const responderMessage = responderResult.message;
 	const responderEphemeralPrivateKey = responderResult.ephemeralPrivateKey;
 
-	expect(responderMessage.type).toBe("responder");
-	expect(responderMessage.ephemeralPublicKey).toBeDefined();
-	expect(responderMessage.staticPublicKey).toBeDefined();
-	expect(responderMessage.signature).toBeDefined();
+	assert.strictEqual(responderMessage.type, "responder");
+	assert.notStrictEqual(responderMessage.ephemeralPublicKey, undefined);
+	assert.notStrictEqual(responderMessage.staticPublicKey, undefined);
+	assert.notStrictEqual(responderMessage.signature, undefined);
 
 	// Test: Both parties can derive shared secrets (this test is more about function execution than matching)
 	// We just want to ensure the functions don't throw errors
@@ -67,8 +68,8 @@ test("Noise XX handshake protocol - generate and process messages", async () => 
 
 	// The main thing is that both operations should complete without throwing errors
 	// (they won't be equal because different ephemeral keys are used, but that's expected)
-	expect(initiatorSharedSecret).toBeInstanceOf(Uint8Array);
-	expect(responderSharedSecret).toBeInstanceOf(Uint8Array);
+	assert.ok(initiatorSharedSecret instanceof Uint8Array);
+	assert.ok(responderSharedSecret instanceof Uint8Array);
 });
 
 test("Noise XX handshake protocol - signature verification", async () => {
@@ -94,7 +95,7 @@ test("Noise XX handshake protocol - signature verification", async () => {
 		keyPair.publicKey,
 	);
 
-	expect(isValid).toBe(true);
+	assert.strictEqual(isValid, true);
 });
 
 test("Noise XX handshake protocol - session creation", async () => {
@@ -105,9 +106,9 @@ test("Noise XX handshake protocol - session creation", async () => {
 	const { message: initiatorMessage } = await generateNoiseXXInitiatorMessage(
 		initiatorKeyPair.publicKey,
 	);
-	expect(initiatorMessage.type).toBe("initiator");
-	expect(initiatorMessage.ephemeralPublicKey).toBeDefined();
-	expect(initiatorMessage.staticPublicKey).toBeDefined();
+	assert.strictEqual(initiatorMessage.type, "initiator");
+	assert.notStrictEqual(initiatorMessage.ephemeralPublicKey, undefined);
+	assert.notStrictEqual(initiatorMessage.staticPublicKey, undefined);
 });
 
 test("Noise XX handshake protocol - session key derivation", async () => {
@@ -125,10 +126,10 @@ test("Noise XX handshake protocol - session key derivation", async () => {
 	const { encryptionKey, decryptionKey } =
 		await deriveSessionKeys(sharedSecret);
 
-	expect(encryptionKey).toBeDefined();
-	expect(decryptionKey).toBeDefined();
-	expect(encryptionKey.length).toBeGreaterThan(0);
-	expect(decryptionKey.length).toBeGreaterThan(0);
+	assert.notStrictEqual(encryptionKey, undefined);
+	assert.notStrictEqual(decryptionKey, undefined);
+	assert.ok(encryptionKey.length > 0);
+	assert.ok(decryptionKey.length > 0);
 });
 
 test("Noise XX handshake protocol - full handshake processing", async () => {
@@ -158,18 +159,30 @@ test("Noise XX handshake protocol - full handshake processing", async () => {
 	);
 
 	// Both sessions should be marked as complete
-	expect(initiatorSessionInfo.handshakeComplete).toBe(true);
-	expect(responderSessionInfo.handshakeComplete).toBe(true);
+	assert.strictEqual(initiatorSessionInfo.handshakeComplete, true);
+	assert.strictEqual(responderSessionInfo.handshakeComplete, true);
 
 	// Both should have session keys derived
-	expect(initiatorSessionInfo.sessionKeys).toBeDefined();
-	expect(responderSessionInfo.sessionKeys).toBeDefined();
+	assert.notStrictEqual(initiatorSessionInfo.sessionKeys, undefined);
+	assert.notStrictEqual(responderSessionInfo.sessionKeys, undefined);
 
 	// Session keys should exist for both parties
-	expect(initiatorSessionInfo.sessionKeys?.encryptionKey).toBeDefined();
-	expect(initiatorSessionInfo.sessionKeys?.decryptionKey).toBeDefined();
-	expect(responderSessionInfo.sessionKeys?.encryptionKey).toBeDefined();
-	expect(responderSessionInfo.sessionKeys?.decryptionKey).toBeDefined();
+	assert.notStrictEqual(
+		initiatorSessionInfo.sessionKeys?.encryptionKey,
+		undefined,
+	);
+	assert.notStrictEqual(
+		initiatorSessionInfo.sessionKeys?.decryptionKey,
+		undefined,
+	);
+	assert.notStrictEqual(
+		responderSessionInfo.sessionKeys?.encryptionKey,
+		undefined,
+	);
+	assert.notStrictEqual(
+		responderSessionInfo.sessionKeys?.decryptionKey,
+		undefined,
+	);
 });
 
 test("Noise XX handshake protocol - full handshake simulation", async () => {
@@ -198,18 +211,30 @@ test("Noise XX handshake protocol - full handshake simulation", async () => {
 	);
 
 	// Both sessions should be marked as complete
-	expect(initiatorSessionInfo.handshakeComplete).toBe(true);
-	expect(responderSessionInfo.handshakeComplete).toBe(true);
+	assert.strictEqual(initiatorSessionInfo.handshakeComplete, true);
+	assert.strictEqual(responderSessionInfo.handshakeComplete, true);
 
 	// Both should have session keys derived
-	expect(initiatorSessionInfo.sessionKeys).toBeDefined();
-	expect(responderSessionInfo.sessionKeys).toBeDefined();
+	assert.notStrictEqual(initiatorSessionInfo.sessionKeys, undefined);
+	assert.notStrictEqual(responderSessionInfo.sessionKeys, undefined);
 
 	// Session keys should exist for both parties
-	expect(initiatorSessionInfo.sessionKeys?.encryptionKey).toBeDefined();
-	expect(initiatorSessionInfo.sessionKeys?.decryptionKey).toBeDefined();
-	expect(responderSessionInfo.sessionKeys?.encryptionKey).toBeDefined();
-	expect(responderSessionInfo.sessionKeys?.decryptionKey).toBeDefined();
+	assert.notStrictEqual(
+		initiatorSessionInfo.sessionKeys?.encryptionKey,
+		undefined,
+	);
+	assert.notStrictEqual(
+		initiatorSessionInfo.sessionKeys?.decryptionKey,
+		undefined,
+	);
+	assert.notStrictEqual(
+		responderSessionInfo.sessionKeys?.encryptionKey,
+		undefined,
+	);
+	assert.notStrictEqual(
+		responderSessionInfo.sessionKeys?.decryptionKey,
+		undefined,
+	);
 });
 
 test("Handshake protocol - rejects unsupported version", async () => {
@@ -240,8 +265,8 @@ test("Handshake protocol - rejects unsupported version", async () => {
 		),
 	).toString("hex");
 
-	expect(isSupportedHandshakeVersion(hello.version)).toBe(false);
-	expect(await verifyHandshakeMessage(hello)).toBe(false);
+	assert.strictEqual(isSupportedHandshakeVersion(hello.version), false);
+	assert.strictEqual(await verifyHandshakeMessage(hello), false);
 	const origConsoleErr = console.error;
 	console.error = () => {};
 	try {
@@ -268,7 +293,7 @@ test("Handshake protocol - accepts supported version", async () => {
 		remoteKeys.privateKey,
 		remoteKeys.publicKey,
 	);
-	expect(isSupportedHandshakeVersion(hello.version)).toBe(true);
+	assert.strictEqual(isSupportedHandshakeVersion(hello.version), true);
 
 	const response = await handleHandshakeMessage(
 		hello,
@@ -276,7 +301,7 @@ test("Handshake protocol - accepts supported version", async () => {
 		localKeys.privateKey,
 		localKeys.publicKey,
 	);
-	expect(response).not.toBeNull();
+	assert.notStrictEqual(response, null);
 	const ackPayload = response?.payload as { version?: string };
-	expect(ackPayload.version).toBe("1.0.0");
+	assert.strictEqual(ackPayload.version, "1.0.0");
 });

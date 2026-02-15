@@ -10,9 +10,9 @@ import {
 	generateEphemeralKeyPair,
 	signMessage,
 	verifySignature,
-} from "../crypto/index";
-import type { YapYapMessage } from "../message/message";
-import { handleProtocolError } from "./error-handler";
+} from "../crypto/index.js";
+import type { YapYapMessage } from "../message/message.js";
+import { handleProtocolError } from "./error-handler.js";
 
 /* ======================================================
    Helpers

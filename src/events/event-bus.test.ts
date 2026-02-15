@@ -1,11 +1,12 @@
 /**
+import assert from "node:assert";
  * Unit tests for EventBus
  */
 
-import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import { EventBus } from "./event-bus";
-import { ListenerScope } from "./event-listener-types";
-import type { YapYapEvent } from "./event-types";
+import { afterEach, beforeEach, describe, it } from "node:test";
+import { EventBus } from "./event-bus.js";
+import { ListenerScope } from "./event-listener-types.js";
+import type { YapYapEvent } from "./event-types.js";
 
 describe("EventBus", () => {
 	let eventBus: EventBus<Record<string, YapYapEvent>>;
@@ -25,7 +26,7 @@ describe("EventBus", () => {
 			const instance1 = EventBus.getInstance();
 			const instance2 = EventBus.getInstance();
 
-			expect(instance1).toBe(instance2);
+			assert.strictEqual(instance1, instance2);
 		});
 
 		it("should allow instance reset", () => {
@@ -33,7 +34,7 @@ describe("EventBus", () => {
 			EventBus.resetInstance();
 			const instance2 = EventBus.getInstance();
 
-			expect(instance1).not.toBe(instance2);
+			assert.notStrictEqual(instance1, instance2);
 		});
 	});
 
@@ -44,11 +45,11 @@ describe("EventBus", () => {
 
 			const remove = eventBus.addListener(eventType, handler);
 
-			expect(eventBus.hasListeners(eventType)).toBe(true);
-			expect(eventBus.getListenerCount(eventType)).toBe(1);
+			assert.strictEqual(eventBus.hasListeners(eventType), true);
+			assert.strictEqual(eventBus.getListenerCount(eventType), 1);
 
 			remove();
-			expect(eventBus.hasListeners(eventType)).toBe(false);
+			assert.strictEqual(eventBus.hasListeners(eventType), false);
 		});
 
 		it("should allow multiple listeners for the same event type", () => {
@@ -61,7 +62,7 @@ describe("EventBus", () => {
 			eventBus.addListener(eventType, handler2);
 			eventBus.addListener(eventType, handler3);
 
-			expect(eventBus.getListenerCount(eventType)).toBe(3);
+			assert.strictEqual(eventBus.getListenerCount(eventType), 3);
 		});
 
 		it("should return a removal function when adding a listener", () => {
@@ -70,10 +71,10 @@ describe("EventBus", () => {
 
 			const remove = eventBus.addListener(eventType, handler);
 
-			expect(typeof remove).toBe("function");
+			assert.strictEqual(typeof remove, "function");
 
 			remove();
-			expect(eventBus.hasListeners(eventType)).toBe(false);
+			assert.strictEqual(eventBus.hasListeners(eventType), false);
 		});
 
 		it("should remove a specific listener when calling the removal function", () => {
@@ -84,10 +85,10 @@ describe("EventBus", () => {
 			eventBus.addListener(eventType, handler1);
 			const remove = eventBus.addListener(eventType, handler2);
 
-			expect(eventBus.getListenerCount(eventType)).toBe(2);
+			assert.strictEqual(eventBus.getListenerCount(eventType), 2);
 
 			remove();
-			expect(eventBus.getListenerCount(eventType)).toBe(1);
+			assert.strictEqual(eventBus.getListenerCount(eventType), 1);
 		});
 
 		it("should remove all listeners when removeAllListeners is called", () => {
@@ -102,7 +103,7 @@ describe("EventBus", () => {
 
 			eventBus.removeAllListeners(eventType);
 
-			expect(eventBus.hasListeners(eventType)).toBe(false);
+			assert.strictEqual(eventBus.hasListeners(eventType), false);
 		});
 
 		it("should throw error when adding listener after shutdown", () => {
@@ -134,7 +135,7 @@ describe("EventBus", () => {
 
 			await eventBus.emit(testEvent);
 
-			expect(eventBus.hasListeners(eventType)).toBe(true);
+			assert.strictEqual(eventBus.hasListeners(eventType), true);
 		});
 
 		it("should not emit events if no listeners are registered", async () => {
@@ -149,7 +150,7 @@ describe("EventBus", () => {
 			await eventBus.emit(testEvent);
 
 			// Should not throw
-			expect(eventBus.hasListeners(eventType)).toBe(false);
+			assert.strictEqual(eventBus.hasListeners(eventType), false);
 		});
 
 		it("should execute multiple listeners for the same event", async () => {
@@ -180,7 +181,7 @@ describe("EventBus", () => {
 
 			await eventBus.emit(testEvent);
 
-			expect(results).toEqual(["handler1", "handler2", "handler3"]);
+			assert.deepStrictEqual(results, ["handler1", "handler2", "handler3"]);
 		});
 
 		it("should handle errors in event handlers gracefully", async () => {
@@ -239,11 +240,11 @@ describe("EventBus", () => {
 			await eventBus.emit(testEvent);
 
 			const history = eventBus.getHistory(eventType);
-			expect(history.length).toBe(1);
+			assert.strictEqual(history.length, 1);
 			const firstEvent = history[0];
-			expect(firstEvent).toBeDefined();
+			assert.notStrictEqual(firstEvent, undefined);
 			if (firstEvent) {
-				expect(firstEvent.event).toEqual(testEvent);
+				assert.deepStrictEqual(firstEvent.event, testEvent);
 			}
 		});
 
@@ -264,7 +265,7 @@ describe("EventBus", () => {
 			}
 
 			const history = eventBus.getHistory(eventType);
-			expect(history.length).toBe(3);
+			assert.strictEqual(history.length, 3);
 		});
 
 		it("should clear history for a specific event type", async () => {
@@ -286,13 +287,13 @@ describe("EventBus", () => {
 			await eventBus.emit(testEvent1);
 			await eventBus.emit(testEvent2);
 
-			expect(eventBus.getHistory(eventType1).length).toBe(1);
-			expect(eventBus.getHistory(eventType2).length).toBe(1);
+			assert.strictEqual(eventBus.getHistory(eventType1).length, 1);
+			assert.strictEqual(eventBus.getHistory(eventType2).length, 1);
 
 			eventBus.clearHistory(eventType1);
 
-			expect(eventBus.getHistory(eventType1)?.length).toBe(0);
-			expect(eventBus.getHistory(eventType2)?.length).toBe(1);
+			assert.strictEqual(eventBus.getHistory(eventType1)?.length, 0);
+			assert.strictEqual(eventBus.getHistory(eventType2)?.length, 1);
 		});
 
 		it("should clear all history", async () => {
@@ -314,13 +315,13 @@ describe("EventBus", () => {
 			await eventBus.emit(testEvent1);
 			await eventBus.emit(testEvent2);
 
-			expect(eventBus.getHistory(eventType1)?.length).toBe(1);
-			expect(eventBus.getHistory(eventType2)?.length).toBe(1);
+			assert.strictEqual(eventBus.getHistory(eventType1)?.length, 1);
+			assert.strictEqual(eventBus.getHistory(eventType2)?.length, 1);
 
 			eventBus.clearHistory();
 
-			expect(eventBus.getHistory(eventType1)?.length).toBe(0);
-			expect(eventBus.getHistory(eventType2)?.length).toBe(0);
+			assert.strictEqual(eventBus.getHistory(eventType1)?.length, 0);
+			assert.strictEqual(eventBus.getHistory(eventType2)?.length, 0);
 		});
 
 		it("should return events in timestamp order", async () => {
@@ -343,7 +344,7 @@ describe("EventBus", () => {
 					item.event.timestamp,
 			);
 
-			expect(historyTimes).toEqual(times);
+			assert.deepStrictEqual(historyTimes, times);
 		});
 	});
 
@@ -374,12 +375,12 @@ describe("EventBus", () => {
 
 			const stats = eventBus.getStats();
 
-			expect(stats.totalListeners).toBe(3);
-			expect(stats.totalEvents).toBe(2);
-			expect(stats.eventTypes[eventType1]?.listenerCount).toBe(2);
-			expect(stats.eventTypes[eventType1]?.emittedCount).toBe(2);
-			expect(stats.eventTypes[eventType2]?.listenerCount).toBe(1);
-			expect(stats.eventTypes[eventType2]?.emittedCount).toBe(1);
+			assert.strictEqual(stats.totalListeners, 3);
+			assert.strictEqual(stats.totalEvents, 2);
+			assert.strictEqual(stats.eventTypes[eventType1]?.listenerCount, 2);
+			assert.strictEqual(stats.eventTypes[eventType1]?.emittedCount, 2);
+			assert.strictEqual(stats.eventTypes[eventType2]?.listenerCount, 1);
+			assert.strictEqual(stats.eventTypes[eventType2]?.emittedCount, 1);
 		});
 	});
 
@@ -401,12 +402,12 @@ describe("EventBus", () => {
 			} as unknown as YapYapEvent;
 
 			await eventBus.emit(testEvent);
-			expect(results).toEqual(["called"]);
-			expect(eventBus.hasListeners(eventType)).toBe(false);
+			assert.deepStrictEqual(results, ["called"]);
+			assert.strictEqual(eventBus.hasListeners(eventType), false);
 
 			// Should not call again
 			await eventBus.emit(testEvent);
-			expect(results.length).toBe(1);
+			assert.strictEqual(results.length, 1);
 		});
 	});
 
@@ -414,8 +415,8 @@ describe("EventBus", () => {
 		it("should create a listener scope", () => {
 			const scope = new ListenerScope();
 
-			expect(scope).toBeInstanceOf(ListenerScope);
-			expect(scope.isDestroyed()).toBe(false);
+			assert.ok(scope instanceof ListenerScope);
+			assert.strictEqual(scope.isDestroyed(), false);
 		});
 
 		it("should add listeners to a scope", () => {
@@ -426,7 +427,7 @@ describe("EventBus", () => {
 
 			scope.addListener(eventType, handler);
 
-			expect(scope.getListenerCount(eventType)).toBe(1);
+			assert.strictEqual(scope.getListenerCount(eventType), 1);
 		});
 
 		it("should remove listeners when scope is destroyed", () => {
@@ -439,8 +440,8 @@ describe("EventBus", () => {
 
 			scope.destroy();
 
-			expect(scope.isDestroyed()).toBe(true);
-			expect(eventBus.hasListeners(eventType)).toBe(false);
+			assert.strictEqual(scope.isDestroyed(), true);
+			assert.strictEqual(eventBus.hasListeners(eventType), false);
 		});
 
 		it("should throw error when adding listeners after scope is destroyed", () => {
@@ -458,16 +459,16 @@ describe("EventBus", () => {
 		it("should track total listener count", () => {
 			const scope = eventBus.createListenerScope();
 
-			expect(scope.getListenerCount()).toBe(0);
+			assert.strictEqual(scope.getListenerCount(), 0);
 
 			scope.addListener("test.event1", () => {});
-			expect(scope.getListenerCount()).toBe(1);
+			assert.strictEqual(scope.getListenerCount(), 1);
 
 			scope.addListener("test.event2", () => {});
-			expect(scope.getListenerCount()).toBe(2);
+			assert.strictEqual(scope.getListenerCount(), 2);
 
 			scope.destroy();
-			expect(scope.getListenerCount()).toBe(0);
+			assert.strictEqual(scope.getListenerCount(), 0);
 		});
 	});
 
@@ -501,7 +502,7 @@ describe("EventBus", () => {
 
 			eventBus.shutdown();
 
-			expect(eventBus.hasListeners(eventType)).toBe(false);
+			assert.strictEqual(eventBus.hasListeners(eventType), false);
 		});
 
 		it("should clear all history on shutdown", async () => {
@@ -517,13 +518,13 @@ describe("EventBus", () => {
 
 			eventBus.shutdown();
 
-			expect(eventBus.getHistory(eventType)?.length).toBe(0);
+			assert.strictEqual(eventBus.getHistory(eventType)?.length, 0);
 		});
 
 		it("isShutdown should return true after shutdown", () => {
 			eventBus.shutdown();
 
-			expect(eventBus.isShutdown()).toBe(true);
+			assert.strictEqual(eventBus.isShutdown(), true);
 		});
 	});
 });

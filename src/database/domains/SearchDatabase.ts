@@ -1,5 +1,5 @@
-import type { Database } from "bun:sqlite";
-import type { Contact } from "../index";
+import type Database from "better-sqlite3";
+import type { Contact } from "../index.js";
 
 export class SearchDatabase {
 	constructor(private db: Database) {}

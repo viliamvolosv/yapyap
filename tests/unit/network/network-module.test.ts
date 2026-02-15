@@ -1,8 +1,9 @@
-import { describe, expect, test } from "bun:test";
+import assert from "node:assert";
+import { describe, test } from "node:test";
 import type { Libp2p, PeerId } from "@libp2p/interface";
-import { MessageCodec, MessageFramer } from "../../../src/core/protocols";
-import type { YapYapMessage } from "../../../src/message/message";
-import { NetworkModule } from "../../../src/network/NetworkModule";
+import { MessageCodec, MessageFramer } from "../../../src/core/protocols.js";
+import type { YapYapMessage } from "../../../src/message/message.js";
+import { NetworkModule } from "../../../src/network/NetworkModule.js";
 
 class TestNetworkModule extends NetworkModule {
 	public triggerInitBootstrap(addrs?: string[]) {
@@ -21,10 +22,10 @@ class TestNetworkModule extends NetworkModule {
 describe("NetworkModule", () => {
 	test("constructor initializes routing/state and default status", () => {
 		const network = new NetworkModule();
-		expect(network.routingTable).toBeDefined();
-		expect(network.nodeState).toBeDefined();
-		expect(network.isRunning).toBe(false);
-		expect(network.peerId).toBeUndefined();
+		assert.notStrictEqual(network.routingTable, undefined);
+		assert.notStrictEqual(network.nodeState, undefined);
+		assert.strictEqual(network.isRunning, false);
+		assert.strictEqual(network.peerId, undefined);
 	});
 
 	test("initBootstrap dials valid addresses and ignores invalid ones", async () => {
@@ -54,9 +55,9 @@ describe("NetworkModule", () => {
 		// initBootstrap kicks off async side effects without awaiting
 		await new Promise((resolve) => setTimeout(resolve, 5));
 
-		expect(bootstrapped).toBe(true);
-		expect(network.bootstrapAddrs).toHaveLength(1);
-		expect(dialed).toEqual(["/ip4/127.0.0.1/tcp/4001"]);
+		assert.strictEqual(bootstrapped, true);
+		assert.strictEqual(network.bootstrapAddrs.length, 1);
+		assert.deepStrictEqual(dialed, ["/ip4/127.0.0.1/tcp/4001"]);
 	});
 
 	test("buildResponse returns a framed YapYapMessage", () => {
@@ -71,18 +72,18 @@ describe("NetworkModule", () => {
 		const framed = network.buildTestResponse({ type: "pong" }, peer);
 
 		const decodedFrames = MessageFramer.decodeFrames(framed);
-		expect(decodedFrames.frames).toHaveLength(1);
+		assert.strictEqual(decodedFrames.frames.length, 1);
 
 		const message = MessageCodec.decode<YapYapMessage>(decodedFrames.frames[0]);
-		expect(message.from).toBe("peer-self");
-		expect(message.to).toBe("peer-remote");
-		expect(message.payload).toEqual({ type: "pong" });
+		assert.strictEqual(message.from, "peer-self");
+		assert.strictEqual(message.to, "peer-remote");
+		assert.deepStrictEqual(message.payload, { type: "pong" });
 	});
 
 	test("stop handles no-libp2p and active-libp2p cases", async () => {
 		const network = new TestNetworkModule();
 		await network.stop();
-		expect(network.isRunning).toBe(false);
+		assert.strictEqual(network.isRunning, false);
 
 		let stopped = false;
 		const libp2pMock = {
@@ -94,7 +95,7 @@ describe("NetworkModule", () => {
 		network.setTimer(setInterval(() => {}, 1000));
 
 		await network.stop();
-		expect(stopped).toBe(true);
-		expect(network.isRunning).toBe(false);
+		assert.strictEqual(stopped, true);
+		assert.strictEqual(network.isRunning, false);
 	});
 });

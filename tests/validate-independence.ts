@@ -1,4 +1,4 @@
-#!/usr/bin/env bun
+#!/usr/bin/env node
 
 /**
  * Test Independence Validator
@@ -22,7 +22,8 @@ async function validateIndependence() {
 	console.log("\nValidating test independence...\n");
 
 	try {
-		const testFiles = await Bun.file(testPattern).text();
+		const { readFileSync } = await import("node:fs");
+		const testFiles = readFileSync(testPattern, "utf-8");
 		const filePaths = testFiles.split("\n").filter((f) => f.trim());
 
 		if (filePaths.length === 0) {

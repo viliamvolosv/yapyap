@@ -3,8 +3,8 @@
  * Implements proper message framing for the /yapyap/msg/1.0.0 protocol
  */
 
-import { decodeMessage, encodeMessage } from "../core/protocols";
-import type { YapYapMessage } from "../message/message";
+import { decodeMessage, encodeMessage } from "../core/protocols.js";
+import type { YapYapMessage } from "../message/message.js";
 
 export const MessageFramer = {
 	/**

@@ -1,9 +1,14 @@
-import { expect, test } from "bun:test";
+import assert from "node:assert";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { test } from "node:test";
 import type { PeerId } from "@libp2p/interface";
-import { DatabaseManager } from "../database/index";
-import { handleSyncMessage, NodeState, type SyncResponseMessage } from "./sync";
+import { DatabaseManager } from "../database/index.js";
+import {
+	handleSyncMessage,
+	NodeState,
+	type SyncResponseMessage,
+} from "./sync.js";
 
 // Test Case 1: Timestamp-based LWW conflict resolution
 const store = new Map<string, { value: unknown; updated_at: number }>();
@@ -38,11 +43,13 @@ test("LWW conflict resolution: newer timestamp wins", async () => {
 		save,
 	);
 
-	expect(saved).toContainEqual([
-		"remotePeerId",
-		"example_key",
-		{ value: "new_value" },
-	]);
+	assert.ok(
+		saved.some(
+			(item) =>
+				JSON.stringify(item) ===
+				JSON.stringify(["remotePeerId", "example_key", { value: "new_value" }]),
+		),
+	);
 });
 
 test("Delta sync transmits only changed entries", async () => {
@@ -74,5 +81,5 @@ test("Metadata expires after TTL period", async () => {
 	await db.cleanup();
 	const value = await db.getPeerMetadata("test-peer", "ttl_key");
 	await db.close();
-	expect(value).toBeNull();
+	assert.strictEqual(value, null);
 });

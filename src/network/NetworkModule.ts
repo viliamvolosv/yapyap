@@ -24,23 +24,23 @@ import {
 	PROTOCOL_ROUTE,
 	PROTOCOL_SYNC,
 	RoutingTable,
-} from "../core/protocols";
-import type { YapYapMessage } from "../message/message";
+} from "../core/protocols.js";
+import type { YapYapMessage } from "../message/message.js";
 import {
 	type HandshakeMessage,
 	handleHandshakeMessage,
-} from "../protocols/handshake";
+} from "../protocols/handshake.js";
 import {
 	handleRouteMessage,
 	type RouteAnnounceMessage,
 	type RouteQueryMessage,
 	type RouteResultMessage,
-} from "../protocols/route";
+} from "../protocols/route.js";
 import {
 	handleSyncMessage,
 	type SyncRequestMessage,
 	type SyncResponseMessage,
-} from "../protocols/sync";
+} from "../protocols/sync.js";
 
 /* -------------------------------------------------------------------------- */
 /*                                   Types                                    */

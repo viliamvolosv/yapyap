@@ -9,8 +9,8 @@ import {
 	type EventStats,
 	ListenerScope,
 	type TypedEventEmitter,
-} from "./event-listener-types";
-import type { YapYapEvent } from "./event-types";
+} from "./event-listener-types.js";
+import type { YapYapEvent } from "./event-types.js";
 
 /**
  * Configuration options for EventBus

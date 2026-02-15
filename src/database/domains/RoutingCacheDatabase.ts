@@ -1,5 +1,5 @@
-import type { Database } from "bun:sqlite";
-import type { RoutingCacheEntry } from "../index";
+import type Database from "better-sqlite3";
+import type { RoutingCacheEntry } from "../index.js";
 
 export class RoutingCacheDatabase {
 	constructor(private db: Database) {}

@@ -9,4 +9,4 @@ echo "[entrypoint] data_dir=$YAPYAP_DATA_DIR api_port=$YAPYAP_API_PORT"
 
 mkdir -p "$YAPYAP_DATA_DIR"
 
-exec bun run dist/index.js start --data-dir "$YAPYAP_DATA_DIR" --api-port "$YAPYAP_API_PORT"
+exec node dist/cli.js start --data-dir "$YAPYAP_DATA_DIR" --api-port "$YAPYAP_API_PORT"

@@ -1,19 +1,23 @@
-import { describe, expect, test } from "bun:test";
-import * as eventsPublicApi from "../../src/events/index";
-import * as yapyapRoot from "../../src/index";
+import assert from "node:assert";
+import { describe, test } from "node:test";
+import * as eventsPublicApi from "../../src/events/index.js";
+import * as yapyapRoot from "../../src/index.js";
 
 describe("Public module exports", () => {
 	test("root index exports main symbols", () => {
-		expect(typeof yapyapRoot.YapYapNode).toBe("function");
-		expect(typeof yapyapRoot.EventBus).toBe("function");
-		expect(typeof yapyapRoot.Events).toBe("object");
-		expect(typeof yapyapRoot.createLogHandler).toBe("function");
+		assert.strictEqual(typeof yapyapRoot.YapYapNode, "function");
+		assert.strictEqual(typeof yapyapRoot.EventBus, "function");
+		assert.strictEqual(typeof yapyapRoot.Events, "object");
+		assert.strictEqual(typeof yapyapRoot.createLogHandler, "function");
 	});
 
 	test("events public index exports EventBus surface", () => {
-		expect(typeof eventsPublicApi.EventBus).toBe("function");
-		expect(typeof eventsPublicApi.ListenerScope).toBe("function");
-		expect(typeof eventsPublicApi.createRateLimitedEmitter).toBe("function");
-		expect(typeof eventsPublicApi.Events).toBe("object");
+		assert.strictEqual(typeof eventsPublicApi.EventBus, "function");
+		assert.strictEqual(typeof eventsPublicApi.ListenerScope, "function");
+		assert.strictEqual(
+			typeof eventsPublicApi.createRateLimitedEmitter,
+			"function",
+		);
+		assert.strictEqual(typeof eventsPublicApi.Events, "object");
 	});
 });

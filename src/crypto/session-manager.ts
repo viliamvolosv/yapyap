@@ -1,11 +1,11 @@
 /**
- * Secure Session Manager for Bun / Node
+ * Secure Session Manager for  Node
  * Uses X25519 + HKDF (No TweetNaCl, No WebCrypto)
  */
 
 import crypto from "node:crypto";
-import type { DatabaseManager } from "../database/index";
-import type { NoiseSessionInfo } from "../protocols/handshake";
+import type { DatabaseManager } from "../database/index.js";
+import type { NoiseSessionInfo } from "../protocols/handshake.js";
 
 /* -------------------------------------------------------------------------- */
 /* Types                                                                      */

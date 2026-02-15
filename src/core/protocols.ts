@@ -1,7 +1,7 @@
 import { decode, encode } from "msgpackr";
-import type { RoutingHint } from "../protocols/route";
-import { handleRouteMessage, RoutingTable } from "../protocols/route";
-import { handleSyncMessage, NodeState } from "../protocols/sync";
+import type { RoutingHint } from "../protocols/route.js";
+import { handleRouteMessage, RoutingTable } from "../protocols/route.js";
+import { handleSyncMessage, NodeState } from "../protocols/sync.js";
 
 /* -------------------------------------------------------------------------- */
 /*                               Protocol IDs                                 */

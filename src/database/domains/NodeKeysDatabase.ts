@@ -1,5 +1,5 @@
-import type { Database } from "bun:sqlite";
-import type { NodeKey } from "../index";
+import type Database from "better-sqlite3";
+import type { NodeKey } from "../index.js";
 
 export class NodeKeysDatabase {
 	constructor(private db: Database) {}

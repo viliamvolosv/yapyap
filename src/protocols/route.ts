@@ -4,7 +4,7 @@
  */
 
 import type { PeerId } from "@libp2p/interface";
-import { handleProtocolError } from "./error-handler";
+import { handleProtocolError } from "./error-handler.js";
 
 /* -------------------------------------------------------------------------- */
 /*                                   TYPES                                    */

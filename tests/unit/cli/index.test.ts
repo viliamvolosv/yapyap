@@ -1,23 +1,33 @@
-import { describe, expect, test } from "bun:test";
+import assert from "node:assert";
+import * as cp from "node:child_process";
+import { describe, test } from "node:test";
 
 describe("CLI", () => {
 	test("prints help successfully", async () => {
-		const proc = Bun.spawn({
-			cmd: ["bun", "run", "src/cli/index.ts", "--help"],
-			stdout: "pipe",
-			stderr: "pipe",
+		const proc = cp.spawn("node", ["src/cli/index.ts", "--help"], {
+			stdio: ["ignore", "pipe", "pipe"],
 		});
 
 		const [stdout, stderr] = await Promise.all([
-			new Response(proc.stdout).text(),
-			new Response(proc.stderr).text(),
+			new Promise<string>((resolve) => {
+				let data = "";
+				proc.stdout.on("data", (chunk) => (data += chunk));
+				proc.stdout.on("end", () => resolve(data));
+			}),
+			new Promise<string>((resolve) => {
+				let data = "";
+				proc.stderr.on("data", (chunk) => (data += chunk));
+				proc.stderr.on("end", () => resolve(data));
+			}),
 		]);
-		const exitCode = await proc.exited;
+		const exitCode = await new Promise<number>((resolve) => {
+			proc.on("close", resolve);
+		});
 
-		expect(exitCode).toBe(0);
-		expect(stdout).toContain("YapYap Messenger");
-		expect(stdout).toContain("start");
-		expect(stdout).toContain("send-message");
-		expect(stderr).toBe("");
+		assert.strictEqual(exitCode, 0);
+		assert.ok(stdout.includes("YapYap Messenger"));
+		assert.ok(stdout.includes("start"));
+		assert.ok(stdout.includes("send-message"));
+		assert.strictEqual(stderr, "");
 	});
 });

@@ -1,4 +1,5 @@
-import { describe, expect, test } from "bun:test";
+import assert from "node:assert";
+import { describe, test } from "node:test";
 import {
 	decodeMessage,
 	encodeMessage,
@@ -9,21 +10,21 @@ import {
 	PROTOCOL_MESSAGE,
 	PROTOCOL_ROUTE,
 	PROTOCOL_SYNC,
-} from "../../../src/core/protocols";
+} from "../../../src/core/protocols.js";
 
 describe("core/protocols", () => {
 	test("MessageCodec roundtrips payloads", () => {
 		const payload = { a: 1, b: "x", nested: { ok: true } };
 		const encoded = MessageCodec.encode(payload);
 		const decoded = MessageCodec.decode<typeof payload>(encoded);
-		expect(decoded).toEqual(payload);
+		assert.deepStrictEqual(decoded, payload);
 	});
 
 	test("encodeMessage/decodeMessage compatibility helpers roundtrip payloads", () => {
 		const payload = { type: "data", id: "m1" };
 		const encoded = encodeMessage(payload);
 		const decoded = decodeMessage<typeof payload>(encoded);
-		expect(decoded).toEqual(payload);
+		assert.deepStrictEqual(decoded, payload);
 	});
 
 	test("MessageFramer decodes full and partial frame buffers", () => {
@@ -39,8 +40,8 @@ describe("core/protocols", () => {
 		const remainderTail = joined.slice(cutAt);
 
 		const firstPass = MessageFramer.decodeFrames(partial);
-		expect(firstPass.frames).toHaveLength(1);
-		expect(firstPass.remainder.length).toBeGreaterThan(0);
+		assert.strictEqual(firstPass.frames.length, 1);
+		assert.ok(firstPass.remainder.length > 0);
 
 		const rebuilt = new Uint8Array(
 			firstPass.remainder.length + remainderTail.length,
@@ -49,8 +50,8 @@ describe("core/protocols", () => {
 		rebuilt.set(remainderTail, firstPass.remainder.length);
 
 		const secondPass = MessageFramer.decodeFrames(rebuilt);
-		expect(secondPass.frames).toHaveLength(1);
-		expect(secondPass.remainder).toHaveLength(0);
+		assert.strictEqual(secondPass.frames.length, 1);
+		assert.strictEqual(secondPass.remainder.length, 0);
 	});
 
 	test("MessageFramer rejects oversized frames on decode", () => {
@@ -69,9 +70,9 @@ describe("core/protocols", () => {
 	});
 
 	test("protocol constants stay stable", () => {
-		expect(PROTOCOL_MESSAGE).toBe("/yapyap/message/1.0.0");
-		expect(PROTOCOL_HANDSHAKE).toBe("/yapyap/handshake/1.0.0");
-		expect(PROTOCOL_ROUTE).toBe("/yapyap/route/1.0.0");
-		expect(PROTOCOL_SYNC).toBe("/yapyap/sync/1.0.0");
+		assert.strictEqual(PROTOCOL_MESSAGE, "/yapyap/message/1.0.0");
+		assert.strictEqual(PROTOCOL_HANDSHAKE, "/yapyap/handshake/1.0.0");
+		assert.strictEqual(PROTOCOL_ROUTE, "/yapyap/route/1.0.0");
+		assert.strictEqual(PROTOCOL_SYNC, "/yapyap/sync/1.0.0");
 	});
 });

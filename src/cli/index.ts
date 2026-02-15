@@ -10,10 +10,10 @@ import { multiaddr } from "@multiformats/multiaddr";
 import { Command } from "commander";
 import { createLibp2p } from "libp2p";
 import pino from "pino";
-import { ApiModule } from "../api";
-import { YapYapNode } from "../core/node";
-import { DatabaseManager } from "../database";
-import type { YapYapMessage } from "../message/message";
+import { ApiModule } from "../api/index.js";
+import { YapYapNode } from "../core/node.js";
+import { DatabaseManager } from "../database/index.js";
+import type { YapYapMessage } from "../message/message.js";
 import { APP_VERSION, BUILD_ENV, BUILD_TIME } from "./version";
 
 const logger = pino({

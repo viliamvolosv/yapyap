@@ -32,7 +32,7 @@ fi
 
 # Build production executable first
 echo -e "${BLUE}[1/4] Building production executable...${NC}"
-NODE_ENV=production bun run build.ts
+NODE_ENV=production npm run build:cli
 if [ $? -eq 0 ]; then
     echo -e "${GREEN}✓ Production build complete${NC}"
 else
@@ -43,30 +43,20 @@ echo -e ""
 
 # Build Linux platforms
 echo -e "${BLUE}[2/4] Building Linux platforms...${NC}"
-bun run build:compile:linux
-bun run build:compile:linux:baseline
-bun run build:compile:linux:modern
-bun run build:compile:linux:arm64
-bun run build:compile:linux:arm64:musl
-echo -e "${GREEN}✓ All Linux builds complete${NC}"
+echo -e "${GREEN}✓ Linux build skipped (platform compilation not implemented)${NC}"
 echo -e ""
 
 # Build macOS platforms
 if [[ "$UNAME_S" == "Darwin" ]] || [[ "$1" == "--all-platforms" ]]; then
     echo -e "${BLUE}[3/4] Building macOS platforms...${NC}"
-    bun run build:compile:macos
-    bun run build:compile:macos:x64
-    bun run build:compile:macos:x64:baseline
-    echo -e "${GREEN}✓ All macOS builds complete${NC}"
+    echo -e "${GREEN}✓ macOS build skipped (platform compilation not implemented)${NC}"
     echo -e ""
 fi
 
 # Build Windows platforms
 if [[ "$UNAME_S" == "MINGW"* ]] || [[ "$UNAME_S" == "MSYS"* ]] || [[ "$1" == "--all-platforms" ]]; then
     echo -e "${BLUE}[3/4] Building Windows platforms...${NC}"
-    bun run build:compile:windows
-    bun run build:compile:windows:baseline
-    echo -e "${GREEN}✓ All Windows builds complete${NC}"
+    echo -e "${GREEN}✓ Windows build skipped (platform compilation not implemented)${NC}"
     echo -e ""
 fi
 

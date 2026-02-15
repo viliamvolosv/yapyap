@@ -1,5 +1,5 @@
-import type { Database } from "bun:sqlite";
-import type { MessageQueueEntry } from "../index";
+import type Database from "better-sqlite3";
+import type { MessageQueueEntry } from "../index.js";
 
 export class MessageQueueDatabase {
 	constructor(private db: Database) {}

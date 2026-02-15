@@ -1,11 +1,12 @@
-import { describe, expect, test } from "bun:test";
+import assert from "node:assert";
+import { describe, test } from "node:test";
 import type {
 	AckMessage,
 	MessageQueueEntry,
 	NakMessage,
 	StoreAndForwardMessage,
 	YapYapMessage,
-} from "../../../src/core/message";
+} from "../../../src/core/message.js";
 
 describe("message types", () => {
 	test("define data and control message shapes", () => {
@@ -20,9 +21,9 @@ describe("message types", () => {
 			timestamp: now,
 		};
 
-		expect(dataMessage.id).toBe("msg_123");
-		expect(dataMessage.type).toBe("data");
-		expect(dataMessage.payload.text).toBe("hello");
+		assert.strictEqual(dataMessage.id, "msg_123");
+		assert.strictEqual(dataMessage.type, "data");
+		assert.strictEqual(dataMessage.payload.text, "hello");
 
 		const ackMessage: AckMessage = {
 			id: "ack_123",
@@ -34,8 +35,8 @@ describe("message types", () => {
 			originalMessageId: "msg_123",
 		};
 
-		expect(ackMessage.type).toBe("ack");
-		expect(ackMessage.originalMessageId).toBe("msg_123");
+		assert.strictEqual(ackMessage.type, "ack");
+		assert.strictEqual(ackMessage.originalMessageId, "msg_123");
 
 		const nakMessage: NakMessage = {
 			id: "nak_123",
@@ -48,8 +49,8 @@ describe("message types", () => {
 			reason: "delivery-failed",
 		};
 
-		expect(nakMessage.type).toBe("nak");
-		expect(nakMessage.reason).toBe("delivery-failed");
+		assert.strictEqual(nakMessage.type, "nak");
+		assert.strictEqual(nakMessage.reason, "delivery-failed");
 
 		const storeForwardMessage: StoreAndForwardMessage = {
 			id: "sf_123",
@@ -61,8 +62,8 @@ describe("message types", () => {
 			storedMessage: dataMessage,
 		};
 
-		expect(storeForwardMessage.type).toBe("store-and-forward");
-		expect(storeForwardMessage.storedMessage.id).toBe("msg_123");
+		assert.strictEqual(storeForwardMessage.type, "store-and-forward");
+		assert.strictEqual(storeForwardMessage.storedMessage.id, "msg_123");
 	});
 
 	test("defines a queue entry shape", () => {
@@ -81,7 +82,7 @@ describe("message types", () => {
 			attempts: 0,
 		};
 
-		expect(messageEntry.message.id).toBe("msg_456");
-		expect(messageEntry.attempts).toBe(0);
+		assert.strictEqual(messageEntry.message.id, "msg_456");
+		assert.strictEqual(messageEntry.attempts, 0);
 	});
 });

@@ -3,7 +3,7 @@
  * Provides strict typing for event handlers and listener management
  */
 
-import type { YapYapEvent } from "./event-types";
+import type { YapYapEvent } from "./event-types.js";
 
 /**
  * Base event map type.

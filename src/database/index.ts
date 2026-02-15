@@ -1,8 +1,8 @@
-import { Database } from "bun:sqlite";
 import { existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
-import type { YapYapNodeOptions } from "../core/node";
-import { yapyapSchema } from "./schema";
+import Database from "better-sqlite3";
+import type { YapYapNodeOptions } from "../core/node.js";
+import { yapyapSchema } from "./schema.js";
 
 export interface NodeKey {
 	id: number;
@@ -171,29 +171,29 @@ export class DatabaseManager {
 		this.db = new Database(this.dbPath);
 
 		// Enable WAL mode for better concurrency
-		this.db.run("PRAGMA journal_mode=WAL;");
+		this.db.exec("PRAGMA journal_mode=WAL;");
 
 		// Create tables synchronously
 		this.createTables();
 	}
 
 	private createTables(): void {
-		this.db.run(yapyapSchema.node_keys);
-		this.db.run(yapyapSchema.routing_cache);
-		this.db.run(yapyapSchema.message_queue);
-		this.db.run(yapyapSchema.pending_messages);
-		this.db.run(yapyapSchema.replicated_messages);
-		this.db.run(yapyapSchema.message_replicas);
-		this.db.run(yapyapSchema.processed_messages);
-		this.db.run(yapyapSchema.peer_sequences);
-		this.db.run(yapyapSchema.peer_vector_clocks);
-		this.db.run(yapyapSchema.contacts);
-		this.db.run(yapyapSchema.peer_metadata);
-		this.db.run(yapyapSchema.sessions);
-		this.db.run(yapyapSchema.search_index);
+		this.db.exec(yapyapSchema.node_keys);
+		this.db.exec(yapyapSchema.routing_cache);
+		this.db.exec(yapyapSchema.message_queue);
+		this.db.exec(yapyapSchema.pending_messages);
+		this.db.exec(yapyapSchema.replicated_messages);
+		this.db.exec(yapyapSchema.message_replicas);
+		this.db.exec(yapyapSchema.processed_messages);
+		this.db.exec(yapyapSchema.peer_sequences);
+		this.db.exec(yapyapSchema.peer_vector_clocks);
+		this.db.exec(yapyapSchema.contacts);
+		this.db.exec(yapyapSchema.peer_metadata);
+		this.db.exec(yapyapSchema.sessions);
+		this.db.exec(yapyapSchema.search_index);
 
 		for (const idx of yapyapSchema.indexes) {
-			this.db.run(idx);
+			this.db.exec(idx);
 		}
 	}
 

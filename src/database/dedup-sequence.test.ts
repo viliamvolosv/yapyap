@@ -1,8 +1,9 @@
-import { afterEach, describe, expect, test } from "bun:test";
+import assert from "node:assert";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { DatabaseManager } from "./index";
+import { afterEach, describe, test } from "node:test";
+import { DatabaseManager } from "./index.js";
 
 describe("DatabaseManager dedup + sequence", () => {
 	let dataDir: string | undefined;
@@ -19,35 +20,35 @@ describe("DatabaseManager dedup + sequence", () => {
 		dataDir = mkdtempSync(join(tmpdir(), "yapyap-dedup-"));
 		db = new DatabaseManager({ dataDir });
 
-		expect(db.isMessageProcessed("msg-1")).toBe(false);
+		assert.strictEqual(db.isMessageProcessed("msg-1"), false);
 		db.markMessageProcessed("msg-1", "peer-a", 7);
-		expect(db.isMessageProcessed("msg-1")).toBe(true);
+		assert.strictEqual(db.isMessageProcessed("msg-1"), true);
 	});
 
 	test("tracks and updates per-peer sequence numbers", () => {
 		dataDir = mkdtempSync(join(tmpdir(), "yapyap-seq-"));
 		db = new DatabaseManager({ dataDir });
 
-		expect(db.getLastPeerSequence("peer-a")).toBeNull();
+		assert.strictEqual(db.getLastPeerSequence("peer-a"), null);
 		db.updatePeerSequence("peer-a", 5);
-		expect(db.getLastPeerSequence("peer-a")).toBe(5);
+		assert.strictEqual(db.getLastPeerSequence("peer-a"), 5);
 
 		db.updatePeerSequence("peer-a", 6);
-		expect(db.getLastPeerSequence("peer-a")).toBe(6);
+		assert.strictEqual(db.getLastPeerSequence("peer-a"), 6);
 	});
 
 	test("tracks and merges lightweight vector clocks", () => {
 		dataDir = mkdtempSync(join(tmpdir(), "yapyap-vclock-"));
 		db = new DatabaseManager({ dataDir });
 
-		expect(db.getVectorClock("peer-a")).toBe(0);
+		assert.strictEqual(db.getVectorClock("peer-a"), 0);
 		db.updateVectorClock("peer-a", 2);
-		expect(db.getVectorClock("peer-a")).toBe(2);
+		assert.strictEqual(db.getVectorClock("peer-a"), 2);
 		db.updateVectorClock("peer-a", 1);
-		expect(db.getVectorClock("peer-a")).toBe(2);
+		assert.strictEqual(db.getVectorClock("peer-a"), 2);
 
 		db.updateVectorClock("peer-b", 7);
-		expect(db.getAllVectorClocks()).toEqual({
+		assert.deepStrictEqual(db.getAllVectorClocks(), {
 			"peer-a": 2,
 			"peer-b": 7,
 		});
@@ -66,21 +67,22 @@ describe("DatabaseManager dedup + sequence", () => {
 		);
 
 		const retryable = db.getRetryablePendingMessages();
-		expect(retryable.some((entry) => entry.message_id === messageId)).toBe(
-			true,
-		);
+		assert.ok(retryable.some((entry) => entry.message_id === messageId));
 
 		db.schedulePendingRetry(messageId, Date.now() + 1_000, "network");
 		const afterRetrySchedule = db.getRetryablePendingMessages();
-		expect(
-			afterRetrySchedule.some((entry) => entry.message_id === messageId),
-		).toBe(false);
+		assert.ok(
+			!afterRetrySchedule.some((entry) => entry.message_id === messageId),
+		);
 		const forPeer = db.getPendingMessagesForPeer("peer-a");
-		expect(forPeer.some((entry) => entry.message_id === messageId)).toBe(true);
+		assert.strictEqual(
+			forPeer.some((entry) => entry.message_id === messageId),
+			true,
+		);
 
 		db.markPendingMessageDelivered(messageId);
 		const cleaned = db.deleteExpiredPendingMessages();
-		expect(cleaned >= 1).toBe(true);
+		assert.strictEqual(cleaned >= 1, true);
 	});
 
 	test("returns delta windows for processed and pending messages", () => {
@@ -107,9 +109,12 @@ describe("DatabaseManager dedup + sequence", () => {
 		const pending = db.getPendingMessagesSince(before);
 		const byIds = db.getPendingMessagesByIds(["pend-1"]);
 
-		expect(processed).toContain("proc-1");
-		expect(pending.some((entry) => entry.message_id === "pend-1")).toBe(true);
-		expect(byIds.length).toBe(1);
+		assert.ok(processed.includes("proc-1"));
+		assert.strictEqual(
+			pending.some((entry) => entry.message_id === "pend-1"),
+			true,
+		);
+		assert.strictEqual(byIds.length, 1);
 	});
 
 	test("persists incoming message atomically and updates sequence/vector clock", () => {
@@ -132,12 +137,12 @@ describe("DatabaseManager dedup + sequence", () => {
 			vectorClock: { "peer-remote": 4, "peer-x": 2 },
 		});
 
-		expect(result.applied).toBe(true);
-		expect(result.duplicate).toBe(false);
-		expect(db.isMessageProcessed("incoming-1")).toBe(true);
-		expect(db.getLastPeerSequence("peer-remote")).toBe(4);
-		expect(db.getVectorClock("peer-remote")).toBe(4);
-		expect(db.getVectorClock("peer-x")).toBe(2);
+		assert.strictEqual(result.applied, true);
+		assert.strictEqual(result.duplicate, false);
+		assert.strictEqual(db.isMessageProcessed("incoming-1"), true);
+		assert.strictEqual(db.getLastPeerSequence("peer-remote"), 4);
+		assert.strictEqual(db.getVectorClock("peer-remote"), 4);
+		assert.strictEqual(db.getVectorClock("peer-x"), 2);
 	});
 
 	test("atomic incoming persistence drops duplicate side effects", () => {
@@ -173,10 +178,10 @@ describe("DatabaseManager dedup + sequence", () => {
 			ttl: 60_000,
 		});
 
-		expect(first.applied).toBe(true);
-		expect(second.applied).toBe(false);
-		expect(second.duplicate).toBe(true);
-		expect(db.getLastPeerSequence("peer-remote")).toBe(1);
+		assert.strictEqual(first.applied, true);
+		assert.strictEqual(second.applied, false);
+		assert.strictEqual(second.duplicate, true);
+		assert.strictEqual(db.getLastPeerSequence("peer-remote"), 1);
 	});
 
 	test("tracks replica ownership and assignments", () => {
@@ -195,13 +200,19 @@ describe("DatabaseManager dedup + sequence", () => {
 		db.markReplicaFailed("msg-replica", "peer-r2", "offline");
 
 		const replicas = db.getMessageReplicas("msg-replica");
-		expect(replicas.length).toBe(2);
-		expect(replicas.some((r) => r.replica_peer_id === "peer-r1")).toBe(true);
-		expect(replicas.some((r) => r.replica_peer_id === "peer-r2")).toBe(true);
+		assert.strictEqual(replicas.length, 2);
+		assert.strictEqual(
+			replicas.some((r) => r.replica_peer_id === "peer-r1"),
+			true,
+		);
+		assert.strictEqual(
+			replicas.some((r) => r.replica_peer_id === "peer-r2"),
+			true,
+		);
 
 		db.markReplicatedMessageDelivered("msg-replica");
 		const deleted = db.deleteExpiredReplicatedMessages(Date.now() + 61_000);
-		expect(deleted >= 1).toBe(true);
+		assert.strictEqual(deleted >= 1, true);
 	});
 
 	test("applies LWW for contacts and routing entries", () => {
@@ -223,8 +234,8 @@ describe("DatabaseManager dedup + sequence", () => {
 			is_trusted: false,
 		});
 		const contact = db.getContact("peer-contact");
-		expect(contact?.alias).toBe("new");
-		expect(contact?.is_trusted).toBe(true);
+		assert.strictEqual(contact?.alias, "new");
+		assert.strictEqual(contact?.is_trusted, true);
 
 		db.saveRoutingEntryLww({
 			peer_id: "peer-route",
@@ -241,7 +252,7 @@ describe("DatabaseManager dedup + sequence", () => {
 			ttl: 60_000,
 		});
 		const route = db.getRoutingEntry("peer-route");
-		expect(route?.multiaddrs).toEqual(["/ip4/1.1.1.1/tcp/1"]);
-		expect(route?.is_available).toBe(true);
+		assert.deepStrictEqual(route?.multiaddrs, ["/ip4/1.1.1.1/tcp/1"]);
+		assert.strictEqual(route?.is_available, true);
 	});
 });

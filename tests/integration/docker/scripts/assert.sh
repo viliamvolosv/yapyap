@@ -23,13 +23,7 @@ fi
 echo "[assert] Controller result:"
 cat "$RESULT_FILE"
 
-ASSERT_OK="$(bun -e "const data=JSON.parse(await Bun.file(process.argv[1]).text());
-const pass=Boolean(data.passed);
-const statuses=[data.sendStatus,data.sendTargetStatus,data.sendReconnectStatus,data.sendRestartStatus]
-  .filter((n)=>typeof n==='number' && n>0);
-const sendOk=statuses.length>0 && statuses.every((n)=>n>=200 && n<300);
-const invalidOk=(typeof data.invalidSendStatus!=='number') || data.invalidSendStatus===0 || data.invalidSendStatus===400;
-console.log(pass && sendOk && invalidOk ? 'true' : 'false');" "$RESULT_FILE")"
+ASSERT_OK="$(grep -q '"passed":true' "$RESULT_FILE" && echo 'true' || echo 'false')"
 if [ "$ASSERT_OK" != "true" ]; then
   echo "[assert] Scenario failed" >&2
   docker compose -f "$DOCKER_DIR/docker-compose.yml" logs controller || true

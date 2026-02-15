@@ -1,14 +1,14 @@
 // StorageModule: thin wrapper over DatabaseManager
 
-import type { YapYapNodeOptions } from "../core/node";
-import { ContactsDatabase } from "../database/domains/ContactsDatabase";
-import { MessageQueueDatabase } from "../database/domains/MessageQueueDatabase";
-import { NodeKeysDatabase } from "../database/domains/NodeKeysDatabase";
-import { PeerMetadataDatabase } from "../database/domains/PeerMetadataDatabase";
-import { RoutingCacheDatabase } from "../database/domains/RoutingCacheDatabase";
-import { SearchDatabase } from "../database/domains/SearchDatabase";
-import { SessionDatabase } from "../database/domains/SessionDatabase";
-import { DatabaseManager } from "../database/index";
+import type { YapYapNodeOptions } from "../core/node.js";
+import { ContactsDatabase } from "../database/domains/ContactsDatabase.js";
+import { MessageQueueDatabase } from "../database/domains/MessageQueueDatabase.js";
+import { NodeKeysDatabase } from "../database/domains/NodeKeysDatabase.js";
+import { PeerMetadataDatabase } from "../database/domains/PeerMetadataDatabase.js";
+import { RoutingCacheDatabase } from "../database/domains/RoutingCacheDatabase.js";
+import { SearchDatabase } from "../database/domains/SearchDatabase.js";
+import { SessionDatabase } from "../database/domains/SessionDatabase.js";
+import { DatabaseManager } from "../database/index.js";
 
 export class StorageModule {
 	private dbManager: DatabaseManager;

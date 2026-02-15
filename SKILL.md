@@ -23,20 +23,14 @@ git clone https://github.com/viliamvolosv/yapyap.git
 cd yapyap
 
 # Install dependencies
-bun install
+npm install
 
 # Build
-bun run build
+npm run build
 
 # Run CLI
-bun run dist/cli.js <command>
+npm run dev <command>
 ```
-
-### Requirements
-
-- **Node.js 22+** (required)
-- **Bun** (for development)
-- **npm** (for global installs)
 
 ## Core Commands
 
@@ -284,7 +278,7 @@ yapyap start
 
 ```bash
 # Start with hot reload
-bun dev
+npm run dev
 
 # This runs the development server on http://localhost:3000
 # Use this for local testing and benchmarking
@@ -294,42 +288,42 @@ bun dev
 
 ```bash
 # Build CLI
-bun run build
+npm run build
 
 # Or build CLI only
-bun run build:cli
+npm run build:cli
 
 # Or build everything
-bun run build:all
+npm run build:all
 ```
 
 ### Run Tests
 
 ```bash
 # Run all tests
-bun test
+npm test
 
 # Run specific test file
-bun test src/cli/index.test.ts
+npm test src/cli/index.test.ts
 
 # Run with coverage
-bun test --coverage
+npm test --coverage
 ```
 
 ### Linting and Formatting
 
 ```bash
 # Lint code
-bun run lint
+npm run lint
 
 # Format code
-bun run format
+npm run format
 
 # Type check
-bun run check
+npm run check
 
 # Run all checks
-bun run typecheck
+npm run typecheck
 ```
 
 ## Integration Tests
