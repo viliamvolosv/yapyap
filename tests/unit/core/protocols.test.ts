@@ -59,14 +59,16 @@ describe("core/protocols", () => {
 		const view = new DataView(oversizedFrame.buffer);
 		view.setUint32(0, MAX_FRAME_SIZE_BYTES + 1, false);
 
-		expect(() => MessageFramer.decodeFrames(oversizedFrame)).toThrow(
-			"Frame too large",
-		);
+		assert.throws(() => MessageFramer.decodeFrames(oversizedFrame), {
+			message: "Frame too large",
+		});
 	});
 
 	test("MessageFramer rejects oversized payloads on encode", () => {
 		const oversized = new Uint8Array(MAX_FRAME_SIZE_BYTES + 1);
-		expect(() => MessageFramer.encode(oversized)).toThrow("Frame too large");
+		assert.throws(() => MessageFramer.encode(oversized), {
+			message: "Frame too large",
+		});
 	});
 
 	test("protocol constants stay stable", () => {

@@ -237,7 +237,7 @@ test("updateSessionUsage updates last used timestamp", async () => {
 	const session = await sessionManager.createSession(peerId);
 
 	// This should not throw an error
-	expect(() => sessionManager.updateSessionUsage(session.id)).not.toThrow();
+	assert.doesNotThrow(() => sessionManager.updateSessionUsage(session.id));
 });
 
 test("invalidateSession marks session as inactive", async () => {

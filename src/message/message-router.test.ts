@@ -495,13 +495,16 @@ describe("MessageRouter", () => {
 			streams.some((msg) => msg.type === "ack"),
 			true,
 		);
-		expect(events.some((event) => event.type === Events.Message.Received)).toBe(
+		assert.strictEqual(
+			events.some((event) => event.type === Events.Message.Received),
 			true,
 		);
-		expect(events.some((event) => event.type === Events.Message.Sent)).toBe(
+		assert.strictEqual(
+			events.some((event) => event.type === Events.Message.Sent),
 			true,
 		);
-		expect(events.some((event) => event.type === Events.Message.Queued)).toBe(
+		assert.strictEqual(
+			events.some((event) => event.type === Events.Message.Queued),
 			true,
 		);
 	});

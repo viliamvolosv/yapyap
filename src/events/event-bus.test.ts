@@ -1,7 +1,7 @@
 /**
-import assert from "node:assert";
  * Unit tests for EventBus
  */
+import assert from "node:assert";
 
 import { afterEach, beforeEach, describe, it } from "node:test";
 import { EventBus } from "./event-bus.js";

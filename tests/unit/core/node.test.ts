@@ -2,7 +2,7 @@ import assert from "node:assert";
 import { afterEach, beforeEach, describe, test } from "node:test";
 import type { Libp2p } from "@libp2p/interface";
 import { YapYapNode } from "../../../src/core/node.js";
-import { DatabaseManager } from "../../../src/database.js";
+import { DatabaseManager } from "../../../src/database/index.js";
 import { cleanupTempDir, createTempDir } from "../../helpers/test-utils.js";
 
 describe("YapYapNode", () => {

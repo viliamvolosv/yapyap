@@ -270,7 +270,7 @@ test("Handshake protocol - rejects unsupported version", async () => {
 	const origConsoleErr = console.error;
 	console.error = () => {};
 	try {
-		await expect(
+		await assert.rejects(
 			handleHandshakeMessage(
 				hello,
 				{ toString: () => "peer-remote" } as PeerId,
