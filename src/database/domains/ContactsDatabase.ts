@@ -25,7 +25,7 @@ export class ContactsDatabase {
 			contact.alias,
 			now,
 			contact.metadata,
-			contact.is_trusted,
+			contact.is_trusted ? 1 : 0,
 		);
 	}
 

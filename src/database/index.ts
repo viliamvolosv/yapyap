@@ -833,7 +833,7 @@ export class DatabaseManager {
 				contact.alias,
 				now,
 				contact.metadata,
-				contact.is_trusted,
+				contact.is_trusted ? 1 : 0,
 			);
 	}
 
@@ -854,7 +854,7 @@ export class DatabaseManager {
 				contact.alias,
 				contact.last_seen,
 				contact.metadata,
-				contact.is_trusted,
+				contact.is_trusted ? 1 : 0,
 			);
 	}
 
