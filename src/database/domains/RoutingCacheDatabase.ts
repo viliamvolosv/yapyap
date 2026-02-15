@@ -1,4 +1,4 @@
-import type Database from "better-sqlite3";
+import type * as Database from "better-sqlite3";
 import type { RoutingCacheEntry } from "../index.js";
 
 export class RoutingCacheDatabase {

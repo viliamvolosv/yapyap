@@ -1,4 +1,4 @@
-import type Database from "better-sqlite3";
+import type { Database } from "better-sqlite3";
 import type { NodeKey } from "../index.js";
 
 export class NodeKeysDatabase {
