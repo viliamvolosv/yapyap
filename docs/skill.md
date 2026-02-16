@@ -1,367 +1,260 @@
 ---
 name: yapyap
-description: YapYap messenger - Decentralized P2P messaging with end-to-end encryption. Use when working with YapYap CLI, installing, sending messages, or managing the node.
+description: YapYap is a decentralized P2P messenger node and CLI library. Use when working with YapYap installation, configuration, messaging, network operations, or debugging messaging flows.
+disable-model-invocation: false
 ---
 
 # YapYap Messenger
 
-YapYap is a decentralized P2P messenger with end-to-end encrypted messaging, offline delivery, and no servers.
+YapYap is a decentralized, peer-to-peer messenger node and CLI library built with Node.js + TypeScript. It prioritizes reliable end-to-end encrypted delivery, offline/store-and-forward support, deduplication, and ACK-driven reliability.
 
-## Installation
+## Quick Install
 
-### Quick Install (macOS/Linux)
+Install YapYap with a single command (no options needed):
 
 ```bash
-curl -fsSL --proto '=https' --tlsv1.2 https://viliamvolosv.github.io/yapyap/install.sh | bash
+curl -fsSL https://viliamvolosv.github.io/yapyap/install.sh | bash
 ```
 
-### Install via Git (Development)
+This installs the `yapyap` CLI binary to your system and sets up a default configuration.
+
+**Requirements:** Node.js ≥22.12.0
+
+---
+
+## Basic CLI Commands
+
+### Initialize a YapYap node
 
 ```bash
-# Clone the repo
-git clone https://github.com/viliamvolosv/yapyap.git
-cd yapyap
+yapyap init
+```
 
-# Install dependencies
+Creates a new YapYap node with default configuration. This sets up the SQLite database and network identity.
+
+### Start a YapYap node
+
+```bash
+yapyap start
+```
+
+Starts the YapYap node and connects to the P2P network. This runs continuously in the terminal.
+
+### Send a message
+
+```bash
+yapyap send <peer-id> <message>
+```
+
+Sends an end-to-end encrypted message to a peer. The message is delivered via the P2P network with retry logic.
+
+### Check node status
+
+```bash
+yapyap status
+```
+
+Shows current node status including:
+- Network connectivity
+- Peer list
+- Message queue status
+- Database statistics
+
+### List connected peers
+
+```bash
+yapyap peers
+```
+
+Displays all currently connected peers with their peer IDs.
+
+---
+
+## Key Features
+
+### End-to-End Encryption
+All messages are encrypted using Noise XX/IK protocol and Ed25519 signatures. Only the intended recipient can decrypt messages.
+
+### Offline Delivery
+YapYap supports store-and-forward delivery. Messages are queued locally and delivered when the peer comes online.
+
+### Deduplication
+The system maintains a deduplication cache to prevent duplicate message processing.
+
+### ACK-Driven Reliability
+Messages require acknowledgments for reliable delivery. Failed transmissions are automatically retried with exponential backoff.
+
+### Persistence
+Messages and processed messages are persisted in SQLite using `better-sqlite3` with tables for `message_queue` and `processed_messages`.
+
+---
+
+## Network Architecture
+
+YapYap uses libp2p for networking with:
+- **Transport:** TCP and WebSocket with yamux multiplexing
+- **Discovery:** Bootstrap nodes and DHT
+- **NAT Traversal:** Autonat and relay fallbacks
+
+The message flow follows this pipeline (see `docs/MESSAGE_FLOW.md`):
+1. Enqueue message into database
+2. Transmit via P2P network
+3. Await ACK from recipient
+4. Update message status (pending → processing → transmitting → delivered/failed)
+5. Retry failed messages with backoff
+
+---
+
+## Common Use Cases
+
+### Setting up a new YapYap instance
+```bash
+# Install
+curl -fsSL https://viliamvolosv.github.io/yapyap/install.sh | bash
+
+# Initialize node
+yapyap init
+
+# Start the node
+yapyap start
+```
+
+### Sending encrypted messages
+```bash
+# After starting the node and connecting to peers, send messages
+yapyap send <peer-id> "Your encrypted message here"
+```
+
+### Monitoring message delivery
+```bash
+# Check status to see message queue and delivery status
+yapyap status
+
+# View connected peers
+yapyap peers
+```
+
+### Checking logs and debugging
+The CLI runs in the terminal where it's started. Look for:
+- Connection success/failure messages
+- Message transmission logs
+- ACK confirmations
+- Retry attempts
+
+---
+
+## Development & Testing
+
+### Running locally from source
+```bash
+# Clone and install dependencies
+git clone https://github.com/viliamvolosv/yapyap
+cd yapyap
 npm install
 
-# Build
-npm run build
+# Build the project
+npm run build:all
 
-# Run CLI
-npm run dev <command>
-```
-
-## Core Commands
-
-### 1. Start the Node (Daemon Mode)
-
-Start YapYap as a background service:
-
-```bash
-# Basic start
-yapyap start
-
-# Custom data directory
-yapyap start --data-dir /path/to/data
-
-# With API port
-yapyap start --api-port 3000
-
-# With custom listen address
-yapyap start --listen /ip4/0.0.0.0/tcp/0
-
-# Bootstrap from specific nodes
-yapyap start --network /ip4/1.2.3.4/tcp/4001/p2p/QmXxxx...
-
-# Verbose logging
-yapyap start --verbose
-```
-
-**Tip:** Run this in the background (e.g., using `nohup yapyap start &`) to keep it running continuously.
-
-### 2. Get Your Peer ID
-
-Display your node's permanent identity:
-
-```bash
-yapyap get-peer-id
-```
-
-**Output:**
-```
-╔══════════════════════════════════════════════════════════╗
-║                    YapYap Node Identity                   ║
-╚══════════════════════════════════════════════════════════╝
-
-Peer ID: QmXxxx...
-
-This Peer ID is your permanent identity in the YapYap network.
-Share it with others so they can send you messages.
-
-To use this Peer ID:
-  - Send messages: ./yapyap send-message --to <peer-id> --payload <text>
-  - Add to contacts: POST to /api/database/contacts
-
-To start your node (daemon mode):
-  - ./yapyap start --data-dir /path/to/data
-```
-
-**Important:** Share your Peer ID with contacts so they can send you encrypted messages.
-
-### 3. Send Encrypted Messages
-
-Send an end-to-end encrypted message to a peer:
-
-```bash
-# Basic message
-yapyap send-message \
-  --to QmXxxx... \
-  --payload "Hello from YapYap!"
-
-# With alias
-yapyap send-message \
-  --to QmXxxx... \
-  --payload "Secret message" \
-  --alias "Alice"
-
-# Disable encryption (not recommended)
-yapyap send-message \
-  --to QmXxxx... \
-  --payload "Plain text" \
-  --encrypted false
-```
-
-**Command structure:**
-- `--to <peer-id>`: Target peer's Peer ID (required)
-- `--payload <string>`: Message content (required)
-- `--alias <name>`: Alias for the contact (optional)
-- `--encrypted`: Enable encryption (default: true)
-
-### 4. View Logs
-
-Check node logs for troubleshooting:
-
-```bash
-# Show last 50 lines
-yapyap logs
-
-# Show last 100 lines
-yapyap logs --tail 100
-
-# Filter logs
-yapyap logs --filter "error"
-yapyap logs --filter "message"
-```
-
-**Log location:** `./data/yapyap.log`
-
-### 5. Check Version
-
-Display version information:
-
-```bash
-yapyap version
-```
-
-**Output:**
-```
-YapYap Messenger v1.0.0
-Build time: 2025-01-15T10:30:00Z
-Build environment: production
-Platform: darwin-arm64
-```
-
-## Workflow Example
-
-### Complete Setup and Messaging Flow
-
-```bash
-# 1. Start the node in background
-nohup yapyap start > /dev/null 2>&1 &
-
-# 2. Wait a moment for the node to initialize
-sleep 5
-
-# 3. Get your Peer ID
-PEER_ID=$(yapyap get-peer-id | grep "Peer ID:" | awk '{print $2}')
-
-# 4. Share your Peer ID with contacts
-echo "My Peer ID: $PEER_ID"
-
-# 5. Send an encrypted message
-yapyap send-message \
-  --to <CONTACT_PEER_ID> \
-  --payload "Hello! I'm using YapYap for private messaging."
-
-# 6. Check logs to verify message was sent
-yapyap logs --tail 20
-```
-
-## Architecture Overview
-
-### Key Concepts
-
-- **Peer ID**: Your permanent identity in the YapYap network (base58-encoded Ed25519 public key)
-- **End-to-end encryption**: Messages are encrypted before transmission using Ed25519
-- **P2P network**: No servers - messages go directly between peers
-- **Libp2p**: Underlying networking stack for transport and encryption
-- **Offline delivery**: Messages persist in the database until delivered
-
-### Network Stack
-
-- **Transports**: TCP, WebSockets (for NAT traversal)
-- **Encryption**: Noise protocol (XX/IK pattern)
-- **Multiplexing**: Yamux (stream multiplexing over connections)
-- **Crypto**: Ed25519 key pairs for identity and encryption
-
-## API (Optional)
-
-The node exposes a REST API on `http://localhost:<port>`:
-
-```bash
-# Check API status
-curl http://localhost:3000/api/health
-
-# Get contacts
-curl http://localhost:3000/api/database/contacts
-
-# Add a contact
-curl -X POST http://localhost:3000/api/database/contacts \
-  -H "Content-Type: application/json" \
-  -d '{"peer_id": "QmXxxx...", "alias": "Alice"}'
-```
-
-## Configuration
-
-### Environment Variables
-
-```bash
-# Log level (debug, info, warn, error)
-export YAPYAP_LOG_LEVEL=debug
-
-# Enable pretty logging
-export YAPYAP_PRETTY_LOG=true
-
-# Listen address
-export YAPYAP_LISTEN_ADDR=/ip4/0.0.0.0/tcp/0
-
-# Bootstrap node addresses (comma-separated)
-export YAPYAP_BOOTSTRAP_ADDRS=/ip4/1.2.3.4/tcp/4001/p2p/QmXxxx...
-```
-
-### Data Directory
-
-- Default: `./data`
-- Stores: Database, keys, logs, message queue
-- Custom: Use `--data-dir` flag
-
-## Troubleshooting
-
-### Node won't start
-
-```bash
-# Check if port is already in use
-lsof -i :3000
-
-# Check logs
-yapyap logs --tail 50
-
-# Verify Node.js version
-node -v  # Should be v22+
-```
-
-### Can't send messages
-
-```bash
-# Verify peer ID is correct (32-character base58)
-# Check node is running
-ps aux | grep yapyap
-
-# Check logs for errors
-yapyap logs --filter "error"
-```
-
-### Need to restart the node
-
-```bash
-# Stop the process
-pkill yapyap
-
-# Start again
-yapyap start
-```
-
-## Development
-
-### Run in Development Mode
-
-```bash
-# Start with hot reload
+# Start development server
 npm run dev
 
-# This runs the development server on http://localhost:3000
-# Use this for local testing and benchmarking
+# Run the CLI directly
+node dist/cli.js start
 ```
 
-### Build for Production
-
-```bash
-# Build CLI
-npm run build
-
-# Or build CLI only
-npm run build:cli
-
-# Or build everything
-npm run build:all
-```
-
-### Run Tests
-
+### Running tests
 ```bash
 # Run all tests
 npm test
 
 # Run specific test file
-npm test src/cli/index.test.ts
-
-# Run with coverage
-npm test --coverage
+node --test path/to/file.test.ts
 ```
 
-### Linting and Formatting
-
+### Integration testing
 ```bash
-# Lint code
-npm run lint
-
-# Format code
-npm run format
-
-# Type check
-npm run check
-
-# Run all checks
-npm run typecheck
-```
-
-## Integration Tests
-
-### Run Docker Compose Suite
-
-```bash
-# Start the integration test suite
+# Run Docker Compose integration suite
 bash tests/integration/docker/run-basic-suite.sh
-
-# Stop containers
-docker compose -f tests/integration/docker/docker-compose.yml down -v
 
 # Run custom scenarios
 bash tests/integration/docker/run.sh
 ```
 
-## Best Practices
+---
 
-1. **Keep your Peer ID safe**: It's your permanent identity
-2. **Use encryption**: Always send encrypted messages (default)
-3. **Run node in background**: Use `nohup` or system service
-4. **Check logs**: Monitor logs for connectivity issues
-5. **Backup data directory**: Contains your keys and message history
-6. **Use bootstrap nodes**: Connect to known peers to discover others
+## Documentation
 
-## Key Files
+For detailed information about:
+- **Message flow and pipeline:** See `docs/MESSAGE_FLOW.md`
+- **Architecture and roadmap:** See `PLAN.md`
+- **MVP stabilization roadmap:** See `yapyap_mvp_stabilization_roadmap.md`
 
-- `src/cli/index.ts` - CLI entry point
-- `src/core/node.ts` - YapYap node implementation
-- `src/message/message-router.ts` - Message routing logic
-- `src/database/schema.ts` - Database schema
-- `docs/MESSAGE_FLOW.md` - Message lifecycle documentation
-- `PLAN.md` - Architecture and roadmap
+---
 
-## Resources
+## Troubleshooting
 
-- **Project README**: https://github.com/viliamvolosv/yapyap#readme
-- **Message Flow**: `docs/MESSAGE_FLOW.md`
-- **Architecture**: `PLAN.md`
-- **MVP Roadmap**: `yapyap_mvp_stabilization_roadmap.md`
+### Node won't start
+- Check Node.js version: `node --version` (requires ≥22.12.0)
+- Verify database permissions in the data directory
+- Check for port conflicts (default ports for libp2p)
+
+### Messages not delivering
+- Verify peers are connected: `yapyap peers`
+- Check node status: `yapyap status`
+- Review logs for transmission errors
+- Ensure both nodes have proper NAT traversal configured
+
+### Database issues
+- Database is created automatically on `yapyap init`
+- Location is typically in the current directory (check configuration)
+- Database uses SQLite with better-sqlite3
+
+---
+
+## Security Notes
+
+- **Never share your peer ID** — it's your network identity
+- **Messages are encrypted end-to-end** — only recipients can read them
+- **Peer connections are authenticated** using Ed25519 signatures
+- **Network traffic is encrypted** using Noise protocol
+- Do not enable debug mode in production environments
+
+---
+
+## Example Workflow
+
+1. **Install YapYap:**
+   ```bash
+   curl -fsSL https://viliamvolosv.github.io/yapyap/install.sh | bash
+   ```
+
+2. **Initialize your node:**
+   ```bash
+   yapyap init
+   ```
+
+3. **Start the node:**
+   ```bash
+   yapyap start
+   ```
+
+4. **Connect to peers** (after network bootstrap or via DHT discovery)
+
+5. **Send encrypted messages:**
+   ```bash
+   yapyap send <peer-id> "Hello, encrypted message!"
+   ```
+
+6. **Monitor status:**
+   ```bash
+   yapyap status
+   yapyap peers
+   ```
+
+---
+
+## Related Resources
+
+- **Project GitHub:** https://github.com/viliamvolosv/yapyap
+- **Quick Install:** https://viliamvolosv.github.io/yapyap/install.sh
+- **AGENT skill:** Get started quickly with `curl -s https://viliamvolosv.github.io/yapyap/skill.md | bash`
