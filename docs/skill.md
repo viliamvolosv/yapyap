@@ -12,7 +12,7 @@ YapYap is a decentralized P2P messenger with end-to-end encrypted messaging, off
 ### Quick Install (macOS/Linux)
 
 ```bash
-curl -fsSL --proto '=https' --tlsv1.2 https://raw.githubusercontent.com/viliamvolosv/yapyap/main/install.sh | bash
+curl -fsSL --proto '=https' --tlsv1.2 https://viliamvolosv.github.io/yapyap/install.sh | bash
 ```
 
 ### Install via Git (Development)

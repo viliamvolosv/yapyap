@@ -9,6 +9,22 @@ YapYap is a decentralized, peer-to-peer messenger node and CLI library built wit
 - CLI (`yapyap` binary) that ships `init`, `start`, `send`, `status`, `peers`, and HTTP API endpoints for automated control.
 
 ## Getting started
+
+### Quick install (recommended)
+```bash
+curl -fsSL https://viliamvolosv.github.io/yapyap/install.sh | bash
+```
+
+Or use the installer with specific options:
+```bash
+# Install via npm (default)
+curl -fsSL https://viliamvolosv.github.io/yapyap/install.sh | bash -s -- --no-onboard
+
+# Install from GitHub source
+curl -fsSL https://viliamvolosv.github.io/yapyap/install.sh | bash -s -- --method github --no-onboard
+```
+
+### Manual install
 1. Install Node.js 22.12+ and clone the repository: https://github.com/viliamvolosv/yapyap
 2. Run `npm install` to populate dependencies.
 3. Build the project with `npm run build:all` (creates `dist/index.js` and `dist/cli.js`).
@@ -23,6 +39,8 @@ YapYap is a decentralized, peer-to-peer messenger node and CLI library built wit
 - **Build:** `npm run build:all` - Fast builds with esbuild (~10ms)
 
 ## Documentation & roadmap
+- **Quick install:** Use the installer script: https://viliamvolosv.github.io/yapyap/install.sh
+- **AGENT skill:** Get started quickly with `curl -s https://viliamvolosv.github.io/yapyap/skill.md | bash`
 - **GitHub:** https://github.com/viliamvolosv/yapyap (issues and contributions)
 
 ## Contributing
