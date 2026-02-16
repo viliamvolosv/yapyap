@@ -65,6 +65,8 @@ CREATE TABLE IF NOT EXISTS message_replicas (
 CREATE TABLE IF NOT EXISTS processed_messages (
   message_id TEXT PRIMARY KEY,
   from_peer_id TEXT NOT NULL,
+  to_peer_id TEXT,
+  message_data TEXT,
   sequence_number INTEGER,
   processed_at INTEGER NOT NULL
 );

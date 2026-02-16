@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { Libp2p, Stream } from "@libp2p/interface";
+import type { Libp2p, PeerId, Stream } from "@libp2p/interface";
 import { peerIdFromString } from "@libp2p/peer-id";
 import type {
 	DatabaseManager,
@@ -8,6 +8,7 @@ import type {
 	RoutingCacheEntry,
 } from "../database/index.js";
 import { Events, type YapYapEvent } from "../events/event-types.js";
+import type { ConnectionHealthMonitor } from "../network/NetworkModule.js";
 import type { AckMessage, NakMessage, YapYapMessage } from "./message.js";
 
 /**
@@ -25,7 +26,6 @@ interface NodeContext {
 	encryptMessage: (payload: unknown, recipient: Uint8Array) => Promise<unknown>;
 	encodeResponse: (message: YapYapMessage) => Uint8Array;
 	safeClose: (stream: Stream) => Promise<void>;
-	messageQueues?: Map<string, MessageQueueEntryInternal[]>;
 	pendingAcks?: Map<string, { timeout: NodeJS.Timeout }>;
 	onMessage?: (message: YapYapMessage) => Promise<void>;
 	emitEvent?: (event: YapYapEvent) => Promise<void>;
@@ -49,6 +49,7 @@ interface NodeContext {
 	) => Promise<boolean>;
 	getBootstrapPeerIds?: () => string[];
 	getThrottleKeyForPeer?: (peerId: string) => string | undefined;
+	healthMonitor?: ConnectionHealthMonitor;
 }
 
 export interface MessageRouterOptions {
@@ -68,20 +69,6 @@ export interface MessageRouterOptions {
 		closeTimeoutMs?: number;
 		reconnectAttempts?: number;
 	};
-}
-
-/**
- * Message queue entry type (in-memory representation)
- */
-export interface MessageQueueEntryInternal {
-	id: number;
-	message_data: string;
-	target_peer_id: string;
-	queued_at: number;
-	attempts: number;
-	status: "pending" | "processing" | "delivered" | "failed";
-	ttl: number;
-	next_retry_at?: number;
 }
 
 const DEFAULT_MESSAGE_TTL_MS = 86_400_000;
@@ -110,7 +97,8 @@ const PEER_SCORE_BLOCK_THRESHOLD = -40;
 const DEFAULT_DIAL_TIMEOUT_MS = 5_000;
 const DEFAULT_SEND_TIMEOUT_MS = 5_000;
 const DEFAULT_CLOSE_TIMEOUT_MS = 2_000;
-const DEFAULT_RECONNECT_ATTEMPTS = 1;
+const DEFAULT_RECONNECT_ATTEMPTS = 3;
+const RETRY_JITTER_MS = 500;
 
 interface RelayEnvelopePayload {
 	targetPeerId: string;
@@ -171,12 +159,7 @@ export class MessageRouter {
 		const now = Date.now();
 		this.applyOutgoingVectorClock(message);
 		const deadlineAt = now + DEFAULT_MESSAGE_TTL_MS;
-		const id = db.queueMessage(
-			message as unknown as Record<string, unknown>,
-			queueKey,
-			DEFAULT_MESSAGE_TTL_MS,
-		);
-		db.upsertPendingMessage(
+		db.queueMessage(
 			message.id,
 			message as unknown as Record<string, unknown>,
 			queueKey,
@@ -193,29 +176,8 @@ export class MessageRouter {
 				timestamp: message.timestamp,
 			},
 		});
-		// 2. Compose entry for in-memory queue
-		const entry: MessageQueueEntryInternal = {
-			id,
-			message_data: JSON.stringify(message),
-			target_peer_id: queueKey,
-			queued_at: Date.now(),
-			attempts: 0,
-			status: "pending",
-			ttl: DEFAULT_MESSAGE_TTL_MS,
-			next_retry_at: now,
-		};
-		if (!this.nodeContext.messageQueues) {
-			this.nodeContext.messageQueues = new Map();
-		}
-		if (!this.nodeContext.messageQueues.has(queueKey)) {
-			this.nodeContext.messageQueues.set(queueKey, []);
-		}
-		const queue = this.nodeContext.messageQueues?.get(queueKey);
-		if (queue) {
-			queue.push(entry);
-		}
 
-		// 3. Encrypt payload if needed
+		// 2. Encrypt payload if needed
 		if (message.payload && typeof message.payload === "object") {
 			const recipientPublicKey = await this.nodeContext.fetchRecipientPublicKey(
 				message.to,
@@ -234,7 +196,7 @@ export class MessageRouter {
 			}
 		}
 
-		// 4. Transmit message using libp2p
+		// 3. Transmit message using libp2p
 		const libp2p = this.nodeContext.getLibp2p();
 		if (!libp2p) throw new Error("libp2p not initialized");
 
@@ -399,12 +361,6 @@ export class MessageRouter {
 						peer: entry.target_peer_id,
 					},
 				});
-
-				const queued = this.findQueuedEntryByMessageId(entry.message_id);
-				if (queued) {
-					db.updateMessageStatus(queued.entry.id, "delivered");
-					queued.queue.splice(queued.index, 1);
-				}
 			} catch (error) {
 				const nextRetry = now + delay;
 				const message = JSON.parse(entry.message_data) as YapYapMessage;
@@ -423,6 +379,95 @@ export class MessageRouter {
 				);
 			}
 		}
+
+		const waitingForReplicaAck = db.getMessagesWaitingForReplicaAck();
+		for (const replicaEntry of waitingForReplicaAck) {
+			const pendingMsg = db.getPendingMessage(replicaEntry.message_id);
+			if (!pendingMsg) continue;
+
+			const message = JSON.parse(pendingMsg.message_data) as YapYapMessage;
+			const hasValidReplica = db
+				.getMessageReplicas(replicaEntry.message_id)
+				.some(
+					(r) =>
+						r.replica_peer_id !== replicaEntry.replica_peer_id &&
+						r.status === "stored" &&
+						r.ack_expected === 1 &&
+						r.ack_received_at !== null,
+				);
+
+			if (hasValidReplica) {
+				continue;
+			}
+
+			const replicasForRecovery = db
+				.getMessageReplicas(replicaEntry.message_id)
+				.filter(
+					(r) =>
+						r.replica_peer_id !== replicaEntry.replica_peer_id &&
+						r.status !== "failed",
+				);
+
+			if (replicasForRecovery.length > 0) {
+				db.updateReplicaAckExpected(
+					replicaEntry.message_id,
+					replicaEntry.replica_peer_id,
+					false,
+				);
+			} else {
+				const targetPeerId = replicaEntry.original_target_peer_id;
+				if (!targetPeerId) {
+					continue;
+				}
+				const candidates = this.selectReplicaPeers(
+					targetPeerId,
+					MAX_FALLBACK_RELAYS,
+				);
+				for (const newRelayPeerId of candidates) {
+					const relayPayloadBase = {
+						targetPeerId: targetPeerId,
+						originalMessage: message,
+						recoveryReason: "replica-ack-timeout-recovery",
+						lastTransportError: "ack-timeout",
+						integrityHash: this.computeMessageHash(message),
+					};
+					const signedRelay =
+						await this.nodeContext.signRelayEnvelope?.(relayPayloadBase);
+					const relayMessage: YapYapMessage = {
+						id: `relay_${message.id}_${Date.now()}`,
+						type: "store-and-forward",
+						from: this.nodeContext.getPeerId(),
+						to: newRelayPeerId,
+						payload: signedRelay
+							? {
+									...relayPayloadBase,
+									signature: signedRelay.signature,
+									signerPublicKey: signedRelay.signerPublicKey,
+								}
+							: relayPayloadBase,
+						timestamp: Date.now(),
+					};
+
+					try {
+						await this.transmit(relayMessage);
+						db.markReplicaStored(replicaEntry.message_id, newRelayPeerId);
+						db.updateReplicaAckExpected(
+							replicaEntry.message_id,
+							newRelayPeerId,
+							true,
+						);
+						break;
+					} catch {
+						db.markReplicaFailed(
+							replicaEntry.message_id,
+							newRelayPeerId,
+							"replica-ack-timeout-recovery",
+						);
+					}
+				}
+			}
+		}
+
 		db.cleanup();
 	}
 
@@ -447,7 +492,20 @@ export class MessageRouter {
 	 * Handle ACK for a message: clear pending, update status, remove from queue
 	 */
 	async handleAck(ack: AckMessage): Promise<void> {
+		const validation = await this.validateAck(ack);
+		if (!validation.valid) {
+			console.warn(
+				`ACK validation failed for ${ack.originalMessageId}: ${validation.reason}`,
+			);
+			return;
+		}
+
 		const db = this.nodeContext.db;
+
+		if (ack.relayEnvelope) {
+			db.markReplicaAckReceived(ack.originalMessageId, ack.from);
+		}
+
 		await this.emitRouterEvent({
 			id: `evt_${Date.now()}_${ack.id}`,
 			timestamp: Date.now(),
@@ -465,7 +523,7 @@ export class MessageRouter {
 				this.nodeContext.pendingAcks.delete(ack.originalMessageId);
 			}
 		}
-		// Update status in DB and remove from queue
+		// Update status in DB
 		db.markPendingMessageDelivered(ack.originalMessageId);
 		db.markReplicatedMessageDelivered(ack.originalMessageId);
 		await this.emitRouterEvent({
@@ -478,11 +536,6 @@ export class MessageRouter {
 				peer: ack.from,
 			},
 		});
-		const queued = this.findQueuedEntryByMessageId(ack.originalMessageId);
-		if (queued) {
-			db.updateMessageStatus(queued.entry.id, "delivered");
-			queued.queue.splice(queued.index, 1);
-		}
 	}
 
 	/**
@@ -499,38 +552,101 @@ export class MessageRouter {
 			error: nak.reason ?? "nak-received",
 		});
 
-		// Find the message in the queue
-		const queue = this.nodeContext.messageQueues?.get(nak.to);
-		if (!queue) return;
+		// Get the pending message from DB
+		const entry = db.getPendingMessage(nak.originalMessageId);
+		if (!entry) return;
 
-		const entry = queue.find((e: MessageQueueEntryInternal) => {
-			try {
-				const msg = JSON.parse(e.message_data as string) as YapYapMessage;
-				return msg.id === nak.originalMessageId;
-			} catch {
-				return false;
-			}
-		});
+		// Increment retry attempts and schedule next retry
+		const now = Date.now();
+		const newAttempts = entry.attempts + 1;
+		const delay = this.calculateBackoffDelay(newAttempts);
 
-		if (entry) {
-			// Increment retry attempts
-			entry.attempts++;
-			const now = Date.now();
-			const delay = this.calculateBackoffDelay(entry.attempts);
+		db.incrementAttempts(nak.originalMessageId);
+		db.scheduleRetry(
+			nak.originalMessageId,
+			now + delay,
+			nak.reason ?? "nak-received",
+		);
 
-			// Update DB with next retry time
-			db.setNextRetryAt(entry.id, now + delay);
-			db.updateMessageStatus(entry.id, "pending");
-			db.schedulePendingRetry(
-				nak.originalMessageId,
-				now + delay,
-				nak.reason ?? "nak-received",
-			);
+		console.log(
+			`NAK received for message ${nak.originalMessageId}, retrying in ${delay}ms (attempt ${newAttempts})`,
+		);
+	}
 
-			console.log(
-				`NAK received for message ${nak.originalMessageId}, retrying in ${delay}ms (attempt ${entry.attempts})`,
-			);
+	private async validateAck(ack: AckMessage): Promise<{
+		valid: boolean;
+		reason?: string;
+	}> {
+		const db = this.nodeContext.db;
+
+		if (!this.isTimestampValid(ack.timestamp)) {
+			return { valid: false, reason: "invalid-timestamp" };
 		}
+
+		const pendingEntry = db.getPendingMessage(ack.originalMessageId);
+		const replicatedEntry = db.getMessageReplicas(ack.originalMessageId);
+
+		if (!pendingEntry && replicatedEntry.length === 0) {
+			return { valid: false, reason: "unknown-message" };
+		}
+
+		const targetPeerId =
+			pendingEntry?.target_peer_id ?? replicatedEntry[0]?.message_id;
+
+		if (ack.from === targetPeerId) {
+			return { valid: true };
+		}
+
+		if (ack.relayEnvelope) {
+			if (!ack.relayEnvelope.signature || !ack.relayEnvelope.signerPublicKey) {
+				return { valid: false, reason: "missing-relay-signature" };
+			}
+
+			const expectedAckSources = db.getReplicaAckStatus(ack.originalMessageId);
+			const isFromExpectedReplica = expectedAckSources.some(
+				(r) => r.replica_peer_id === ack.from,
+			);
+
+			if (!isFromExpectedReplica) {
+				return { valid: false, reason: "unexpected-ack-source" };
+			}
+
+			if (!this.nodeContext.verifyRelayEnvelope) {
+				return { valid: false, reason: "no-verify-function" };
+			}
+
+			const pendingMessage = db.getPendingMessage(ack.originalMessageId);
+			if (!pendingMessage) {
+				return { valid: false, reason: "original-message-not-found" };
+			}
+
+			const originalMessage = JSON.parse(
+				pendingMessage.message_data,
+			) as YapYapMessage;
+			const envelopePayload: {
+				targetPeerId: string;
+				originalMessage: YapYapMessage;
+				integrityHash: string;
+			} = {
+				targetPeerId: ack.relayEnvelope.originalTargetPeerId,
+				originalMessage,
+				integrityHash: this.computeMessageHash(originalMessage),
+			};
+
+			const isSignatureValid = await this.nodeContext.verifyRelayEnvelope(
+				envelopePayload,
+				ack.relayEnvelope.signature,
+				ack.relayEnvelope.signerPublicKey,
+			);
+
+			if (!isSignatureValid) {
+				return { valid: false, reason: "invalid-relay-signature" };
+			}
+
+			return { valid: true };
+		}
+
+		return { valid: false, reason: "unauthorized-ack-source" };
 	}
 
 	private isTimestampValid(timestamp: number): boolean {
@@ -604,6 +720,7 @@ export class MessageRouter {
 		const persistenceInput = {
 			messageId: message.id,
 			fromPeerId: message.from,
+			toPeerId: message.to,
 			messageData: message as unknown as Record<string, unknown>,
 			ttl: DEFAULT_MESSAGE_TTL_MS,
 			...(typeof message.sequenceNumber === "number"
@@ -682,34 +799,6 @@ export class MessageRouter {
 		if (oldest) {
 			this.processedIdsCache.delete(oldest);
 		}
-	}
-
-	private findQueuedEntryByMessageId(messageId: string):
-		| {
-				queue: MessageQueueEntryInternal[];
-				entry: MessageQueueEntryInternal;
-				index: number;
-		  }
-		| undefined {
-		for (const queue of this.nodeContext.messageQueues?.values() ?? []) {
-			const index = queue.findIndex((queued) => {
-				try {
-					const msg = JSON.parse(queued.message_data) as YapYapMessage;
-					return msg.id === messageId;
-				} catch {
-					return false;
-				}
-			});
-			if (index === -1) {
-				continue;
-			}
-			const entry = queue[index];
-			if (!entry) {
-				return undefined;
-			}
-			return { queue, entry, index };
-		}
-		return undefined;
 	}
 
 	private async sendAck(message: YapYapMessage): Promise<void> {
@@ -861,6 +950,25 @@ export class MessageRouter {
 		for (let attempt = 0; attempt <= reconnectAttempts; attempt++) {
 			let stream: Stream | undefined;
 			try {
+				const healthMonitor = this.nodeContext.healthMonitor;
+				if (healthMonitor) {
+					const isHealthy = healthMonitor.isConnectionHealthy(peerId);
+					if (!isHealthy) {
+						console.log(
+							`Connection health: proactively hanging up unhealthy peer ${message.to}`,
+						);
+						try {
+							await (
+								libp2p as unknown as {
+									hangUp?: (peer: PeerId) => Promise<void>;
+								}
+							).hangUp?.(peerId);
+						} catch {
+							// Best effort cleanup
+						}
+					}
+				}
+
 				stream = await this.withTimeout(
 					libp2p.dialProtocol(peerId, "/yapyap/message/1.0.0"),
 					this.options.transport?.dialTimeoutMs ?? DEFAULT_DIAL_TIMEOUT_MS,
@@ -877,6 +985,11 @@ export class MessageRouter {
 					this.options.transport?.closeTimeoutMs ?? DEFAULT_CLOSE_TIMEOUT_MS,
 					"stream-close-timeout",
 				);
+
+				if (this.nodeContext.healthMonitor) {
+					this.nodeContext.healthMonitor.updateActivity(peerId);
+				}
+
 				return;
 			} catch (error) {
 				lastError = error;
@@ -889,7 +1002,7 @@ export class MessageRouter {
 				}
 				try {
 					await (
-						libp2p as unknown as { hangUp?: (peer: unknown) => Promise<void> }
+						libp2p as unknown as { hangUp?: (peer: PeerId) => Promise<void> }
 					).hangUp?.(peerId);
 				} catch {
 					// Best effort: can fail on stale or half-open transport.
@@ -897,6 +1010,8 @@ export class MessageRouter {
 				if (attempt >= reconnectAttempts) {
 					break;
 				}
+				const jitter = Math.floor(Math.random() * RETRY_JITTER_MS);
+				await new Promise((resolve) => setTimeout(resolve, jitter));
 			}
 		}
 
@@ -968,6 +1083,11 @@ export class MessageRouter {
 			try {
 				await this.transmit(relayMessage);
 				this.nodeContext.db.markReplicaStored(message.id, relayPeerId);
+				this.nodeContext.db.updateReplicaAckExpected(
+					message.id,
+					relayPeerId,
+					true,
+				);
 				this.bumpPeerScore(relayPeerId, 2);
 				relayed = true;
 			} catch {
@@ -1013,7 +1133,12 @@ export class MessageRouter {
 		);
 		db.assignMessageReplica(original.id, this.nodeContext.getPeerId());
 		db.markReplicaStored(original.id, this.nodeContext.getPeerId());
-		db.upsertPendingMessage(
+		db.updateReplicaAckExpected(
+			original.id,
+			this.nodeContext.getPeerId(),
+			true,
+		);
+		db.queueMessage(
 			original.id,
 			original as unknown as Record<string, unknown>,
 			payload.targetPeerId,
@@ -1131,7 +1256,7 @@ export class MessageRouter {
 				continue;
 			}
 			const deadlineAt = Date.now() + (message.ttl ?? DEFAULT_MESSAGE_TTL_MS);
-			db.upsertPendingMessage(
+			db.queueMessage(
 				message.id,
 				message as unknown as Record<string, unknown>,
 				message.to,

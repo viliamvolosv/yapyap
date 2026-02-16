@@ -1,0 +1,16 @@
+scenario:
+  name: queue-cleanup
+  description: Tests message queue management and cleanup of failed messages
+  steps:
+    - start: [node1, node2]
+    - wait: discovery
+    - disconnect: node1 <-> node2
+    - send: 10 messages from node1 -> node2 (queue-cleanup-*)
+    - verify: messages queued (not delivered)
+    - reconnect: node1 <-> node2
+    - verify: all queued messages delivered
+    - disconnect again
+    - send: 5 messages from node1 -> node2 (queue-cleanup-fail-*)
+    - verify: message queue state
+    - reconnect: node1 <-> node2
+    - verify: all messages delivered

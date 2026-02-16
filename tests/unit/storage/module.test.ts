@@ -52,19 +52,21 @@ describe("StorageModule", () => {
 			["/ip4/127.0.0.1/tcp/9000"],
 		);
 
-		const messageId = storage.messages.queueMessage(
-			{ id: "m1", payload: { text: "hello" } },
+		const messageId = "m1";
+		storage.messages.queueMessage(
+			messageId,
+			{ id: messageId, payload: { text: "hello" } },
 			"peer-a",
-			60_000,
+			Date.now() + 60_000,
 		);
 		assert.strictEqual(
-			storage.messages.getMessageQueueEntry(messageId)?.status,
+			storage.messages.getPendingMessage(messageId)?.status,
 			"pending",
 		);
 
-		storage.messages.updateMessageStatus(messageId, "delivered");
+		storage.messages.markMessageStatus(messageId, "delivered");
 		assert.strictEqual(
-			storage.messages.getMessageQueueEntry(messageId)?.status,
+			storage.messages.getPendingMessage(messageId)?.status,
 			"delivered",
 		);
 

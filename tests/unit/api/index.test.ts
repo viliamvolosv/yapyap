@@ -7,14 +7,22 @@ import type { YapYapMessage } from "../../../src/message/message.js";
 const VALID_PEER_ID = "12D3KooWE5fP2xCV6W9iM8vfA2HRM6k9K9jS5rvnV5wM6x9KfGqA";
 const SELF_PEER_ID = "12D3KooWSELFpeer12345678901234567890123456789012345";
 
-type QueueEntry = {
-	id: number;
+type PendingEntry = {
+	message_id: string;
 	target_peer_id: string;
 	status: "pending" | "processing" | "delivered" | "failed";
 	attempts: number;
-	queued_at: number;
+	created_at: number;
 	next_retry_at?: number;
 	message_data: string;
+};
+
+type ProcessedEntry = {
+	message_id: string;
+	from_peer_id: string;
+	to_peer_id: string;
+	message_data: string;
+	processed_at: number;
 };
 
 class MockDatabase {
@@ -28,7 +36,8 @@ class MockDatabase {
 			is_trusted: boolean;
 		}
 	>();
-	private queueEntries: QueueEntry[] = [];
+	private queueEntries: PendingEntry[] = [];
+	private processedEntries: ProcessedEntry[] = [];
 
 	getAllContacts() {
 		return Array.from(this.contacts.values());
@@ -52,12 +61,20 @@ class MockDatabase {
 		this.contacts.delete(peerId);
 	}
 
-	getRecentMessageQueueEntries() {
+	getRecentPendingMessages() {
 		return this.queueEntries;
 	}
 
-	setQueueEntries(entries: QueueEntry[]) {
+	getRecentProcessedMessages() {
+		return this.processedEntries;
+	}
+
+	setQueueEntries(entries: PendingEntry[]) {
 		this.queueEntries = entries;
+	}
+
+	setProcessedEntries(entries: ProcessedEntry[]) {
+		this.processedEntries = entries;
 	}
 }
 
@@ -216,13 +233,14 @@ describe("ApiModule", () => {
 	});
 
 	test("GET /api/messages/inbox and /api/messages/outbox filter by self peer id", async () => {
+		// Set up outbox (pending messages for sending)
 		node.db.setQueueEntries([
 			{
-				id: 1,
+				message_id: "m1",
 				target_peer_id: VALID_PEER_ID,
 				status: "pending",
 				attempts: 0,
-				queued_at: Date.now(),
+				created_at: Date.now(),
 				message_data: JSON.stringify({
 					id: "m1",
 					type: "data",
@@ -232,12 +250,14 @@ describe("ApiModule", () => {
 					timestamp: Date.now(),
 				}),
 			},
+		]);
+
+		// Set up inbox (processed received messages)
+		node.db.setProcessedEntries([
 			{
-				id: 2,
-				target_peer_id: SELF_PEER_ID,
-				status: "delivered",
-				attempts: 1,
-				queued_at: Date.now(),
+				message_id: "m2",
+				from_peer_id: VALID_PEER_ID,
+				to_peer_id: SELF_PEER_ID,
 				message_data: JSON.stringify({
 					id: "m2",
 					type: "data",
@@ -246,6 +266,7 @@ describe("ApiModule", () => {
 					payload: { text: "in" },
 					timestamp: Date.now(),
 				}),
+				processed_at: Date.now(),
 			},
 		]);
 

@@ -1,0 +1,16 @@
+scenario:
+  name: message-state-transitions
+  description: Tests database state transitions for messages through the full lifecycle
+  steps:
+    - start: [node1, node2]
+    - wait: discovery
+    - send: node1 -> node2 (state-test-1)
+    - verify: outbox status = pending immediately after send
+    - wait: 2s
+    - verify: outbox status transitions to delivered
+    - verify: inbox on node2 contains state-test-1
+    - send: node1 -> node2 (state-test-2)
+    - disconnect: node1 <-> node2
+    - verify: outbox shows retry scheduled
+    - reconnect: node1 <-> node2
+    - verify: state-test-2 delivered after reconnect

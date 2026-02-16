@@ -8,6 +8,19 @@ scenarios=(
   "basic-messaging"
   "basic-reconnect"
   "basic-restart"
+  "message-state-transitions"
+  "retry-on-failure"
+  "database-persistence"
+  # "deduplication"  # Requires app changes to test properly (custom message IDs)
+  "network-interruption"
+  "multi-hop-routing"
+  "message-size-limits"
+  "invalid-message-format"
+  "high-load-concurrency"
+  "peer-timeout"
+  "queue-cleanup"
+  "handshake-validation"
+  "privacy-validation"
 )
 
 for scenario in "${scenarios[@]}"; do

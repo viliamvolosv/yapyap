@@ -27,22 +27,11 @@ type RoutingCacheRow = {
 	is_available: number | null;
 	ttl: number | null;
 };
-export interface MessageQueueEntry {
-	id: number;
-	message_data: string; // JSON string
-	target_peer_id: string;
-	queued_at: number;
-	attempts: number;
-	status: "pending" | "processing" | "delivered" | "failed";
-	ttl: number;
-	next_retry_at?: number;
-}
-
 export interface PendingMessageEntry {
 	message_id: string;
 	target_peer_id: string;
 	message_data: string;
-	status: "pending" | "delivered" | "failed";
+	status: "pending" | "processing" | "delivered" | "failed";
 	attempts: number;
 	next_retry_at: number;
 	created_at: number;
@@ -68,7 +57,19 @@ export interface MessageReplicaEntry {
 	status: "assigned" | "stored" | "delivered" | "failed";
 	assigned_at: number;
 	updated_at: number;
+	ack_expected: number;
+	ack_received_at: number | null;
 	last_error?: string;
+	original_target_peer_id?: string;
+}
+
+export interface ProcessedMessageEntry {
+	message_id: string;
+	from_peer_id: string;
+	to_peer_id: string;
+	message_data: string;
+	sequence_number?: number;
+	processed_at: number;
 }
 
 export interface Contact {
@@ -142,6 +143,7 @@ export interface PeerVectorClock {
 export interface PersistIncomingMessageInput {
 	messageId: string;
 	fromPeerId: string;
+	toPeerId: string;
 	sequenceNumber?: number;
 	messageData: Record<string, unknown>;
 	ttl: number;
@@ -150,7 +152,6 @@ export interface PersistIncomingMessageInput {
 
 export interface PersistIncomingMessageResult {
 	applied: boolean;
-	queueMessageId?: number;
 	duplicate: boolean;
 }
 
@@ -180,7 +181,6 @@ export class DatabaseManager {
 	private createTables(): void {
 		this.db.exec(yapyapSchema.node_keys);
 		this.db.exec(yapyapSchema.routing_cache);
-		this.db.exec(yapyapSchema.message_queue);
 		this.db.exec(yapyapSchema.pending_messages);
 		this.db.exec(yapyapSchema.replicated_messages);
 		this.db.exec(yapyapSchema.message_replicas);
@@ -328,71 +328,8 @@ export class DatabaseManager {
 		return stmt.run(now).changes;
 	}
 
-	// Message Queue Methods
+	// Pending Messages Methods
 	queueMessage(
-		messageData: Record<string, unknown>,
-		targetPeerId: string,
-		ttl: number,
-	): number {
-		const now = Date.now();
-		const stmt = this.db.prepare(`
-      INSERT INTO message_queue (message_data, target_peer_id, queued_at, ttl, next_retry_at)
-      VALUES (?, ?, ?, ?, ?)
-      RETURNING id
-    `);
-
-		const result = stmt.run(
-			JSON.stringify(messageData),
-			targetPeerId,
-			now,
-			ttl,
-			now,
-		);
-		return Number(result.lastInsertRowid);
-	}
-
-	getMessageQueueEntry(id: number): MessageQueueEntry | null {
-		const stmt = this.db.prepare(`SELECT * FROM message_queue WHERE id = ?`);
-		const result = stmt.get(id);
-		return result as MessageQueueEntry | null;
-	}
-
-	getAllPendingMessages(): MessageQueueEntry[] {
-		return this.db
-			.prepare(
-				`SELECT * FROM message_queue WHERE status = 'pending' ORDER BY queued_at ASC`,
-			)
-			.all() as MessageQueueEntry[];
-	}
-
-	getRecentMessageQueueEntries(limit = 200): MessageQueueEntry[] {
-		return this.db
-			.prepare(`SELECT * FROM message_queue ORDER BY queued_at DESC LIMIT ?`)
-			.all(limit) as MessageQueueEntry[];
-	}
-
-	updateMessageStatus(id: number, status: MessageQueueEntry["status"]): void {
-		this.db
-			.prepare(
-				`UPDATE message_queue SET status = ?, attempts = attempts + 1 WHERE id = ?`,
-			)
-			.run(status, id);
-	}
-
-	setNextRetryAt(id: number, nextRetryAt: number): void {
-		this.db
-			.prepare(`UPDATE message_queue SET next_retry_at = ? WHERE id = ?`)
-			.run(nextRetryAt, id);
-	}
-
-	deleteExpiredMessages(): number {
-		const now = Date.now();
-		return this.db
-			.prepare(`DELETE FROM message_queue WHERE ? > queued_at + ttl`)
-			.run(now).changes;
-	}
-
-	upsertPendingMessage(
 		messageId: string,
 		messageData: Record<string, unknown>,
 		targetPeerId: string,
@@ -422,6 +359,14 @@ export class DatabaseManager {
 			);
 	}
 
+	getPendingMessage(messageId: string): PendingMessageEntry | null {
+		const stmt = this.db.prepare(
+			`SELECT * FROM pending_messages WHERE message_id = ?`,
+		);
+		const result = stmt.get(messageId);
+		return result as PendingMessageEntry | null;
+	}
+
 	getRetryablePendingMessages(now = Date.now()): PendingMessageEntry[] {
 		return this.db
 			.prepare(
@@ -430,6 +375,43 @@ export class DatabaseManager {
          ORDER BY next_retry_at ASC`,
 			)
 			.all(now, now) as PendingMessageEntry[];
+	}
+
+	markMessageStatus(
+		messageId: string,
+		status: PendingMessageEntry["status"],
+	): void {
+		this.db
+			.prepare(
+				`UPDATE pending_messages SET status = ?, updated_at = ? WHERE message_id = ?`,
+			)
+			.run(status, Date.now(), messageId);
+	}
+
+	incrementAttempts(messageId: string): void {
+		this.db
+			.prepare(
+				`UPDATE pending_messages SET attempts = attempts + 1, updated_at = ? WHERE message_id = ?`,
+			)
+			.run(Date.now(), messageId);
+	}
+
+	scheduleRetry(messageId: string, nextRetryAt: number, reason?: string): void {
+		this.db
+			.prepare(
+				`UPDATE pending_messages
+         SET next_retry_at = ?, updated_at = ?, last_error = ?
+         WHERE message_id = ?`,
+			)
+			.run(nextRetryAt, Date.now(), reason ?? null, messageId);
+	}
+
+	getRecentPendingMessages(limit = 200): PendingMessageEntry[] {
+		return this.db
+			.prepare(
+				`SELECT * FROM pending_messages ORDER BY created_at DESC LIMIT ?`,
+			)
+			.all(limit) as PendingMessageEntry[];
 	}
 
 	getPendingMessagesForPeer(
@@ -492,6 +474,14 @@ export class DatabaseManager {
          WHERE deadline_at <= ? OR status IN ('delivered', 'failed')`,
 			)
 			.run(now).changes;
+	}
+
+	getRecentProcessedMessages(limit = 50): ProcessedMessageEntry[] {
+		return this.db
+			.prepare(
+				`SELECT * FROM processed_messages ORDER BY processed_at DESC LIMIT ?`,
+			)
+			.all(limit) as ProcessedMessageEntry[];
 	}
 
 	upsertReplicatedMessage(
@@ -588,9 +578,59 @@ export class DatabaseManager {
 		return this.db
 			.prepare(
 				`DELETE FROM replicated_messages
-         WHERE deadline_at <= ? OR status IN ('delivered', 'failed')`,
+          WHERE deadline_at <= ? OR status IN ('delivered', 'failed')`,
 			)
 			.run(now).changes;
+	}
+
+	updateReplicaAckExpected(
+		messageId: string,
+		replicaPeerId: string,
+		expected: boolean,
+	): void {
+		const now = Date.now();
+		this.db
+			.prepare(
+				`UPDATE message_replicas
+          SET ack_expected = ?, updated_at = ?
+          WHERE message_id = ? AND replica_peer_id = ?`,
+			)
+			.run(expected ? 1 : 0, now, messageId, replicaPeerId);
+	}
+
+	markReplicaAckReceived(messageId: string, replicaPeerId: string): void {
+		const now = Date.now();
+		this.db
+			.prepare(
+				`UPDATE message_replicas
+          SET ack_received_at = ?, updated_at = ?
+          WHERE message_id = ? AND replica_peer_id = ?`,
+			)
+			.run(now, now, messageId, replicaPeerId);
+	}
+
+	getReplicaAckStatus(messageId: string): MessageReplicaEntry[] {
+		return this.db
+			.prepare(
+				`SELECT * FROM message_replicas
+          WHERE message_id = ? AND ack_expected = 1`,
+			)
+			.all(messageId) as MessageReplicaEntry[];
+	}
+
+	getMessagesWaitingForReplicaAck(): MessageReplicaEntry[] {
+		const now = Date.now();
+		return this.db
+			.prepare(
+				`SELECT mr.*, rm.original_target_peer_id FROM message_replicas mr
+          INNER JOIN replicated_messages rm ON mr.message_id = rm.message_id
+          WHERE mr.ack_expected = 1
+            AND mr.ack_received_at IS NULL
+            AND mr.status = 'stored'
+            AND rm.status = 'pending'
+            AND rm.deadline_at > ?`,
+			)
+			.all(now) as MessageReplicaEntry[];
 	}
 
 	// Deduplication + Sequence Methods
@@ -716,13 +756,15 @@ export class DatabaseManager {
 			(payload: PersistIncomingMessageInput): PersistIncomingMessageResult => {
 				const processedInsert = this.db
 					.prepare(
-						`INSERT INTO processed_messages (message_id, from_peer_id, sequence_number, processed_at)
-             VALUES (?, ?, ?, ?)
+						`INSERT INTO processed_messages (message_id, from_peer_id, to_peer_id, message_data, sequence_number, processed_at)
+             VALUES (?, ?, ?, ?, ?, ?)
              ON CONFLICT(message_id) DO NOTHING`,
 					)
 					.run(
 						payload.messageId,
 						payload.fromPeerId,
+						payload.toPeerId,
+						JSON.stringify(payload.messageData),
 						payload.sequenceNumber ?? null,
 						now,
 					);
@@ -730,28 +772,6 @@ export class DatabaseManager {
 				if (processedInsert.changes === 0) {
 					return { applied: false, duplicate: true };
 				}
-
-				const queued = this.db
-					.prepare(
-						`INSERT INTO message_queue (message_data, target_peer_id, queued_at, ttl, next_retry_at)
-             VALUES (?, ?, ?, ?, ?)`,
-					)
-					.run(
-						JSON.stringify(payload.messageData),
-						payload.fromPeerId,
-						now,
-						payload.ttl,
-						now,
-					);
-				const queueMessageId = Number(queued.lastInsertRowid);
-
-				this.db
-					.prepare(
-						`UPDATE message_queue
-             SET status = 'delivered', attempts = attempts + 1
-             WHERE id = ?`,
-					)
-					.run(queueMessageId);
 
 				if (typeof payload.sequenceNumber === "number") {
 					this.db
@@ -803,7 +823,6 @@ export class DatabaseManager {
 
 				return {
 					applied: true,
-					queueMessageId,
 					duplicate: false,
 				};
 			},
@@ -1034,7 +1053,6 @@ export class DatabaseManager {
 	// Cleanup methods
 	cleanup(): void {
 		this.deleteStaleRoutingEntries();
-		this.deleteExpiredMessages();
 		this.deleteExpiredPendingMessages();
 		this.deleteExpiredReplicatedMessages();
 		this.deleteExpiredSessions();

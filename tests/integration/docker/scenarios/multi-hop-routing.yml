@@ -1,0 +1,12 @@
+scenario:
+  name: multi-hop-routing
+  description: Tests message routing through intermediate nodes
+  steps:
+    - start: [node1, node2, node3]
+    - wait: discovery
+    - configure: node1 connects to node2, node2 connects to node3
+    - send: node1 -> node3 (multi-hop-test)
+    - verify: message reaches node3 via node2
+    - verify: routing path recorded
+    - send: node3 -> node1 (reverse-hop-test)
+    - verify: bidirectional routing works

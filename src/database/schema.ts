@@ -19,18 +19,6 @@ export const yapyapSchema = {
       ttl INTEGER NOT NULL
     )
   `,
-	message_queue: `
-    CREATE TABLE IF NOT EXISTS message_queue (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      message_data TEXT NOT NULL,
-      target_peer_id TEXT NOT NULL,
-      queued_at INTEGER NOT NULL,
-      attempts INTEGER NOT NULL DEFAULT 0,
-      status TEXT NOT NULL DEFAULT 'pending',
-      ttl INTEGER NOT NULL,
-      next_retry_at INTEGER
-    )
-  `,
 	pending_messages: `
     CREATE TABLE IF NOT EXISTS pending_messages (
       message_id TEXT PRIMARY KEY,
@@ -64,6 +52,8 @@ export const yapyapSchema = {
       status TEXT NOT NULL DEFAULT 'assigned',
       assigned_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL,
+      ack_expected INTEGER NOT NULL DEFAULT 0,
+      ack_received_at INTEGER,
       last_error TEXT,
       UNIQUE(message_id, replica_peer_id),
       FOREIGN KEY(message_id) REFERENCES replicated_messages(message_id) ON DELETE CASCADE
@@ -73,6 +63,8 @@ export const yapyapSchema = {
     CREATE TABLE IF NOT EXISTS processed_messages (
       message_id TEXT PRIMARY KEY,
       from_peer_id TEXT NOT NULL,
+      to_peer_id TEXT,
+      message_data TEXT,
       sequence_number INTEGER,
       processed_at INTEGER NOT NULL
     )
@@ -133,8 +125,6 @@ export const yapyapSchema = {
   `,
 	indexes: [
 		"CREATE INDEX IF NOT EXISTS idx_routing_cache_last_seen ON routing_cache(last_seen);",
-		"CREATE INDEX IF NOT EXISTS idx_message_queue_target_peer_id ON message_queue(target_peer_id);",
-		"CREATE INDEX IF NOT EXISTS idx_message_queue_status ON message_queue(status);",
 		"CREATE INDEX IF NOT EXISTS idx_pending_messages_status_retry ON pending_messages(status, next_retry_at);",
 		"CREATE INDEX IF NOT EXISTS idx_pending_messages_target_peer_id ON pending_messages(target_peer_id);",
 		"CREATE INDEX IF NOT EXISTS idx_pending_messages_deadline_at ON pending_messages(deadline_at);",
@@ -142,6 +132,7 @@ export const yapyapSchema = {
 		"CREATE INDEX IF NOT EXISTS idx_replicated_messages_target_peer ON replicated_messages(original_target_peer_id);",
 		"CREATE INDEX IF NOT EXISTS idx_message_replicas_message_id ON message_replicas(message_id);",
 		"CREATE INDEX IF NOT EXISTS idx_message_replicas_replica_peer_id ON message_replicas(replica_peer_id);",
+		"CREATE INDEX IF NOT EXISTS idx_message_replicas_ack_expected ON message_replicas(ack_expected, status);",
 		"CREATE INDEX IF NOT EXISTS idx_processed_messages_processed_at ON processed_messages(processed_at);",
 		"CREATE INDEX IF NOT EXISTS idx_processed_messages_from_peer_id ON processed_messages(from_peer_id);",
 		"CREATE INDEX IF NOT EXISTS idx_contacts_last_seen ON contacts(last_seen);",

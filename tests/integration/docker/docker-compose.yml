@@ -16,8 +16,8 @@ services:
     networks:
       yapyap-test-net:
     restart: always
-    tmpfs:
-      - /data
+    volumes:
+      - node1-data:/data
     environment:
       - YAPYAP_NODE_NAME=node1
       - YAPYAP_DATA_DIR=/data
@@ -40,8 +40,8 @@ services:
     networks:
       yapyap-test-net:
     restart: always
-    tmpfs:
-      - /data
+    volumes:
+      - node2-data:/data
     environment:
       - YAPYAP_NODE_NAME=node2
       - YAPYAP_DATA_DIR=/data
@@ -68,8 +68,8 @@ services:
     networks:
       yapyap-test-net:
     restart: always
-    tmpfs:
-      - /data
+    volumes:
+      - node3-data:/data
     environment:
       - YAPYAP_NODE_NAME=node3
       - YAPYAP_DATA_DIR=/data

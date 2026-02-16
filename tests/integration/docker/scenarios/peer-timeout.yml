@@ -1,0 +1,14 @@
+scenario:
+  name: peer-timeout
+  description: Tests peer connection timeout handling and reconnection
+  steps:
+    - start: [node1, node2]
+    - wait: discovery
+    - send: node1 -> node2 (timeout-test-1)
+    - verify: delivered successfully
+    - disconnect: node1 <-> node2
+    - send: node1 -> node2 (timeout-test-2) while disconnected
+    - wait: 10s for connection attempts
+    - reconnect: node1 <-> node2
+    - verify: timeout-test-2 delivered after reconnect
+    - verify: node remains stable

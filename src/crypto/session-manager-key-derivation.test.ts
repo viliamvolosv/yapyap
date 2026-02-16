@@ -1,17 +1,12 @@
 import assert from "node:assert";
 import * as crypto from "node:crypto";
 import { test } from "node:test";
-import { DatabaseManager, type Session } from "../database/index.js";
+import type { Session } from "../database/index.js";
 import type { NoiseSessionInfo } from "../protocols/handshake.js";
 import { SessionManager } from "./session-manager.js";
 
-// Mock database manager to avoid actual database operations during tests
-class MockDatabaseManager extends DatabaseManager {
+class MockDatabaseManager {
 	private sessions: Map<string, Session> = new Map();
-
-	constructor() {
-		super({ dataDir: "./test-data" });
-	}
 
 	saveSession(session: Session): void {
 		this.sessions.set(session.id, session);
@@ -59,14 +54,12 @@ class MockDatabaseManager extends DatabaseManager {
 		return count;
 	}
 
-	close(): void {
-		// Mock cleanup
-	}
+	close(): void {}
 }
 
 test("SessionManager can be instantiated", () => {
 	const mockDb = new MockDatabaseManager();
-	const sessionManager = new SessionManager(mockDb);
+	const sessionManager = new SessionManager(mockDb as never);
 
 	assert.notStrictEqual(sessionManager, undefined);
 	assert.ok(sessionManager instanceof SessionManager);
@@ -74,16 +67,15 @@ test("SessionManager can be instantiated", () => {
 
 test("SessionManager init method works", async () => {
 	const mockDb = new MockDatabaseManager();
-	const sessionManager = new SessionManager(mockDb);
+	const sessionManager = new SessionManager(mockDb as never);
 
 	await assert.doesNotReject(async () => await sessionManager.init());
 });
 
 test("createE2ESession creates a new session", async () => {
 	const mockDb = new MockDatabaseManager();
-	const sessionManager = new SessionManager(mockDb);
+	const sessionManager = new SessionManager(mockDb as never);
 
-	// Initialize the session manager
 	await sessionManager.init();
 
 	const peerId = "test-peer-id";
@@ -100,17 +92,14 @@ test("createE2ESession creates a new session", async () => {
 
 test("getOrCreateE2ESession returns existing session when one exists", async () => {
 	const mockDb = new MockDatabaseManager();
-	const sessionManager = new SessionManager(mockDb);
+	const sessionManager = new SessionManager(mockDb as never);
 
-	// Initialize the session manager
 	await sessionManager.init();
 
 	const peerId = "test-peer-id";
 
-	// Create first session
 	const firstSession = await sessionManager.createSession(peerId);
 
-	// Get or create should return the existing session
 	const secondSession = await sessionManager.getOrCreateSession(peerId);
 
 	assert.strictEqual(secondSession.id, firstSession.id);
@@ -118,14 +107,12 @@ test("getOrCreateE2ESession returns existing session when one exists", async () 
 
 test("getOrCreateE2ESession creates new session when none exists", async () => {
 	const mockDb = new MockDatabaseManager();
-	const sessionManager = new SessionManager(mockDb);
+	const sessionManager = new SessionManager(mockDb as never);
 
-	// Initialize the session manager
 	await sessionManager.init();
 
 	const peerId = "test-peer-id";
 
-	// Get or create should create a new session
 	const session = await sessionManager.getOrCreateSession(peerId);
 
 	assert.notStrictEqual(session, undefined);
@@ -134,9 +121,8 @@ test("getOrCreateE2ESession creates new session when none exists", async () => {
 
 test("createSession creates a new session", async () => {
 	const mockDb = new MockDatabaseManager();
-	const sessionManager = new SessionManager(mockDb);
+	const sessionManager = new SessionManager(mockDb as never);
 
-	// Initialize the session manager
 	await sessionManager.init();
 
 	const peerId = "test-peer-id";
@@ -153,17 +139,14 @@ test("createSession creates a new session", async () => {
 
 test("getOrCreateE2ESession returns existing session when one exists", async () => {
 	const mockDb = new MockDatabaseManager();
-	const sessionManager = new SessionManager(mockDb);
+	const sessionManager = new SessionManager(mockDb as never);
 
-	// Initialize the session manager
 	await sessionManager.init();
 
 	const peerId = "test-peer-id";
 
-	// Create first session
 	const firstSession = await sessionManager.createSession(peerId);
 
-	// Get or create should return the existing session
 	const secondSession = await sessionManager.getOrCreateSession(peerId);
 
 	assert.strictEqual(secondSession.id, firstSession.id);
@@ -171,14 +154,12 @@ test("getOrCreateE2ESession returns existing session when one exists", async () 
 
 test("getOrCreateE2ESession creates new session when none exists", async () => {
 	const mockDb = new MockDatabaseManager();
-	const sessionManager = new SessionManager(mockDb);
+	const sessionManager = new SessionManager(mockDb as never);
 
-	// Initialize the session manager
 	await sessionManager.init();
 
 	const peerId = "test-peer-id";
 
-	// Get or create should create a new session
 	const session = await sessionManager.getOrCreateSession(peerId);
 
 	assert.notStrictEqual(session, undefined);
@@ -187,9 +168,8 @@ test("getOrCreateE2ESession creates new session when none exists", async () => {
 
 test("getSession retrieves existing session", async () => {
 	const mockDb = new MockDatabaseManager();
-	const sessionManager = new SessionManager(mockDb);
+	const sessionManager = new SessionManager(mockDb as never);
 
-	// Initialize the session manager
 	await sessionManager.init();
 
 	const peerId = "test-peer-id";
@@ -204,21 +184,14 @@ test("getSession retrieves existing session", async () => {
 
 test("getSession returns null for expired session", async () => {
 	const mockDb = new MockDatabaseManager();
-	const sessionManager = new SessionManager(mockDb);
+	const sessionManager = new SessionManager(mockDb as never);
 
-	// Initialize the session manager
 	await sessionManager.init();
 
 	const peerId = "test-peer-id";
 
 	const session = await sessionManager.createSession(peerId);
 
-	// Manually expire the session by modifying the in-memory session
-	// Note: In the actual implementation, the SessionManager checks expiration
-	// when getSession is called. We'll test this by creating a session with
-	// an already expired timestamp.
-
-	// Expire the session via the object reference returned earlier
 	session.expiresAt = Date.now() - 1000;
 
 	const retrievedSession = sessionManager.getSession(session.id);
@@ -227,43 +200,37 @@ test("getSession returns null for expired session", async () => {
 
 test("updateSessionUsage updates last used timestamp", async () => {
 	const mockDb = new MockDatabaseManager();
-	const sessionManager = new SessionManager(mockDb);
+	const sessionManager = new SessionManager(mockDb as never);
 
-	// Initialize the session manager
 	await sessionManager.init();
 
 	const peerId = "test-peer-id";
 
 	const session = await sessionManager.createSession(peerId);
 
-	// This should not throw an error
 	assert.doesNotThrow(() => sessionManager.updateSessionUsage(session.id));
 });
 
 test("invalidateSession marks session as inactive", async () => {
 	const mockDb = new MockDatabaseManager();
-	const sessionManager = new SessionManager(mockDb);
+	const sessionManager = new SessionManager(mockDb as never);
 
-	// Initialize the session manager
 	await sessionManager.init();
 
 	const peerId = "test-peer-id";
 
 	const session = await sessionManager.createSession(peerId);
 
-	// Invalidate the session
 	sessionManager.invalidateSession(session.id);
 
-	// Get session should return null since it's invalidated
 	const retrievedSession = sessionManager.getSession(session.id);
 	assert.strictEqual(retrievedSession, null);
 });
 
 test("isValidSession returns true for valid session", async () => {
 	const mockDb = new MockDatabaseManager();
-	const sessionManager = new SessionManager(mockDb);
+	const sessionManager = new SessionManager(mockDb as never);
 
-	// Initialize the session manager
 	await sessionManager.init();
 
 	const peerId = "test-peer-id";
@@ -276,16 +243,14 @@ test("isValidSession returns true for valid session", async () => {
 
 test("isValidSession returns false for expired session", async () => {
 	const mockDb = new MockDatabaseManager();
-	const sessionManager = new SessionManager(mockDb);
+	const sessionManager = new SessionManager(mockDb as never);
 
-	// Initialize the session manager
 	await sessionManager.init();
 
 	const peerId = "test-peer-id";
 
 	const session = await sessionManager.createSession(peerId);
 
-	// Manually expire the session via the session object
 	session.expiresAt = Date.now() - 1000;
 
 	const isValid = sessionManager.getSession(session.id) !== null;
@@ -294,14 +259,12 @@ test("isValidSession returns false for expired session", async () => {
 
 test("getActiveSessionsForPeer returns active sessions for peer", async () => {
 	const mockDb = new MockDatabaseManager();
-	const sessionManager = new SessionManager(mockDb);
+	const sessionManager = new SessionManager(mockDb as never);
 
-	// Initialize the session manager
 	await sessionManager.init();
 
 	const peerId = "test-peer-id";
 
-	// Create multiple sessions for same peer
 	await sessionManager.createSession(peerId);
 	await sessionManager.createSession(peerId);
 
@@ -314,29 +277,24 @@ test("getActiveSessionsForPeer returns active sessions for peer", async () => {
 
 test("cleanupExpiredSessions removes expired sessions", async () => {
 	const mockDb = new MockDatabaseManager();
-	const sessionManager = new SessionManager(mockDb);
+	const sessionManager = new SessionManager(mockDb as never);
 
-	// Initialize the session manager
 	await sessionManager.init();
 
 	const peerId = "test-peer-id";
 
-	// Create a session
 	const session = await sessionManager.createSession(peerId);
 
-	// Manually expire the session via the session object
 	session.expiresAt = Date.now() - 1000;
 
-	// Cleanup should remove expired sessions
 	const expiredCount = await sessionManager.cleanupExpired();
 	assert.strictEqual(expiredCount, 1);
 });
 
 test("getOrCreateE2ESessionWithHandshake creates new session when none exists", async () => {
 	const mockDb = new MockDatabaseManager();
-	const sessionManager = new SessionManager(mockDb);
+	const sessionManager = new SessionManager(mockDb as never);
 
-	// Initialize the session manager
 	await sessionManager.init();
 
 	const peerId = "test-peer-id";
@@ -364,9 +322,8 @@ test("getOrCreateE2ESessionWithHandshake creates new session when none exists", 
 
 test("getOrCreateE2ESessionWithHandshake updates existing session with handshake info", async () => {
 	const mockDb = new MockDatabaseManager();
-	const sessionManager = new SessionManager(mockDb);
+	const sessionManager = new SessionManager(mockDb as never);
 
-	// Initialize the session manager
 	await sessionManager.init();
 
 	const peerId = "test-peer-id";
@@ -382,7 +339,6 @@ test("getOrCreateE2ESessionWithHandshake updates existing session with handshake
 		},
 	};
 
-	// Get or create with handshake info - should create a new session
 	const updatedSession = await sessionManager.getOrCreateSession(
 		peerId,
 		noiseSessionInfo,
@@ -393,9 +349,8 @@ test("getOrCreateE2ESessionWithHandshake updates existing session with handshake
 
 test("getSessionKeys returns null for session without noise session info", async () => {
 	const mockDb = new MockDatabaseManager();
-	const sessionManager = new SessionManager(mockDb);
+	const sessionManager = new SessionManager(mockDb as never);
 
-	// Initialize the session manager
 	await sessionManager.init();
 
 	const peerId = "test-peer-id";
@@ -409,9 +364,8 @@ test("getSessionKeys returns null for session without noise session info", async
 
 test("getSessionKeys returns encryption/decryption keys for session with noise session info", async () => {
 	const mockDb = new MockDatabaseManager();
-	const sessionManager = new SessionManager(mockDb);
+	const sessionManager = new SessionManager(mockDb as never);
 
-	// Initialize the session manager
 	await sessionManager.init();
 
 	const peerId = "test-peer-id";
@@ -444,14 +398,12 @@ test("getSessionKeys returns encryption/decryption keys for session with noise s
 
 test("getStatistics returns correct statistics", async () => {
 	const mockDb = new MockDatabaseManager();
-	const sessionManager = new SessionManager(mockDb);
+	const sessionManager = new SessionManager(mockDb as never);
 
-	// Initialize the session manager
 	await sessionManager.init();
 
 	const peerId = "test-peer-id";
 
-	// Create a few sessions
 	await sessionManager.createSession(peerId);
 	await sessionManager.createSession(peerId);
 
@@ -462,22 +414,18 @@ test("getStatistics returns correct statistics", async () => {
 	assert.strictEqual(stats.active, 2);
 });
 
-// Additional tests for new functionality
 test("deriveAndStoreSessionKeys derives and stores session keys", async () => {
 	const mockDb = new MockDatabaseManager();
-	const sessionManager = new SessionManager(mockDb);
+	const sessionManager = new SessionManager(mockDb as never);
 
-	// Initialize the session manager
 	await sessionManager.init();
 
 	const peerId = "test-peer-id";
 
 	const session = await sessionManager.createSession(peerId);
 
-	// Generate a valid X25519 keypair for the peer
 	const { publicKey: peerPublicKey } = crypto.generateKeyPairSync("x25519");
 
-	// This should not throw an error
 	await sessionManager.deriveAndStoreSessionKeys(
 		session.id,
 		peerPublicKey.export({ format: "der", type: "spki" }),
@@ -491,9 +439,8 @@ test("deriveAndStoreSessionKeys derives and stores session keys", async () => {
 
 test("createSession with noiseSessionInfo includes it in the session", async () => {
 	const mockDb = new MockDatabaseManager();
-	const sessionManager = new SessionManager(mockDb);
+	const sessionManager = new SessionManager(mockDb as never);
 
-	// Initialize the session manager
 	await sessionManager.init();
 
 	const peerId = "test-peer-id";

@@ -1,0 +1,15 @@
+scenario:
+  name: handshake-validation
+  description: Tests protocol-level handshake and session establishment
+  steps:
+    - start: [node1, node2]
+    - wait: discovery
+    - verify: peer connection established
+    - verify: session info accessible via API
+    - disconnect: node1 <-> node2
+    - wait: 3s
+    - reconnect: node1 <-> node2
+    - verify: new session established
+    - send: node1 -> node2 (handshake-test)
+    - verify: message delivered
+    - verify: session persists

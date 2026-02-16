@@ -1,0 +1,15 @@
+scenario:
+  name: retry-on-failure
+  description: Tests retry mechanism when message delivery encounters failures
+  steps:
+    - start: [node1, node2]
+    - wait: discovery
+    - disconnect: node1 <-> node2
+    - send: node1 -> node2 (retry-test)
+    - verify: message queued with attempts = 0
+    - wait: retry interval
+    - verify: attempts incremented
+    - verify: next_retry_at updated with exponential backoff
+    - reconnect: node1 <-> node2
+    - verify: message delivered after reconnect
+    - verify: final status = delivered

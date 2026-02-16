@@ -1,0 +1,13 @@
+scenario:
+  name: privacy-validation
+  description: Tests privacy features including encryption and peer ID handling
+  steps:
+    - start: [node1, node2]
+    - wait: discovery
+    - send: node1 -> node2 (privacy-test-1)
+    - verify: message delivered
+    - verify: database shows encrypted message content
+    - verify: peer IDs are properly formatted in routing
+    - send: node1 -> node2 (privacy-test-2)
+    - verify: message delivered successfully
+    - verify: no plaintext peer IDs in message payloads

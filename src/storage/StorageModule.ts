@@ -2,7 +2,6 @@
 
 import type { YapYapNodeOptions } from "../core/node.js";
 import { ContactsDatabase } from "../database/domains/ContactsDatabase.js";
-import { MessageQueueDatabase } from "../database/domains/MessageQueueDatabase.js";
 import { NodeKeysDatabase } from "../database/domains/NodeKeysDatabase.js";
 import { PeerMetadataDatabase } from "../database/domains/PeerMetadataDatabase.js";
 import { RoutingCacheDatabase } from "../database/domains/RoutingCacheDatabase.js";
@@ -13,7 +12,6 @@ import { DatabaseManager } from "../database/index.js";
 export class StorageModule {
 	private dbManager: DatabaseManager;
 	private contactsDb!: ContactsDatabase;
-	private messageQueueDb!: MessageQueueDatabase;
 	private routingCacheDb!: RoutingCacheDatabase;
 	private sessionDb!: SessionDatabase;
 	private nodeKeysDb!: NodeKeysDatabase;
@@ -24,7 +22,6 @@ export class StorageModule {
 		this.dbManager = new DatabaseManager(options);
 		const db = this.dbManager.getDatabase();
 		this.contactsDb = new ContactsDatabase(db);
-		this.messageQueueDb = new MessageQueueDatabase(db);
 		this.routingCacheDb = new RoutingCacheDatabase(db);
 		this.sessionDb = new SessionDatabase(db);
 		this.nodeKeysDb = new NodeKeysDatabase(db);
@@ -41,7 +38,7 @@ export class StorageModule {
 		return this.contactsDb;
 	}
 	get messages() {
-		return this.messageQueueDb;
+		return this.dbManager;
 	}
 	get routing() {
 		return this.routingCacheDb;

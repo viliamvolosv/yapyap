@@ -61,10 +61,12 @@ export interface YapYapMessage {
 
 export interface AckMessage extends YapYapMessage {
 	type: "ack";
-	/**
-	 * The ID of the original message being acknowledged
-	 */
 	originalMessageId: string;
+	relayEnvelope?: {
+		signature: string;
+		signerPublicKey: string;
+		originalTargetPeerId: string;
+	};
 }
 
 export interface NakMessage extends YapYapMessage {

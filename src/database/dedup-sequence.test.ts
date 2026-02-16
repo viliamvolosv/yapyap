@@ -59,7 +59,7 @@ describe("DatabaseManager dedup + sequence", () => {
 		db = new DatabaseManager({ dataDir });
 
 		const messageId = "pending-1";
-		db.upsertPendingMessage(
+		db.queueMessage(
 			messageId,
 			{ id: messageId, type: "data" },
 			"peer-a",
@@ -91,7 +91,7 @@ describe("DatabaseManager dedup + sequence", () => {
 
 		const before = Date.now() - 10;
 		db.markMessageProcessed("proc-1", "peer-a", 1);
-		db.upsertPendingMessage(
+		db.queueMessage(
 			"pend-1",
 			{
 				id: "pend-1",
@@ -124,6 +124,7 @@ describe("DatabaseManager dedup + sequence", () => {
 		const result = db.persistIncomingMessageAtomically({
 			messageId: "incoming-1",
 			fromPeerId: "peer-remote",
+			toPeerId: "peer-local",
 			sequenceNumber: 4,
 			messageData: {
 				id: "incoming-1",
@@ -152,6 +153,7 @@ describe("DatabaseManager dedup + sequence", () => {
 		const first = db.persistIncomingMessageAtomically({
 			messageId: "incoming-dupe",
 			fromPeerId: "peer-remote",
+			toPeerId: "peer-local",
 			sequenceNumber: 1,
 			messageData: {
 				id: "incoming-dupe",
@@ -166,6 +168,7 @@ describe("DatabaseManager dedup + sequence", () => {
 		const second = db.persistIncomingMessageAtomically({
 			messageId: "incoming-dupe",
 			fromPeerId: "peer-remote",
+			toPeerId: "peer-local",
 			sequenceNumber: 2,
 			messageData: {
 				id: "incoming-dupe",

@@ -1,0 +1,15 @@
+scenario:
+  name: invalid-message-format
+  description: Tests handling of malformed messages
+  steps:
+    - start: [node1, node2]
+    - wait: discovery
+    - send: message with missing payload
+    - verify: error response (400)
+    - send: message with invalid peer ID format
+    - verify: error response (400)
+    - send: message with null target
+    - verify: error response (400)
+    - send: valid message
+    - verify: delivered successfully
+    - verify: node remains stable after invalid inputs

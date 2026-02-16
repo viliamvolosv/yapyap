@@ -506,7 +506,11 @@ export class ApiModule {
 		const selfPeerId = this.yapyapNode.getPeerId();
 		const inbox = this.yapyapNode
 			.getDatabase()
-			.getRecentMessageQueueEntries(200)
+			.getRecentProcessedMessages(200)
+			.filter(
+				(entry: unknown) =>
+					(entry as { to_peer_id: string }).to_peer_id === selfPeerId,
+			)
 			.map((entry: unknown) => {
 				let message: YapYapMessage | null = null;
 				try {
@@ -517,18 +521,12 @@ export class ApiModule {
 					message = null;
 				}
 				return {
-					id: (entry as { id: string }).id,
-					targetPeerId: (entry as { target_peer_id: string }).target_peer_id,
-					status: (entry as { status: string }).status,
-					attempts: (entry as { attempts: number }).attempts,
-					queuedAt: (entry as { queued_at: number }).queued_at,
+					messageId: (entry as { message_id: string }).message_id,
+					fromPeerId: (entry as { from_peer_id: string }).from_peer_id,
+					processedAt: (entry as { processed_at: number }).processed_at,
 					message,
 				};
-			})
-			.filter(
-				(entry: unknown) =>
-					(entry as { message?: YapYapMessage }).message?.to === selfPeerId,
-			);
+			});
 		return this.jsonResponse({ inbox });
 	}
 
@@ -536,7 +534,7 @@ export class ApiModule {
 		const selfPeerId = this.yapyapNode.getPeerId();
 		const outbox = this.yapyapNode
 			.getDatabase()
-			.getRecentMessageQueueEntries(200)
+			.getRecentPendingMessages(200)
 			.map((entry: unknown) => {
 				let message: YapYapMessage | null = null;
 				try {
@@ -547,11 +545,11 @@ export class ApiModule {
 					message = null;
 				}
 				return {
-					id: (entry as { id: string }).id,
+					messageId: (entry as { message_id: string }).message_id,
 					targetPeerId: (entry as { target_peer_id: string }).target_peer_id,
 					status: (entry as { status: string }).status,
 					attempts: (entry as { attempts: number }).attempts,
-					queuedAt: (entry as { queued_at: number }).queued_at,
+					createdAt: (entry as { created_at: number }).created_at,
 					nextRetryAt: (entry as { next_retry_at: number }).next_retry_at,
 					message,
 				};

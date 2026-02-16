@@ -14,12 +14,16 @@ const PEER_B = "12D3KooWB6urPZfyGZYtbGxVRhgGFbgsSFVjjEpuQgPd4X8S3LZE";
 const BOOTSTRAP_PEER_ID = PEER_B;
 
 type DbMock = {
-	queueMessageCalls: number;
 	updateMessageStatusCalls: Array<{ id: number; status: string }>;
 	markProcessedCalls: string[];
 	processedIds: Set<string>;
 	lastSequences: Map<string, number>;
-	queueMessage: (message: Record<string, unknown>) => number;
+	queueMessage: (
+		messageId: string,
+		message: Record<string, unknown>,
+		targetPeerId: string,
+		deadlineAt: number,
+	) => void;
 	getAllPendingMessages: () => Array<Record<string, unknown>>;
 	updateMessageStatus: (id: number, status: string) => void;
 	setNextRetryAt: (id: number, nextRetryAt: number) => void;
@@ -31,17 +35,29 @@ type DbMock = {
 	) => void;
 	getLastPeerSequence: (peerId: string) => number | null;
 	updatePeerSequence: (peerId: string, sequenceNumber: number) => void;
-	upsertPendingMessage: (
+	getPendingMessage: (messageId: string) => {
+		message_id: string;
+		target_peer_id: string;
+		message_data: string;
+		status: "pending" | "processing" | "delivered" | "failed";
+		attempts: number;
+		next_retry_at: number;
+		created_at: number;
+		updated_at: number;
+		deadline_at: number;
+		last_error?: string;
+	} | null;
+	incrementAttempts: (messageId: string) => void;
+	scheduleRetry: (
 		messageId: string,
-		messageData: Record<string, unknown>,
-		targetPeerId: string,
-		deadlineAt: number,
+		nextRetryAt: number,
+		reason?: string,
 	) => void;
 	getRetryablePendingMessages: () => Array<{
 		message_id: string;
 		target_peer_id: string;
 		message_data: string;
-		status: "pending" | "delivered" | "failed";
+		status: "pending" | "processing" | "delivered" | "failed";
 		attempts: number;
 		next_retry_at: number;
 		created_at: number;
@@ -101,6 +117,35 @@ type DbMock = {
 	}>;
 	markReplicatedMessageDelivered: (messageId: string) => void;
 	markReplicatedMessageFailed: (messageId: string) => void;
+	updateReplicaAckExpected: (
+		messageId: string,
+		replicaPeerId: string,
+		expected: boolean,
+	) => void;
+	markReplicaAckReceived: (messageId: string, replicaPeerId: string) => void;
+	getReplicaAckStatus: (messageId: string) => Array<{
+		id: number;
+		message_id: string;
+		replica_peer_id: string;
+		status: "assigned" | "stored" | "delivered" | "failed";
+		assigned_at: number;
+		updated_at: number;
+		ack_expected: number;
+		ack_received_at: number | null;
+		last_error?: string;
+	}>;
+	getMessagesWaitingForReplicaAck: () => Array<{
+		id: number;
+		message_id: string;
+		replica_peer_id: string;
+		status: "assigned" | "stored" | "delivered" | "failed";
+		assigned_at: number;
+		updated_at: number;
+		ack_expected: number;
+		ack_received_at: number | null;
+		last_error?: string;
+		original_target_peer_id?: string;
+	}>;
 	cleanup: () => void;
 	getVectorClock: (peerId: string) => number;
 	getAllVectorClocks: () => Record<string, number>;
@@ -168,14 +213,12 @@ function createDbMock(): DbMock {
 	>();
 	const vectorClocks = new Map<string, number>();
 	return {
-		queueMessageCalls: 0,
 		updateMessageStatusCalls,
 		markProcessedCalls,
 		processedIds,
 		lastSequences,
-		queueMessage: () => {
-			rowId += 1;
-			return rowId;
+		queueMessage: (messageId: string) => {
+			pendingMessages.set(messageId, { attempts: 0, status: "pending" });
 		},
 		getAllPendingMessages: () => [],
 		updateMessageStatus: (id, status) => {
@@ -199,14 +242,9 @@ function createDbMock(): DbMock {
 		updatePeerSequence: (peerId: string, sequenceNumber: number): void => {
 			lastSequences.set(peerId, sequenceNumber);
 		},
-		upsertPendingMessage: (
-			messageId: string,
-			_messageData: Record<string, unknown>,
-			_targetPeerId: string,
-			_deadlineAt: number,
-		): void => {
-			pendingMessages.set(messageId, { attempts: 0, status: "pending" });
-		},
+		getPendingMessage: () => null,
+		incrementAttempts: () => {},
+		scheduleRetry: () => {},
 		getRetryablePendingMessages: () => [],
 		getPendingMessagesForPeer: () => [],
 		markPendingMessageDelivered: (messageId: string): void => {
@@ -307,6 +345,17 @@ function createDbMock(): DbMock {
 				replicaAssignments.set(messageId, existing);
 			}
 		},
+		updateReplicaAckExpected: (
+			_messageId: string,
+			_replicaPeerId: string,
+			_expected: boolean,
+		): void => {},
+		markReplicaAckReceived: (
+			_messageId: string,
+			_replicaPeerId: string,
+		): void => {},
+		getReplicaAckStatus: (_messageId: string) => [],
+		getMessagesWaitingForReplicaAck: () => [],
 		cleanup: () => {},
 		getVectorClock: (peerId: string): number => vectorClocks.get(peerId) ?? 0,
 		getAllVectorClocks: (): Record<string, number> => {
@@ -557,24 +606,38 @@ describe("MessageRouter", () => {
 	test("receive routes ACK to handleAck path", async () => {
 		const db = createDbMock();
 		const events: YapYapEvent[] = [];
-		const messageQueues = new Map<string, Array<Record<string, unknown>>>();
-		messageQueues.set("peer-remote", [
-			{
-				id: 11,
-				message_data: JSON.stringify({ id: "original-msg" }),
-				target_peer_id: "peer-remote",
-				queued_at: Date.now(),
-				attempts: 0,
-				status: "pending",
-				ttl: 1000,
-			},
-		]);
+		let deliveredMessageId: string | undefined;
+		db.markPendingMessageDelivered = (messageId: string): void => {
+			deliveredMessageId = messageId;
+		};
+		db.getPendingMessage = (messageId: string) => {
+			if (messageId === "original-msg") {
+				return {
+					message_id: "original-msg",
+					target_peer_id: "peer-remote",
+					message_data: JSON.stringify({
+						id: "original-msg",
+						type: "data",
+						from: "peer-local",
+						to: "peer-remote",
+						payload: {},
+						timestamp: Date.now(),
+					}),
+					status: "pending",
+					attempts: 0,
+					next_retry_at: Date.now() + 60_000,
+					created_at: Date.now() - 1000,
+					updated_at: Date.now() - 1000,
+					deadline_at: Date.now() + 60_000,
+				};
+			}
+			return null;
+		};
 
 		const router = new MessageRouter({
 			...createContext(db, events),
 			getLibp2p: () => undefined,
 			encodeResponse: () => new Uint8Array(),
-			messageQueues: messageQueues as never,
 		});
 
 		const ack: AckMessage = {
@@ -588,7 +651,7 @@ describe("MessageRouter", () => {
 		};
 
 		await router.receive(ack);
-		assert.strictEqual(messageQueues.get("peer-remote")?.length, 0);
+		assert.strictEqual(deliveredMessageId, "original-msg");
 		assert.ok(
 			events.some((event) => event.type === Events.Message.AckReceived),
 		);
@@ -1009,9 +1072,11 @@ describe("MessageRouter", () => {
 	test("receive stores valid relay envelope for later handover", async () => {
 		const db = createDbMock();
 		let storedPendingMessageId: string | undefined;
-		db.upsertPendingMessage = (messageId: string): void => {
+		db.queueMessage = (messageId: string): void => {
 			storedPendingMessageId = messageId;
 		};
+		db.assignMessageReplica = (): void => {};
+		db.markReplicaStored = (): void => {};
 
 		const original: YapYapMessage = {
 			id: "orig-1",
@@ -1054,9 +1119,11 @@ describe("MessageRouter", () => {
 	test("receive drops invalid relay envelope hash", async () => {
 		const db = createDbMock();
 		let storedPendingMessageId: string | undefined;
-		db.upsertPendingMessage = (messageId: string): void => {
+		db.queueMessage = (messageId: string): void => {
 			storedPendingMessageId = messageId;
 		};
+		db.assignMessageReplica = (): void => {};
+		db.markReplicaStored = (): void => {};
 
 		const original: YapYapMessage = {
 			id: "orig-bad",
@@ -1183,9 +1250,9 @@ describe("MessageRouter", () => {
 
 	test("applyDeltaSyncPayload replays missing pending messages", () => {
 		const db = createDbMock();
-		const upserted: string[] = [];
-		db.upsertPendingMessage = (messageId: string): void => {
-			upserted.push(messageId);
+		const queued: string[] = [];
+		db.queueMessage = (messageId: string): void => {
+			queued.push(messageId);
 		};
 		db.isMessageProcessed = (messageId: string): boolean =>
 			messageId === "already-done";
@@ -1222,7 +1289,7 @@ describe("MessageRouter", () => {
 			],
 		});
 
-		assert.deepStrictEqual(upserted, ["missing-1"]);
+		assert.deepStrictEqual(queued, ["missing-1"]);
 		assert.strictEqual(db.getVectorClock("peer-remote"), 4);
 	});
 
@@ -1446,5 +1513,196 @@ describe("MessageRouter", () => {
 		});
 
 		assert.deepStrictEqual(db.markProcessedCalls, ["origin-1"]);
+	});
+
+	test("transmit proactively hangs up unhealthy peer before dial", async () => {
+		const db = createDbMock();
+		let hangUpCalled = false;
+		let dialAttempts = 0;
+
+		const mockHealthMonitor = {
+			isConnectionHealthy: () => false,
+			updateActivity: () => {},
+		};
+
+		const context = {
+			...createContext(db),
+			getLibp2p: () =>
+				({
+					async dialProtocol(_peerId, _protocol) {
+						dialAttempts++;
+						if (dialAttempts === 1) {
+							throw new Error("Dial failed");
+						}
+						return {
+							send: async () => {},
+							close: async () => {},
+						};
+					},
+					async hangUp(_peerId) {
+						hangUpCalled = true;
+					},
+				}) as never,
+			encodeResponse: (message: YapYapMessage) =>
+				Buffer.from(JSON.stringify(message), "utf8") as unknown as Uint8Array,
+			healthMonitor: mockHealthMonitor as never,
+		};
+
+		const router = new MessageRouter(context, {
+			transport: {
+				reconnectAttempts: 1,
+			},
+		});
+
+		await router.send({
+			id: "msg-health-check",
+			type: "data",
+			from: "peer-local",
+			to: VALID_PEER_ID,
+			payload: { ok: true },
+			timestamp: Date.now(),
+		});
+
+		assert.strictEqual(
+			hangUpCalled,
+			true,
+			"Should hang up unhealthy peer before dial",
+		);
+		assert.strictEqual(dialAttempts, 2, "Should retry after hang up");
+	});
+
+	test("transmit skips health check if no health monitor configured", async () => {
+		const db = createDbMock();
+		let dialAttempts = 0;
+
+		const context = {
+			...createContext(db),
+			getLibp2p: () =>
+				({
+					async dialProtocol(_peerId, _protocol) {
+						dialAttempts++;
+						if (dialAttempts === 1) {
+							throw new Error("Dial failed");
+						}
+						return {
+							send: async () => {},
+							close: async () => {},
+						};
+					},
+					async hangUp(_peerId) {
+						throw new Error("Should not be called");
+					},
+				}) as never,
+			encodeResponse: (message: YapYapMessage) =>
+				Buffer.from(JSON.stringify(message), "utf8") as unknown as Uint8Array,
+		};
+
+		const router = new MessageRouter(context, {
+			transport: {
+				reconnectAttempts: 1,
+			},
+		});
+
+		await router.send({
+			id: "msg-no-health",
+			type: "data",
+			from: "peer-local",
+			to: VALID_PEER_ID,
+			payload: { ok: true },
+			timestamp: Date.now(),
+		});
+
+		assert.strictEqual(
+			dialAttempts,
+			2,
+			"Should retry once without health check",
+		);
+	});
+
+	test("transmit updates activity on successful send", async () => {
+		const db = createDbMock();
+		let updateActivityCalled = false;
+
+		const mockHealthMonitor = {
+			isConnectionHealthy: () => true,
+			updateActivity: (_peerId) => {
+				updateActivityCalled = true;
+			},
+		};
+
+		const context = {
+			...createContext(db),
+			getLibp2p: () =>
+				({
+					async dialProtocol() {
+						return {
+							send: async () => {},
+							close: async () => {},
+						};
+					},
+				}) as never,
+			encodeResponse: (message: YapYapMessage) =>
+				Buffer.from(JSON.stringify(message), "utf8") as unknown as Uint8Array,
+			healthMonitor: mockHealthMonitor as never,
+		};
+
+		const router = new MessageRouter(context, {});
+
+		await router.send({
+			id: "msg-success",
+			type: "data",
+			from: "peer-local",
+			to: VALID_PEER_ID,
+			payload: { ok: true },
+			timestamp: Date.now(),
+		});
+
+		assert.strictEqual(
+			updateActivityCalled,
+			true,
+			"Should update activity on successful send",
+		);
+	});
+
+	test("default reconnect attempts increased to 3", async () => {
+		const db = createDbMock();
+		let dialAttempts = 0;
+
+		const context = {
+			...createContext(db),
+			getLibp2p: () =>
+				({
+					async dialProtocol() {
+						dialAttempts++;
+						if (dialAttempts < 4) {
+							throw new Error("Dial failed");
+						}
+						return {
+							send: async () => {},
+							close: async () => {},
+						};
+					},
+					hangUp: async () => {},
+				}) as never,
+			encodeResponse: (message: YapYapMessage) =>
+				Buffer.from(JSON.stringify(message), "utf8") as unknown as Uint8Array,
+		};
+
+		const router = new MessageRouter(context, {});
+
+		await router.send({
+			id: "msg-reconnect-default",
+			type: "data",
+			from: "peer-local",
+			to: VALID_PEER_ID,
+			payload: { ok: true },
+			timestamp: Date.now(),
+		});
+
+		assert.strictEqual(
+			dialAttempts,
+			4,
+			"Should retry 3 times (4 total attempts) with default reconnect attempts",
+		);
 	});
 });

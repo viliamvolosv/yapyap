@@ -1,6 +1,6 @@
 {
 	"name": "yapyap",
-	"version": "0.0.3",
+	"version": "0.0.4",
 	"description": "YapYap is a decentralized, peer-to-peer messenger node and CLI library built with Node.js + TypeScript. It prioritizes reliable end-to-end encrypted delivery, offline/store-and-forward support, deduplication, and ACK-driven reliability inside a small-footprint CLI package (no UI) so other applications can embed YapYap as a dependency or run it as an executable.",
 	"license": "MIT",
 	"type": "module",

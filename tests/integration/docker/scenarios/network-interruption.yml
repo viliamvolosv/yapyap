@@ -1,0 +1,16 @@
+scenario:
+  name: network-interruption
+  description: Tests message delivery resilience during network partitions
+  steps:
+    - start: [node1, node2]
+    - wait: discovery
+    - send: node1 -> node2 (network-test-1)
+    - verify: immediate delivery when connected
+    - disconnect: node1 <-> node2
+    - send: node1 -> node2 (network-test-2)
+    - wait: 3s
+    - verify: message queued in outbox
+    - reconnect: node1 <-> node2
+    - verify: queued message delivered
+    - send: node1 -> node2 (network-test-3)
+    - verify: new messages work after recovery

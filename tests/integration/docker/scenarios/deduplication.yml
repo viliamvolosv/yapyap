@@ -1,0 +1,15 @@
+scenario:
+  name: deduplication
+  description: Tests duplicate message handling and deduplication logic
+  steps:
+    - start: [node1, node2]
+    - wait: discovery
+    - send: node1 -> node2 (dedup-test) with unique ID
+    - send: same message again (same ID)
+    - send: same message third time (same ID)
+    - wait: 2s
+    - verify: only one message in node2 inbox
+    - verify: processed_messages table shows single entry
+    - send: node1 -> node2 (dedup-test-2) with new ID
+    - verify: second message also delivered
+    - verify: inbox contains exactly 2 messages

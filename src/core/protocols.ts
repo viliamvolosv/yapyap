@@ -108,6 +108,70 @@ export const MessageFramer = {
 			remainder: buffer.slice(offset),
 		};
 	},
+
+	/**
+	 * Decode a single framed message
+	 */
+	decode<T>(data: Uint8Array): T {
+		if (data.length < 4) {
+			throw new Error("Invalid framed message: insufficient data");
+		}
+
+		const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
+		const messageLength = view.getUint32(0, false);
+
+		if (messageLength > MAX_FRAME_SIZE_BYTES) {
+			throw new Error(`Frame too large: ${messageLength} bytes`);
+		}
+
+		if (data.length < 4 + messageLength) {
+			throw new Error("Invalid framed message: incomplete data");
+		}
+
+		const messageBytes = data.slice(4, 4 + messageLength);
+		return MessageCodec.decode<T>(messageBytes);
+	},
+
+	/**
+	 * Split raw buffer into complete messages with error handling
+	 */
+	splitMessages<T>(buffer: Uint8Array): {
+		messages: T[];
+		remaining: Uint8Array;
+	} {
+		let offset = 0;
+		const messages: T[] = [];
+
+		while (offset + 4 <= buffer.length) {
+			const view = new DataView(
+				buffer.buffer,
+				buffer.byteOffset + offset,
+				buffer.byteLength - offset,
+			);
+			const messageLength = view.getUint32(0, false);
+
+			if (messageLength > MAX_FRAME_SIZE_BYTES) {
+				throw new Error(`Frame too large: ${messageLength} bytes`);
+			}
+
+			if (offset + 4 + messageLength > buffer.length) {
+				break;
+			}
+
+			const messageBytes = buffer.slice(offset + 4, offset + 4 + messageLength);
+			try {
+				const message = MessageCodec.decode<T>(messageBytes);
+				messages.push(message);
+				offset += 4 + messageLength;
+			} catch (error) {
+				console.error("Error decoding message:", error);
+				offset += 4 + messageLength;
+			}
+		}
+
+		const remaining = buffer.slice(offset);
+		return { messages, remaining };
+	},
 };
 
 /* -------------------------------------------------------------------------- */

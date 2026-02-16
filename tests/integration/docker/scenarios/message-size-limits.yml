@@ -1,0 +1,13 @@
+scenario:
+  name: message-size-limits
+  description: Tests message size constraints and validation
+  steps:
+    - start: [node1, node2]
+    - wait: discovery
+    - send: small message (below limit)
+    - verify: delivered successfully
+    - send: medium message (at limit)
+    - verify: delivered successfully
+    - send: large message (above limit)
+    - verify: appropriate error response
+    - verify: no crash or corruption

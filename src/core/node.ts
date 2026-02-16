@@ -22,7 +22,6 @@ import type { DatabaseManager } from "../database/index.js";
 import { EventBus } from "../events/event-bus.js";
 import { Events, type YapYapEvent } from "../events/event-types.js";
 import type { AckMessage, YapYapMessage } from "../message/message.js";
-import type { MessageQueueEntryInternal } from "../message/message-router.js";
 import { MessageRouter } from "../message/message-router.js";
 // ...existing fields...
 import type { HandshakeMessage } from "../protocols/handshake.js";
@@ -77,6 +76,7 @@ function isEncryptedPayload(p: unknown): p is EncryptedPayload {
 
 const STREAM_IDLE_TIMEOUT_MS = 30_000;
 const MAX_RECEIVE_BUFFER_BYTES = MAX_FRAME_SIZE_BYTES * 2;
+const BUFFER_THRESHOLD_BYTES = Math.floor(MAX_RECEIVE_BUFFER_BYTES * 0.75);
 
 /* -------------------------------------------------------------------------- */
 /*                               Node Service                                 */
@@ -120,7 +120,6 @@ export class YapYapNode {
 	private libp2p?: Libp2p;
 	private db: DatabaseManager;
 	private sessions: SessionManager;
-	private messageQueues: Map<string, MessageQueueEntryInternal[]> = new Map();
 	private pendingAcks: Map<string, { timeout: NodeJS.Timeout }> = new Map();
 	private eventBus = EventBus.getInstance<Record<string, YapYapEvent>>();
 
@@ -145,7 +144,6 @@ export class YapYapNode {
 			encryptMessage: this.encryptMessage.bind(this),
 			encodeResponse: this.encodeResponse,
 			safeClose: this.safeClose,
-			messageQueues: this.messageQueues,
 			pendingAcks: this.pendingAcks,
 			onMessage: this.handleIncomingMessage.bind(this),
 			emitEvent: this.emitEvent.bind(this),
@@ -187,9 +185,6 @@ export class YapYapNode {
 			clearTimeout(ackEntry.timeout);
 			this.pendingAcks.delete(messageId);
 		}
-
-		// Clear all message queues
-		this.messageQueues.clear();
 
 		// Stop libp2p
 		if (this.libp2p) {
@@ -295,9 +290,16 @@ export class YapYapNode {
 
 				buffer = this.concat(buffer, data);
 				if (buffer.length > MAX_RECEIVE_BUFFER_BYTES) {
-					throw new Error(
-						`Receive buffer exceeded limit (${MAX_RECEIVE_BUFFER_BYTES} bytes)`,
+					stream.abort(
+						new Error(
+							`Receive buffer exceeded limit (${MAX_RECEIVE_BUFFER_BYTES} bytes)`,
+						),
 					);
+					return;
+				}
+
+				if (buffer.length > BUFFER_THRESHOLD_BYTES) {
+					await this.applyBackpressure(stream, buffer.length, label);
 				}
 
 				buffer = await this.processFrames(
@@ -319,6 +321,17 @@ export class YapYapNode {
 			await this.safeClose(stream);
 		}
 	};
+
+	private async applyBackpressure(
+		_stream: Stream,
+		bufferSize: number,
+		label: string,
+	): Promise<void> {
+		console.warn(
+			`[${label}] backpressure: buffer at ${bufferSize} bytes, waiting for processing`,
+		);
+		await new Promise((resolve) => setTimeout(resolve, 50));
+	}
 
 	private async processFrames<TMsg, TRes>(
 		buffer: Uint8Array,

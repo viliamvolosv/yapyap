@@ -17,6 +17,7 @@ import type { Multiaddr } from "@multiformats/multiaddr";
 import { multiaddr } from "@multiformats/multiaddr";
 import { createLibp2p } from "libp2p";
 import {
+	MAX_FRAME_SIZE_BYTES,
 	MessageCodec,
 	MessageFramer,
 	NodeState,
@@ -26,22 +27,213 @@ import {
 	RoutingTable,
 } from "../core/protocols.js";
 import type { YapYapMessage } from "../message/message.js";
-import {
-	type HandshakeMessage,
-	handleHandshakeMessage,
-} from "../protocols/handshake.js";
-import {
-	handleRouteMessage,
-	type RouteAnnounceMessage,
-	type RouteQueryMessage,
-	type RouteResultMessage,
+import type { HandshakeMessage } from "../protocols/handshake.js";
+import { handleHandshakeMessage } from "../protocols/handshake.js";
+import type {
+	RouteAnnounceMessage,
+	RouteQueryMessage,
+	RouteResultMessage,
 } from "../protocols/route.js";
-import {
-	handleSyncMessage,
-	type SyncRequestMessage,
-	type SyncResponseMessage,
+import { handleRouteMessage } from "../protocols/route.js";
+import type {
+	SyncRequestMessage,
+	SyncResponseMessage,
 } from "../protocols/sync.js";
+import { handleSyncMessage } from "../protocols/sync.js";
 
+const MAX_RECEIVE_BUFFER_BYTES = MAX_FRAME_SIZE_BYTES * 2;
+const BUFFER_THRESHOLD_BYTES = Math.floor(MAX_RECEIVE_BUFFER_BYTES * 0.75);
+
+/* -------------------------------------------------------------------------- */
+/*                              Connection Health                             */
+/* -------------------------------------------------------------------------- */
+
+export interface ConnectionHealthConfig {
+	healthCheckIntervalMs: number;
+	connectionIdleTimeoutMs: number;
+	pingTimeoutMs: number;
+	stalledThresholdCount: number;
+}
+
+export interface ConnectionHealthState {
+	peerId: PeerId;
+	lastActivityMs: number;
+	isHealthy: boolean;
+	stalledCount: number;
+	lastCheckMs: number;
+}
+
+const DEFAULT_HEALTH_CONFIG: ConnectionHealthConfig = {
+	healthCheckIntervalMs: 30_000,
+	connectionIdleTimeoutMs: 120_000,
+	pingTimeoutMs: 5_000,
+	stalledThresholdCount: 2,
+};
+
+export class ConnectionHealthMonitor {
+	private libp2p: Libp2p;
+	private config: ConnectionHealthConfig;
+	private connectionStates: Map<string, ConnectionHealthState> = new Map();
+	private healthCheckTimer?: NodeJS.Timeout;
+	private onUnhealthyPeer?: (peerId: PeerId) => void | Promise<void>;
+
+	constructor(
+		libp2p: Libp2p,
+		config: Partial<ConnectionHealthConfig> = {},
+		onUnhealthyPeer?: (peerId: PeerId) => void | Promise<void>,
+	) {
+		this.libp2p = libp2p;
+		this.config = { ...DEFAULT_HEALTH_CONFIG, ...config };
+		this.onUnhealthyPeer = onUnhealthyPeer;
+	}
+
+	start(): void {
+		this.healthCheckTimer = setInterval(() => {
+			this.checkAllConnections().catch(console.error);
+		}, this.config.healthCheckIntervalMs);
+	}
+
+	stop(): void {
+		if (this.healthCheckTimer) {
+			clearInterval(this.healthCheckTimer);
+			this.healthCheckTimer = undefined;
+		}
+		this.connectionStates.clear();
+	}
+
+	async checkAllConnections(): Promise<void> {
+		const connections = this.libp2p.getConnections();
+		const now = Date.now();
+
+		for (const conn of connections) {
+			const peerIdStr = conn.remotePeer.toString();
+			let state = this.connectionStates.get(peerIdStr);
+
+			if (!state) {
+				state = {
+					peerId: conn.remotePeer,
+					lastActivityMs: now,
+					isHealthy: true,
+					stalledCount: 0,
+					lastCheckMs: now,
+				};
+				this.connectionStates.set(peerIdStr, state);
+			}
+
+			const idleTime = now - state.lastActivityMs;
+			const isIdle = idleTime > this.config.connectionIdleTimeoutMs;
+
+			if (isIdle || !state.isHealthy) {
+				const healthy = await this.pingPeer(conn.remotePeer);
+
+				if (healthy) {
+					state.lastActivityMs = now;
+					state.isHealthy = true;
+					state.stalledCount = 0;
+				} else {
+					state.stalledCount++;
+					state.lastCheckMs = now;
+
+					if (
+						state.stalledCount >= this.config.stalledThresholdCount ||
+						isIdle
+					) {
+						state.isHealthy = false;
+						console.warn(
+							`Connection health: peer ${peerIdStr} marked unhealthy (stalled: ${state.stalledCount}, idle: ${idleTime}ms)`,
+						);
+
+						if (this.onUnhealthyPeer) {
+							await this.onUnhealthyPeer(conn.remotePeer);
+						}
+					}
+				}
+			}
+		}
+	}
+
+	private async pingPeer(peerId: PeerId): Promise<boolean> {
+		try {
+			const pingSvc = (
+				this.libp2p as unknown as {
+					services?: { ping?: { ping: (peer: PeerId) => Promise<number> } };
+				}
+			).services?.ping;
+			if (pingSvc) {
+				await this.withTimeout(
+					pingSvc.ping(peerId),
+					this.config.pingTimeoutMs,
+					"Ping timeout",
+				);
+				return true;
+			}
+		} catch {
+			// Ping failed, connection may be half-open
+		}
+		return false;
+	}
+
+	private async withTimeout<T>(
+		promise: Promise<T>,
+		timeoutMs: number,
+		_errorMsg: string,
+	): Promise<T> {
+		let timeoutHandle: NodeJS.Timeout | undefined;
+
+		const timeoutPromise = new Promise<never>((_, reject) => {
+			timeoutHandle = setTimeout(() => {
+				reject(new Error(`Ping timeout after ${timeoutMs}ms`));
+			}, timeoutMs);
+		});
+
+		try {
+			return await Promise.race([promise, timeoutPromise]);
+		} finally {
+			if (timeoutHandle) {
+				clearTimeout(timeoutHandle);
+			}
+		}
+	}
+
+	updateActivity(peerId: PeerId): void {
+		const state = this.connectionStates.get(peerId.toString());
+		if (state) {
+			state.lastActivityMs = Date.now();
+			state.isHealthy = true;
+			state.stalledCount = 0;
+		}
+	}
+
+	getConnectionState(peerId: PeerId): ConnectionHealthState | undefined {
+		return this.connectionStates.get(peerId.toString());
+	}
+
+	isConnectionHealthy(peerId: PeerId): boolean {
+		const state = this.connectionStates.get(peerId.toString());
+		return state?.isHealthy ?? false;
+	}
+
+	async hangUpUnhealthyPeer(peerId: PeerId): Promise<boolean> {
+		const state = this.connectionStates.get(peerId.toString());
+		if (!state || state.isHealthy) {
+			return false;
+		}
+
+		try {
+			await (
+				this.libp2p as unknown as { hangUp?: (peer: PeerId) => Promise<void> }
+			).hangUp?.(peerId);
+			this.connectionStates.delete(peerId.toString());
+			return true;
+		} catch (err) {
+			console.warn(`Failed to hangUp peer ${peerId}:`, err);
+			return false;
+		}
+	}
+}
+
+/* -------------------------------------------------------------------------- */
+/*                                   Types                                    */
 /* -------------------------------------------------------------------------- */
 /*                                   Types                                    */
 /* -------------------------------------------------------------------------- */
@@ -60,6 +252,7 @@ export class NetworkModule {
 	public bootstrapAddrs: Multiaddr[] = [];
 	public routingTable: RoutingTable;
 	public nodeState: NodeState;
+	public healthMonitor?: ConnectionHealthMonitor;
 
 	private privateKey?: import("@libp2p/interface").PrivateKey;
 	protected connectionTimer?: NodeJS.Timeout;
@@ -84,6 +277,7 @@ export class NetworkModule {
 			listenAddresses?: string[];
 			bootstrap?: string[];
 			connectionCheckIntervalMs?: number;
+			healthCheckConfig?: Partial<ConnectionHealthConfig>;
 		} = {},
 	): Promise<void> {
 		if (options.privateKey) {
@@ -116,10 +310,34 @@ export class NetworkModule {
 		if (options.connectionCheckIntervalMs) {
 			this.startConnectionMonitor(options.connectionCheckIntervalMs);
 		}
+
+		if (options.healthCheckConfig?.healthCheckIntervalMs) {
+			this.healthMonitor = new ConnectionHealthMonitor(
+				this.libp2p,
+				options.healthCheckConfig,
+				async (peerId) => {
+					try {
+						await (
+							this.libp2p as unknown as {
+								hangUp?: (peer: PeerId) => Promise<void>;
+							}
+						).hangUp?.(peerId);
+					} catch {
+						// Best effort cleanup
+					}
+				},
+			);
+			this.healthMonitor.start();
+		}
 	}
 
 	async stop(): Promise<void> {
 		if (!this.libp2p) return;
+
+		if (this.healthMonitor) {
+			this.healthMonitor.stop();
+			this.healthMonitor = undefined;
+		}
 
 		try {
 			await this.libp2p.stop();
@@ -246,6 +464,19 @@ export class NetworkModule {
 
 				buffer = this.concat(buffer, data);
 
+				if (buffer.length > MAX_RECEIVE_BUFFER_BYTES) {
+					stream.abort(
+						new Error(
+							`Receive buffer exceeded limit (${MAX_RECEIVE_BUFFER_BYTES} bytes)`,
+						),
+					);
+					return;
+				}
+
+				if (buffer.length > BUFFER_THRESHOLD_BYTES) {
+					await this.applyBackpressure(stream, buffer.length, label);
+				}
+
 				buffer = await this.processFrames(
 					buffer,
 					handler,
@@ -261,6 +492,17 @@ export class NetworkModule {
 
 			console.log(`[${label}] closed from ${connection.remotePeer}`);
 		}
+	}
+
+	private async applyBackpressure(
+		_stream: Stream,
+		bufferSize: number,
+		label: string,
+	): Promise<void> {
+		console.warn(
+			`[${label}] backpressure: buffer at ${bufferSize} bytes, waiting for processing`,
+		);
+		await new Promise((resolve) => setTimeout(resolve, 50));
 	}
 
 	private async processFrames<TMsg, TRes>(

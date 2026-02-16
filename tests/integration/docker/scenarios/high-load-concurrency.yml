@@ -1,0 +1,15 @@
+scenario:
+  name: high-load-concurrency
+  description: Tests concurrent message operations from multiple nodes simultaneously
+  steps:
+    - start: [node1, node2, node3]
+    - wait: discovery
+    - send: node1 -> node2 (load-test-1)
+    - send: node2 -> node1 (load-test-2)
+    - send: node3 -> node1 (load-test-3)
+    - send: node1 -> node3 (load-test-4)
+    - send: node2 -> node3 (load-test-5)
+    - send: node3 -> node2 (load-test-6)
+    - verify: all 6 messages delivered without loss
+    - verify: no message corruption (payload)
+    - verify: inbox counts intact match on all nodes

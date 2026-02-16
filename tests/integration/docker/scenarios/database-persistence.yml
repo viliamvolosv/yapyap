@@ -1,0 +1,17 @@
+scenario:
+  name: database-persistence
+  description: Tests database persistence across container restarts
+  steps:
+    - start: [node1, node2]
+    - wait: discovery
+    - send: node1 -> node2 (persist-test-1)
+    - wait: delivery
+    - record: node2 inbox state
+    - stop: node2
+    - wait: 5s
+    - start: node2
+    - wait: health
+    - verify: persisted messages still in inbox
+    - verify: contacts preserved
+    - send: node1 -> node2 (persist-test-2)
+    - verify: new message delivered to restarted node
