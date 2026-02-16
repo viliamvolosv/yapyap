@@ -2,20 +2,19 @@
 set -euo pipefail
 
 # YapYap Installer for macOS and Linux
-# Usage: curl -fsSL --proto '=https' --tlsv1.2 https://raw.githubusercontent.com/viliamvolosv/yapyap/main/install.sh | bash
+# Usage: curl -fsSL --proto '=https' --tlsv1.2 https://viliamvolosv.github.io/yapyap/install.sh | bash
 
 BOLD='\033[1m'
-ACCENT='\033[38;2;255;77;77m'       # coral-bright  #ff4d4d
-# shellcheck disable=SC2034
-ACCENT_BRIGHT='\033[38;2;255;110;110m' # lighter coral
+ACCENT='\033[38;2;0;188;255m'       # cyan-bright  #00bcff
+ACCENT_BRIGHT='\033[38;2;0;220;255m' # lighter cyan
 INFO='\033[38;2;136;146;176m'       # text-secondary #8892b0
 SUCCESS='\033[38;2;0;229;204m'      # cyan-bright   #00e5cc
-WARN='\033[38;2;255;176;32m'        # amber (no site equiv, keep warm)
+WARN='\033[38;2;255;176;32m'        # amber
 ERROR='\033[38;2;230;57;70m'        # coral-mid     #e63946
 MUTED='\033[38;2;90;100;128m'       # text-muted    #5a6480
 NC='\033[0m' # No Color
 
-DEFAULT_TAGLINE="End-to-end encrypted messaging. No servers, no UI."
+DEFAULT_TAGLINE="Decentralized P2P messenger for Agents"
 
 ORIGINAL_PATH="${PATH:-}"
 
@@ -230,17 +229,17 @@ print_gum_status() {
 print_installer_banner() {
     if [[ -n "$GUM" ]]; then
         local title tagline hint card
-        title="$("$GUM" style --foreground "#ff4d4d" --bold "🦞 YapYap Installer")"
+        title="$("$GUM" style --foreground "#00b8ff" --bold "YapYap Installer")"
         tagline="$("$GUM" style --foreground "#8892b0" "$TAGLINE")"
         hint="$("$GUM" style --foreground "#5a6480" "modern installer mode")"
         card="$(printf '%s\n%s\n%s' "$title" "$tagline" "$hint")"
-        "$GUM" style --border rounded --border-foreground "#ff4d4d" --padding "1 2" "$card"
+        "$GUM" style --border rounded --border-foreground "#00b8ff" --padding "1 2" "$card"
         echo ""
         return
     fi
 
     echo -e "${ACCENT}${BOLD}"
-    echo "  🦞 YapYap Installer"
+    echo "  YapYap Installer"
     echo -e "${NC}${INFO}  ${TAGLINE}${NC}"
     echo ""
 }
@@ -256,7 +255,7 @@ detect_os_or_die() {
     if [[ "$OS" == "unknown" ]]; then
         ui_error "Unsupported operating system"
         echo "This installer supports macOS and Linux (including WSL)."
-        echo "For Windows, use: iwr -useb https://raw.githubusercontent.com/viliamvolosv/yapyap/main/install.ps1 | iex"
+        echo "For Windows, use: iwr -useb https://viliamvolosv.github.io/yapyap/install.ps1 | iex"
         exit 1
     fi
 
@@ -301,13 +300,13 @@ ui_error() {
     fi
 }
 
-INSTALL_STAGE_TOTAL=3
+INSTALL_STAGE_TOTAL=4
 INSTALL_STAGE_CURRENT=0
 
 ui_section() {
     local title="$1"
     if [[ -n "$GUM" ]]; then
-        "$GUM" style --bold --foreground "#ff4d4d" --padding "1 0" "$title"
+        "$GUM" style --bold --foreground "#00b8ff" --padding "1 0" "$title"
     else
         echo ""
         echo -e "${ACCENT}${BOLD}${title}${NC}"
@@ -349,10 +348,7 @@ show_install_plan() {
     ui_kv "OS" "$OS"
     ui_kv "Install method" "$INSTALL_METHOD"
     ui_kv "Requested version" "$YAPYAP_VERSION"
-    if [[ "$USE_BETA" == "1" ]]; then
-        ui_kv "Beta channel" "enabled"
-    fi
-    if [[ "$INSTALL_METHOD" == "git" ]]; then
+    if [[ "$INSTALL_METHOD" == "github" ]]; then
         ui_kv "Git directory" "$GIT_DIR"
         ui_kv "Git update" "$GIT_UPDATE"
     fi
@@ -368,14 +364,14 @@ show_install_plan() {
 }
 
 show_footer_links() {
-    local faq_url="https://github.com/viliamvolosv/yapyap#readme"
+    local docs_url="https://viliamvolosv.github.io/yapyap"
     if [[ -n "$GUM" ]]; then
         local content
-        content="$(printf '%s\n%s' "Need help?" "FAQ: ${faq_url}")"
+        content="$(printf '%s\n%s' "Need help?" "Docs: ${docs_url}")"
         ui_panel "$content"
     else
         echo ""
-        echo -e "FAQ: ${INFO}${faq_url}${NC}"
+        echo -e "Docs: ${INFO}${docs_url}${NC}"
     fi
 }
 
@@ -436,15 +432,6 @@ run_quiet_step() {
         tail -n 80 "$log" >&2 || true
     fi
     return 1
-}
-
-cleanup_legacy_submodules() {
-    local repo_dir="$1"
-    local legacy_dir="$repo_dir/Peekaboo"
-    if [[ -d "$legacy_dir" ]]; then
-        ui_info "Removing legacy submodule checkout: ${legacy_dir}"
-        rm -rf "$legacy_dir"
-    fi
 }
 
 cleanup_npm_yapyap_paths() {
@@ -511,7 +498,7 @@ npm_log_indicates_missing_build_tools() {
         return 1
     fi
 
-    grep -Eiq "(not found: make|make: command not found|cmake: command not found|CMAKE_MAKE_PROGRAM is not set|Could not find CMAKE|gyp ERR! find Python|no developer tools were found|is not able to compile a simple test program|Failed to build llama\\.cpp|It seems that \"make\" is not installed in your system|It seems that the used \"cmake\" doesn't work properly)" "$log"
+    grep -Eiq "(not found: make|make: command not found|cmake: command not found|CMAKE_MAKE_PROGRAM is not set|Could not find CMAKE|gyp ERR! find Python|no developer tools were found|is not able to compile a simple test program|Failed to build|It seems that \"make\" is not installed in your system|It seems that the used \"cmake\" doesn't work properly)" "$log"
 }
 
 install_build_tools_linux() {
@@ -616,7 +603,7 @@ run_npm_global_install() {
     local log="$2"
 
     local -a cmd
-    cmd=(env "SHARP_IGNORE_GLOBAL_LIBVIPS=$SHARP_IGNORE_GLOBAL_LIBVIPS" npm --loglevel "$NPM_LOGLEVEL")
+    cmd=(npm --loglevel "$NPM_LOGLEVEL")
     if [[ -n "$NPM_SILENT_FLAG" ]]; then
         cmd+=("$NPM_SILENT_FLAG")
     fi
@@ -694,71 +681,37 @@ install_yapyap_npm() {
     return 0
 }
 
-TAGLINES=()
-TAGLINES+=("End-to-end encrypted messaging. No servers, no UI.")
-TAGLINES+=("Your messages, your servers, your privacy.")
-TAGLINES+=("P2P messaging that respects your autonomy.")
-TAGLINES+=("Decentralized communication. Built for freedom.")
-TAGLINES+=("Offline-first. E2E encrypted. Zero trust needed.")
-TAGLINES+=("Your data, your device, your rules.")
-TAGLINES+=("No middleman. Just direct connections.")
-TAGLINES+=("Privacy by design. Security by default.")
-TAGLINES+=("The messenger that doesn't need a company behind it.")
-TAGLINES+=("Peer-to-peer, end-to-end encrypted, open source.")
-TAGLINES+=("No servers required. Just direct connections.")
-TAGLINES+=("Your messages never leave your control.")
-TAGLINES+=("Simple. Secure. Decentralized.")
-TAGLINES+=("P2P messaging for the post-surveillance era.")
-TAGLINES+=("Privacy-focused, dependency-light, open-source.")
-TAGLINES+=("Direct connections. No intermediaries.")
-TAGLINES+=("End-to-end encryption built into the protocol.")
-TAGLINES+=("Your chat, your way. No accounts required.")
-TAGLINES+=("The future of messaging: decentralized and private.")
+TAGLINE="$DEFAULT_TAGLINE"
 
-append_holiday_taglines() {
-    local today
-    local month_day
-    today="$(date -u +%Y-%m-%d 2>/dev/null || date +%Y-%m-%d)"
-    month_day="$(date -u +%m-%d 2>/dev/null || date +%m-%d)"
-
-    case "$month_day" in
-        "01-01") TAGLINES+=("New Year's: New year, new privacy. Same old surveillance, but you're ready.") ;;
-        "02-14") TAGLINES+=("Valentine's Day: Private messages for private moments.") ;;
-        "10-31") TAGLINES+=("Halloween: Beware of surveillance. Keep your data private.") ;;
-        "12-25") TAGLINES+=("Christmas: Private connections for the holidays.") ;;
-    esac
+map_legacy_env() {
+    local key="$1"
+    local legacy="$2"
+    if [[ -z "${!key:-}" && -n "${!legacy:-}" ]]; then
+        printf -v "$key" '%s' "${!legacy}"
+    fi
 }
 
-pick_tagline() {
-    append_holiday_taglines
-    local count=${#TAGLINES[@]}
-    if [[ "$count" -eq 0 ]]; then
-        echo "$DEFAULT_TAGLINE"
-        return
-    fi
-    if [[ -n "${YAPYAP_TAGLINE_INDEX:-}" ]]; then
-        if [[ "${YAPYAP_TAGLINE_INDEX}" =~ ^[0-9]+$ ]]; then
-            local idx=$((YAPYAP_TAGLINE_INDEX % count))
-            echo "${TAGLINES[$idx]}"
-            return
-        fi
-    fi
-    local idx=$((RANDOM % count))
-    echo "${TAGLINES[$idx]}"
-}
-
-TAGLINE=$(pick_tagline)
+map_legacy_env "YAPYAP_TAGLINE_INDEX" "YAPYAP_TAGLINE_INDEX"
+map_legacy_env "YAPYAP_NO_ONBOARD" "YAPYAP_NO_ONBOARD"
+map_legacy_env "YAPYAP_NO_PROMPT" "YAPYAP_NO_PROMPT"
+map_legacy_env "YAPYAP_DRY_RUN" "YAPYAP_DRY_RUN"
+map_legacy_env "YAPYAP_INSTALL_METHOD" "YAPYAP_INSTALL_METHOD"
+map_legacy_env "YAPYAP_VERSION" "YAPYAP_VERSION"
+map_legacy_env "YAPYAP_GIT_DIR" "YAPYAP_GIT_DIR"
+map_legacy_env "YAPYAP_GIT_UPDATE" "YAPYAP_GIT_UPDATE"
+map_legacy_env "YAPYAP_NPM_LOGLEVEL" "YAPYAP_NPM_LOGLEVEL"
+map_legacy_env "YAPYAP_VERBOSE" "YAPYAP_VERBOSE"
+map_legacy_env "YAPYAP_PROFILE" "YAPYAP_PROFILE"
+map_legacy_env "YAPYAP_USE_GUM" "YAPYAP_USE_GUM"
 
 NO_ONBOARD=${YAPYAP_NO_ONBOARD:-0}
 NO_PROMPT=${YAPYAP_NO_PROMPT:-0}
 DRY_RUN=${YAPYAP_DRY_RUN:-0}
 INSTALL_METHOD=${YAPYAP_INSTALL_METHOD:-}
 YAPYAP_VERSION=${YAPYAP_VERSION:-latest}
-USE_BETA=${YAPYAP_BETA:-0}
 GIT_DIR_DEFAULT="${HOME}/yapyap"
 GIT_DIR=${YAPYAP_GIT_DIR:-$GIT_DIR_DEFAULT}
 GIT_UPDATE=${YAPYAP_GIT_UPDATE:-1}
-SHARP_IGNORE_GLOBAL_LIBVIPS="${SHARP_IGNORE_GLOBAL_LIBVIPS:-1}"
 NPM_LOGLEVEL="${YAPYAP_NPM_LOGLEVEL:-error}"
 NPM_SILENT_FLAG="--silent"
 VERBOSE="${YAPYAP_VERBOSE:-0}"
@@ -772,42 +725,40 @@ print_usage() {
 YapYap installer (macOS + Linux)
 
 Usage:
-  curl -fsSL --proto '=https' --tlsv1.2 https://raw.githubusercontent.com/viliamvolosv/yapyap/main/install.sh | bash
+  curl -fsSL --proto '=https' --tlsv1.2 https://viliamvolosv.github.io/yapyap/install.sh | bash
+  curl -fsSL --proto '=https' --tlsv1.2 https://viliamvolosv.github.io/yapyap/install.sh | bash -s -- [options]
 
 Options:
-  --install-method, --method npm|git   Install via npm (default) or from a git checkout
-  --npm                               Shortcut for --install-method npm
-  --git, --github                     Shortcut for --install-method git
-  --version <version|dist-tag>         npm install: version (default: latest)
-  --beta                               Use beta if available, else latest
-  --git-dir, --dir <path>             Checkout directory (default: ~/yapyap)
-  --no-git-update                      Skip git pull for existing checkout
-  --no-onboard                          Skip onboarding (non-interactive)
-  --no-prompt                           Disable prompts (required in CI/automation)
-  --dry-run                             Print what would happen (no changes)
-  --verbose                             Print debug output (set -x, npm verbose)
-  --gum                                 Force gum UI if possible
-  --no-gum                              Disable gum UI
-  --help, -h                            Show this help
+  --install-method, --method npm|github   Install via npm (default) or from GitHub
+  --npm                                   Shortcut for --install-method npm
+  --github                                Shortcut for --install-method github
+  --version <version|dist-tag>             npm install: version (default: latest)
+  --git-dir, --dir <path>                 Checkout directory (default: ~/yapyap)
+  --no-git-update                         Skip git pull for existing checkout
+  --no-onboard                            Skip onboarding (non-interactive)
+  --no-prompt                             Disable prompts (required in CI/automation)
+  --dry-run                               Print what would happen (no changes)
+  --verbose                               Print debug output (set -x, npm verbose)
+  --gum                                   Force gum UI if possible
+  --no-gum                                Disable gum UI
+  --help, -h                              Show this help
 
 Environment variables:
-  YAPYAP_INSTALL_METHOD=git|npm
-  YAPYAP_VERSION=latest|next|<semver>
-  YAPYAP_BETA=0|1
+  YAPYAP_INSTALL_METHOD=npm|github
+  YAPYAP_VERSION=latest|<semver>
   YAPYAP_GIT_DIR=...
   YAPYAP_GIT_UPDATE=0|1
   YAPYAP_NO_PROMPT=1
   YAPYAP_DRY_RUN=1
   YAPYAP_NO_ONBOARD=1
   YAPYAP_VERBOSE=1
-  YAPYAP_USE_GUM=auto|1|0           Default: auto (try gum on interactive TTY)
+  YAPYAP_USE_GUM=auto|1|0               Default: auto (try gum on interactive TTY)
   YAPYAP_NPM_LOGLEVEL=error|warn|notice  Default: error (hide npm deprecation noise)
-  SHARP_IGNORE_GLOBAL_LIBVIPS=0|1    Default: 1 (avoid sharp building against global libvips)
 
 Examples:
-  curl -fsSL --proto '=https' --tlsv1.2 https://raw.githubusercontent.com/viliamvolosv/yapyap/main/install.sh | bash
-  curl -fsSL --proto '=https' --tlsv1.2 https://raw.githubusercontent.com/viliamvolosv/yapyap/main/install.sh | bash -s -- --no-onboard
-  curl -fsSL --proto '=https' --tlsv1.2 https://raw.githubusercontent.com/viliamvolosv/yapyap/main/install.sh | bash -s -- --install-method git --no-onboard
+  curl -fsSL https://viliamvolosv.github.io/yapyap/install.sh | bash
+  curl -fsSL https://viliamvolosv.github.io/yapyap/install.sh | bash -s -- --no-onboard
+  curl -fsSL https://viliamvolosv.github.io/yapyap/install.sh | bash -s -- --method github --no-onboard
 EOF
 }
 
@@ -854,16 +805,12 @@ parse_args() {
                 YAPYAP_VERSION="$2"
                 shift 2
                 ;;
-            --beta)
-                USE_BETA=1
-                shift
-                ;;
             --npm)
                 INSTALL_METHOD="npm"
                 shift
                 ;;
-            --git|--github)
-                INSTALL_METHOD="git"
+            --github)
+                INSTALL_METHOD="github"
                 shift
                 ;;
             --git-dir|--dir)
@@ -927,12 +874,12 @@ Choose install method"
         selection="$("$GUM" choose \
             --header "$header" \
             --cursor-prefix "❯ " \
-            "git  · update this checkout and use it" \
-            "npm  · install globally via npm" < /dev/tty || true)"
+            "github · update this checkout and use it" \
+            "npm    · install globally via npm" < /dev/tty || true)"
 
         case "$selection" in
-            git*)
-                echo "git"
+            github*)
+                echo "github"
                 return 0
                 ;;
             npm*)
@@ -947,15 +894,15 @@ Choose install method"
     choice="$(prompt_choice "$(cat <<EOF
 ${WARN}→${NC} Detected a YapYap source checkout in: ${INFO}${detected_checkout}${NC}
 Choose install method:
-  1) Update this checkout (git) and use it
-  2) Install global via npm (migrate away from git)
+  1) Update this checkout (github) and use it
+  2) Install global via npm (migrate away from github)
 Enter 1 or 2:
 EOF
 )" || true)"
 
     case "$choice" in
         1)
-            echo "git"
+            echo "github"
             return 0
             ;;
         2)
@@ -1201,7 +1148,7 @@ ensure_yapyap_bin_link() {
     fi
     mkdir -p "$npm_bin"
     if [[ ! -x "${npm_bin}/yapyap" ]]; then
-        ln -sf "$npm_root/yapyap/dist/cli.js" "${npm_bin}/yapyap"
+        ln -sf "$npm_root/yapyap/dist/entry.js" "${npm_bin}/yapyap"
         ui_info "Created yapyap bin link at ${npm_bin}/yapyap"
     fi
     return 0
@@ -1435,7 +1382,7 @@ warn_yapyap_not_found() {
     fi
     if [[ -n "$npm_bin" ]]; then
         echo -e "npm bin -g: ${INFO}${npm_bin}${NC}"
-        echo -e "If needed: ${INFO}export PATH=\"${npm_bin}:\$PATH\"${NC}"
+        echo -e "If needed: ${INFO}export PATH=\"${npm_bin}:\\$PATH\"${NC}"
     fi
 }
 
@@ -1480,12 +1427,12 @@ resolve_yapyap_bin() {
     return 1
 }
 
-install_yapyap_from_git() {
+install_yapyap_from_github() {
     local repo_dir="$1"
     local repo_url="https://github.com/viliamvolosv/yapyap.git"
 
     if [[ -d "$repo_dir/.git" ]]; then
-        ui_info "Installing YapYap from git checkout: ${repo_dir}"
+        ui_info "Installing YapYap from github checkout: ${repo_dir}"
     else
         ui_info "Installing YapYap from GitHub (${repo_url})"
     fi
@@ -1509,334 +1456,130 @@ install_yapyap_from_git() {
         fi
     fi
 
-    cleanup_legacy_submodules "$repo_dir"
+    run_quiet_step "Installing dependencies" run_pnpm -C "$repo_dir" install
 
-    SHARP_IGNORE_GLOBAL_LIBVIPS="$SHARP_IGNORE_GLOBAL_LIBVIPS" run_quiet_step "Installing dependencies" run_pnpm -C "$repo_dir" install
-
-    if ! run_quiet_step "Building YapYap" run_pnpm -C "$repo_dir" build; then
-        ui_warn "Build failed; continuing (CLI may still work)"
-    fi
+    run_quiet_step "Building YapYap" run_pnpm -C "$repo_dir" build
 
     ensure_user_local_bin_on_path
 
     cat > "$HOME/.local/bin/yapyap" <<EOF
 #!/usr/bin/env bash
 set -euo pipefail
-exec node "${repo_dir}/dist/cli.js" "\$@"
+exec node "${repo_dir}/dist/entry.js" "\$@"
 EOF
     chmod +x "$HOME/.local/bin/yapyap"
     ui_success "YapYap wrapper installed to \$HOME/.local/bin/yapyap"
-    ui_info "This checkout uses pnpm — run pnpm install (or corepack pnpm install) for deps"
 }
 
 # Install YapYap
-resolve_beta_version() {
-    local beta=""
-    beta="$(npm view yapyap dist-tags.beta 2>/dev/null || true)"
-    if [[ -z "$beta" || "$beta" == "undefined" || "$beta" == "null" ]]; then
-        return 1
-    fi
-    echo "$beta"
-}
-
 install_yapyap() {
     local package_name="yapyap"
-    if [[ "$USE_BETA" == "1" ]]; then
-        local beta_version=""
-        beta_version="$(resolve_beta_version || true)"
-        if [[ -n "$beta_version" ]]; then
-            YAPYAP_VERSION="$beta_version"
-            ui_info "Beta tag detected (${beta_version})"
-            package_name="yapyap"
-        else
-            YAPYAP_VERSION="latest"
-            ui_info "No beta tag found; using latest"
+
+    if [[ "$INSTALL_METHOD" == "npm" ]]; then
+        local spec="$package_name"
+        if [[ "$YAPYAP_VERSION" != "latest" ]]; then
+            spec="${package_name}@${YAPYAP_VERSION}"
         fi
+        install_yapyap_npm "$spec"
+        return $?
     fi
 
-    if [[ -z "${YAPYAP_VERSION}" ]]; then
-        YAPYAP_VERSION="latest"
+    if [[ "$INSTALL_METHOD" == "github" ]]; then
+        install_yapyap_from_github "$GIT_DIR"
+        return $?
     fi
 
-    local resolved_version=""
-    resolved_version="$(npm view "${package_name}@${YAPYAP_VERSION}" version 2>/dev/null || true)"
-    if [[ -n "$resolved_version" ]]; then
-        ui_info "Installing YapYap v${resolved_version}"
-    else
-        ui_info "Installing YapYap (${YAPYAP_VERSION})"
-    fi
-    local install_spec=""
-    if [[ "${YAPYAP_VERSION}" == "latest" ]]; then
-        install_spec="${package_name}@latest"
-    else
-        install_spec="${package_name}@${YAPYAP_VERSION}"
-    fi
-
-    if ! install_yapyap_npm "${install_spec}"; then
-        ui_warn "npm install failed; retrying"
-        cleanup_npm_yapyap_paths
-        install_yapyap_npm "${install_spec}"
-    fi
-
-    if [[ "${YAPYAP_VERSION}" == "latest" && "${package_name}" == "yapyap" ]]; then
-        if ! resolve_yapyap_bin &> /dev/null; then
-            ui_warn "npm install yapyap@latest failed; retrying yapyap@next"
-            cleanup_npm_yapyap_paths
-            install_yapyap_npm "yapyap@next"
-        fi
-    fi
-
-    ensure_yapyap_bin_link || true
-
-    ui_success "YapYap installed"
+    ui_error "Unknown install method: $INSTALL_METHOD"
+    return 1
 }
 
-# Main installation flow
 main() {
+    parse_args "$@"
+
     if [[ "$HELP" == "1" ]]; then
         print_usage
-        return 0
+        exit 0
     fi
 
-    bootstrap_gum_temp || true
-    print_installer_banner
+    configure_verbose
+
+    bootstrap_gum_temp
     print_gum_status
+
+    print_installer_banner
+
     detect_os_or_die
 
-    local detected_checkout=""
-    detected_checkout="$(detect_yapyap_checkout "$PWD" || true)"
+    ui_stage "Checking prerequisites"
 
-    if [[ -z "$INSTALL_METHOD" && -n "$detected_checkout" ]]; then
-        if ! is_promptable; then
-            ui_info "Found YapYap checkout but no TTY; defaulting to npm install"
-            INSTALL_METHOD="npm"
-        else
-            local selected_method=""
-            selected_method="$(choose_install_method_interactive "$detected_checkout" || true)"
-            case "$selected_method" in
-                git|npm)
-                    INSTALL_METHOD="$selected_method"
-                    ;;
-                *)
-                    ui_error "no install method selected"
-                    echo "Re-run with: --install-method git|npm (or set YAPYAP_INSTALL_METHOD)."
-                    exit 2
-                    ;;
-            esac
-        fi
-    fi
-
-    if [[ -z "$INSTALL_METHOD" ]]; then
-        INSTALL_METHOD="npm"
-    fi
-
-    if [[ "$INSTALL_METHOD" != "npm" && "$INSTALL_METHOD" != "git" ]]; then
-        ui_error "invalid --install-method: ${INSTALL_METHOD}"
-        echo "Use: --install-method npm|git"
-        exit 2
-    fi
-
-    show_install_plan "$detected_checkout"
-
-    if [[ "$DRY_RUN" == "1" ]]; then
-        ui_success "Dry run complete (no changes made)"
-        return 0
-    fi
-
-    # Check for existing installation
-    local is_upgrade=false
-    if check_existing_yapyap; then
-        is_upgrade=true
-    fi
-
-    ui_stage "Preparing environment"
-
-    # Step 1: Homebrew (macOS only)
-    install_homebrew
-
-    # Step 2: Node.js
     if ! check_node; then
+        install_homebrew
         install_node
+    fi
+
+    check_existing_yapyap
+
+    if [[ "$INSTALL_METHOD" == "github" ]]; then
+        check_git || install_git
     fi
 
     ui_stage "Installing YapYap"
 
-    local final_git_dir=""
-    if [[ "$INSTALL_METHOD" == "git" ]]; then
-        # Clean up npm global install if switching to git
-        if npm list -g yapyap &>/dev/null; then
-            ui_info "Removing npm global install (switching to git)"
-            npm uninstall -g yapyap 2>/dev/null || true
-            ui_success "npm global install removed"
-        fi
+    if [[ "$DRY_RUN" == "1" ]]; then
+        local detected_checkout=""
+        detected_checkout="$(detect_yapyap_checkout "$GIT_DIR" || true)"
+        show_install_plan "$detected_checkout"
+        ui_info "Dry run complete — no changes made"
+        show_footer_links
+        return 0
+    fi
 
-        local repo_dir="$GIT_DIR"
+    if [[ -z "$INSTALL_METHOD" ]]; then
+        local detected_checkout=""
+        detected_checkout="$(detect_yapyap_checkout "$GIT_DIR" || true)"
         if [[ -n "$detected_checkout" ]]; then
-            repo_dir="$detected_checkout"
-        fi
-        final_git_dir="$repo_dir"
-        install_yapyap_from_git "$repo_dir"
-    else
-        # Clean up git wrapper if switching to npm
-        if [[ -x "$HOME/.local/bin/yapyap" ]]; then
-            ui_info "Removing git wrapper (switching to npm)"
-            rm -f "$HOME/.local/bin/yapyap"
-            ui_success "git wrapper removed"
-        fi
-
-        # Step 3: Git (required for npm installs that may fetch from git or apply patches)
-        if ! check_git; then
-            install_git
-        fi
-
-        # Step 4: npm permissions (Linux)
-        fix_npm_permissions
-
-        # Step 5: YapYap
-        install_yapyap
-    fi
-
-    ui_stage "Finalizing setup"
-
-    YAPYAP_BIN="$(resolve_yapyap_bin || true)"
-
-    # PATH warning: installs can succeed while the user's login shell still lacks npm's global bin dir.
-    local npm_bin=""
-    npm_bin="$(npm_global_bin_dir || true)"
-    if [[ "$INSTALL_METHOD" == "npm" ]]; then
-        warn_shell_path_missing_dir "$npm_bin" "npm global bin dir"
-    fi
-    if [[ "$INSTALL_METHOD" == "git" ]]; then
-        if [[ -x "$HOME/.local/bin/yapyap" ]]; then
-            warn_shell_path_missing_dir "$HOME/.local/bin" "user-local bin dir (~/.local/bin)"
-        fi
-    fi
-
-    # Step 6: Run doctor for migrations on upgrades and git installs
-    local run_doctor_after=false
-    if [[ "$is_upgrade" == "true" || "$INSTALL_METHOD" == "git" ]]; then
-        run_doctor_after=true
-    fi
-    if [[ "$run_doctor_after" == "true" ]]; then
-        run_doctor
-    fi
-
-    local installed_version
-    installed_version=$(resolve_yapyap_version)
-
-    echo ""
-    if [[ -n "$installed_version" ]]; then
-        ui_celebrate "🦞 YapYap installed successfully (${installed_version})!"
-    else
-        ui_celebrate "🦞 YapYap installed successfully!"
-    fi
-    if [[ "$is_upgrade" == "true" ]]; then
-        local update_messages=(
-            "Leveled up! New features unlocked. You're welcome."
-            "Fresh code, same YapYap. Miss me?"
-            "Back and better. Did you even notice I was gone?"
-            "Update complete. I learned some new tricks while I was out."
-            "Upgraded! Now with 23% more privacy."
-            "I've evolved. Try to keep up. 🦞"
-            "New version, who dis? Oh right, still me but shinier."
-            "Patched, polished, and ready to chat. Let's go."
-            "The YapYap has molted. Harder shell, sharper claws."
-            "Update done! Check the changelog or just trust me, it's good."
-            "Reborn from the boiling waters of npm. Stronger now."
-            "I went away and came back smarter. You should try it sometime."
-            "Update complete. The bugs feared me, so they left."
-            "New version installed. Old version sends its regards."
-            "Firmware fresh. Brain wrinkles: increased."
-            "I've seen things you wouldn't believe. Anyway, I'm updated."
-            "Back online. The changelog is long but our friendship is longer."
-            "Upgraded! Privacy features unlocked. Blame me if it breaks."
-            "Molting complete. Please don't look at my soft shell phase."
-            "Version bump! Same chaos energy, fewer crashes (probably)."
-        )
-        local update_message
-        update_message="${update_messages[RANDOM % ${#update_messages[@]}]}"
-        echo -e "${MUTED}${update_message}${NC}"
-    else
-        local completion_messages=(
-            "Ahh nice, I like it here. Got any chats to start?"
-            "Home sweet home. Don't worry, I won't rearrange your messages."
-            "I'm in. Let's start some private conversations."
-            "Installation complete. Your messages are now safer."
-            "Settled in. Time to connect with your friends privately."
-            "Cozy. I've already read your libp2p config. We need to talk."
-            "Finally unpacked. Now point me at your contacts."
-            "cracks claws Alright, what are we messaging about?"
-            "The YapYap has landed. Your privacy is now protected."
-            "All done! I promise to keep your messages encrypted."
-        )
-        local completion_message
-        completion_message="${completion_messages[RANDOM % ${#completion_messages[@]}]}"
-        echo -e "${MUTED}${completion_message}${NC}"
-    fi
-    echo ""
-
-    if [[ "$INSTALL_METHOD" == "git" && -n "$final_git_dir" ]]; then
-        ui_section "Source install details"
-        ui_kv "Checkout" "$final_git_dir"
-        ui_kv "Wrapper" "$HOME/.local/bin/yapyap"
-        ui_kv "Update command" "yapyap update --restart"
-        ui_kv "Switch to npm" "curl -fsSL --proto '=https' --tlsv1.2 https://raw.githubusercontent.com/viliamvolosv/yapyap/main/install.sh | bash -s -- --install-method npm"
-    elif [[ "$is_upgrade" == "true" ]]; then
-        ui_info "Upgrade complete"
-        ui_info "Run: yapyap --help to get started"
-    else
-        if [[ "$NO_ONBOARD" == "1" ]]; then
-            ui_info "Skipping onboard (requested); run yapyap --help to get started"
-        else
-            local config_path="${YAPYAP_CONFIG_PATH:-$HOME/.yapyap/yapyap.json}"
-            if [[ -f "${config_path}" ]]; then
-                ui_info "Config already present; skipping onboarding"
-            else
-                ui_info "Starting setup"
-                echo ""
-                if [[ -r /dev/tty && -w /dev/tty ]]; then
-                    local yapyap="${YAPYAP_BIN:-}"
-                    if [[ -z "$yapyap" ]]; then
-                        yapyap="$(resolve_yapyap_bin || true)"
-                    fi
-                    if [[ -z "$yapyap" ]]; then
-                        ui_info "Skipping onboarding (yapyap not on PATH yet)"
-                        warn_yapyap_not_found
-                        return 0
-                    fi
-                    exec </dev/tty
-                    exec "$yapyap" onboard
-                fi
-                ui_info "No TTY; run yapyap onboard to finish setup"
-                return 0
+            local choice
+            choice="$(choose_install_method_interactive "$detected_checkout" || true)"
+            if [[ -n "$choice" ]]; then
+                INSTALL_METHOD="$choice"
             fi
         fi
+        if [[ -z "$INSTALL_METHOD" ]]; then
+            INSTALL_METHOD="npm"
+        fi
+    fi
+
+    install_yapyap
+
+    ui_stage "Verifying installation"
+
+    ensure_npm_global_bin_on_path
+    refresh_shell_command_cache
+
+    YAPYAP_BIN="$(resolve_yapyap_bin || true)"
+    if [[ -z "$YAPYAP_BIN" ]]; then
+        warn_yapyap_not_found
+        ui_warn "Installation completed, but yapyap not found in PATH"
+    else
+        ui_success "YapYap installed: ${YAPYAP_BIN}"
+    fi
+
+    local bin_dir=""
+    bin_dir="$(npm_global_bin_dir || true)"
+    if [[ -n "$bin_dir" ]]; then
+        warn_shell_path_missing_dir "$bin_dir" "npm global bin"
+    fi
+    warn_shell_path_missing_dir "$HOME/.local/bin" "user local bin"
+
+    ui_stage "Complete"
+
+    if [[ "$NO_ONBOARD" != "1" ]]; then
+        ui_info "Run 'yapyap --help' to get started"
     fi
 
     show_footer_links
+
+    ui_celebrate "YapYap installed successfully!"
 }
 
-resolve_yapyap_version() {
-    local version=""
-    local yapyap="${YAPYAP_BIN:-}"
-    if [[ -z "$yapyap" ]] && command -v yapyap &> /dev/null; then
-        yapyap="$(command -v yapyap)"
-    fi
-    if [[ -n "$yapyap" ]]; then
-        version=$("$yapyap" --version 2>/dev/null | head -n 1 | tr -d '\r')
-    fi
-    if [[ -z "$version" ]]; then
-        local npm_root=""
-        npm_root=$(npm root -g 2>/dev/null || true)
-        if [[ -n "$npm_root" && -f "$npm_root/yapyap/package.json" ]]; then
-            version=$(node -e "console.log(require('${npm_root}/yapyap/package.json').version)" 2>/dev/null || true)
-        fi
-    fi
-    echo "$version"
-}
-
-if [[ "${YAPYAP_INSTALL_SH_NO_RUN:-0}" != "1" ]]; then
-    parse_args "$@"
-    configure_verbose
-    main
-fi
+main "$@"
