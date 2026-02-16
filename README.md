@@ -30,10 +30,6 @@ YapYap is a decentralized, peer-to-peer messenger node and CLI library built wit
 - Use Node.js native APIs (`node:*` imports). The project uses `better-sqlite3` for SQLite, `ws` for WebSocket, and `esbuild` for bundling.
 - Test files use Node's built-in test runner (`node:test`) with `assert` for assertions.
 - Investigate lint warnings about unused parameters—either refactor or remove them rather than ignoring.
-- Update `docs/` when core flows change and record major decisions in `PLAN.md` or `yapyap_mvp_stabilization_roadmap.md`.
-
-## Version
-Current version: **0.0.2** (Post-migration release)
 
 ## Publishing & release notes
 - Build artifacts land in `dist/` for the `yapyap` CLI and library exports (`package.json` points to `dist/index.js`/`cli.js`).
