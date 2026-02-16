@@ -24,14 +24,6 @@ This installs the `yapyap` CLI binary to your system and sets up a default confi
 
 ## Basic CLI Commands
 
-### Initialize a YapYap node
-
-```bash
-yapyap init
-```
-
-Creates a new YapYap node with default configuration. This sets up the SQLite database and network identity.
-
 ### Start a YapYap node
 
 ```bash
@@ -40,33 +32,73 @@ yapyap start
 
 Starts the YapYap node and connects to the P2P network. This runs continuously in the terminal.
 
-### Send a message
+**Options:**
+```bash
+yapyap start --data-dir /path/to/data --api-port 3000 --network /ip4/127.0.0.1/tcp/0 --listen /ip4/0.0.0.0/tcp/0 --verbose
+```
+
+- `--data-dir <path>`: Custom data directory (default: current directory/data)
+- `--api-port <number>`: Override API port
+- `--network <bootstrap>`: Bootstrap node addresses (comma-separated)
+- `--listen <multiaddr>`: Libp2p listen multiaddr
+- `--verbose`: Enable verbose logging
+
+### Send a message to a peer
 
 ```bash
-yapyap send <peer-id> <message>
+yapyap send-message --to <peer-id> --payload "Your message here"
 ```
 
 Sends an end-to-end encrypted message to a peer. The message is delivered via the P2P network with retry logic.
 
-### Check node status
-
+**Options:**
 ```bash
-yapyap status
+yapyap send-message --to <peer-id> --payload "Hello, encrypted world!" --alias "Alice" --encrypted
 ```
 
-Shows current node status including:
-- Network connectivity
-- Peer list
-- Message queue status
-- Database statistics
+- `--to <peer-id>`: Target peer ID (required)
+- `--payload <string>`: Message content (required)
+- `--encrypted`: Encrypt message (default: true)
+- `--alias <name>`: Alias for the contact
 
-### List connected peers
+### Get your Peer ID
 
 ```bash
-yapyap peers
+yapyap get-peer-id
 ```
 
-Displays all currently connected peers with their peer IDs.
+Displays your node's Peer ID and public key.
+
+**Options:**
+```bash
+yapyap get-peer-id --data-dir /path/to/data
+```
+
+- `--data-dir <path>`: Custom data directory (default: current directory/data)
+
+### View logs
+
+```bash
+yapyap logs
+```
+
+Shows the last 50 lines of logs.
+
+**Options:**
+```bash
+yapyap logs --tail 100 --filter "error"
+```
+
+- `--tail <number>`: Show last N lines (default: 50)
+- `--filter <pattern>`: Filter logs by pattern
+
+### Display version information
+
+```bash
+yapyap version
+```
+
+Shows YapYap version, build time, build environment, and platform information.
 
 ---
 
@@ -89,21 +121,6 @@ Messages and processed messages are persisted in SQLite using `better-sqlite3` w
 
 ---
 
-## Network Architecture
-
-YapYap uses libp2p for networking with:
-- **Transport:** TCP and WebSocket with yamux multiplexing
-- **Discovery:** Bootstrap nodes and DHT
-- **NAT Traversal:** Autonat and relay fallbacks
-
-The message flow follows this pipeline (see `docs/MESSAGE_FLOW.md`):
-1. Enqueue message into database
-2. Transmit via P2P network
-3. Await ACK from recipient
-4. Update message status (pending → processing → transmitting → delivered/failed)
-5. Retry failed messages with backoff
-
----
 
 ## Common Use Cases
 
@@ -112,26 +129,26 @@ The message flow follows this pipeline (see `docs/MESSAGE_FLOW.md`):
 # Install
 curl -fsSL https://viliamvolosv.github.io/yapyap/install.sh | bash
 
-# Initialize node
-yapyap init
-
 # Start the node
 yapyap start
+
+# Get your Peer ID
+yapyap get-peer-id
 ```
 
 ### Sending encrypted messages
 ```bash
 # After starting the node and connecting to peers, send messages
-yapyap send <peer-id> "Your encrypted message here"
+yapyap send-message --to <peer-id> --payload "Hello, encrypted world!"
 ```
 
 ### Monitoring message delivery
 ```bash
-# Check status to see message queue and delivery status
-yapyap status
+# View logs to see message queue and delivery status
+yapyap logs --tail 50
 
-# View connected peers
-yapyap peers
+# View more detailed logs with filtering
+yapyap logs --tail 100 --filter "error"
 ```
 
 ### Checking logs and debugging
@@ -141,53 +158,7 @@ The CLI runs in the terminal where it's started. Look for:
 - ACK confirmations
 - Retry attempts
 
----
-
-## Development & Testing
-
-### Running locally from source
-```bash
-# Clone and install dependencies
-git clone https://github.com/viliamvolosv/yapyap
-cd yapyap
-npm install
-
-# Build the project
-npm run build:all
-
-# Start development server
-npm run dev
-
-# Run the CLI directly
-node dist/cli.js start
-```
-
-### Running tests
-```bash
-# Run all tests
-npm test
-
-# Run specific test file
-node --test path/to/file.test.ts
-```
-
-### Integration testing
-```bash
-# Run Docker Compose integration suite
-bash tests/integration/docker/run-basic-suite.sh
-
-# Run custom scenarios
-bash tests/integration/docker/run.sh
-```
-
----
-
-## Documentation
-
-For detailed information about:
-- **Message flow and pipeline:** See `docs/MESSAGE_FLOW.md`
-- **Architecture and roadmap:** See `PLAN.md`
-- **MVP stabilization roadmap:** See `yapyap_mvp_stabilization_roadmap.md`
+Use `yapyap logs` to view historical logs even after the node has stopped.
 
 ---
 
@@ -197,17 +168,25 @@ For detailed information about:
 - Check Node.js version: `node --version` (requires ≥22.12.0)
 - Verify database permissions in the data directory
 - Check for port conflicts (default ports for libp2p)
+- Run with `--verbose` flag to see detailed error messages: `yapyap start --verbose`
 
 ### Messages not delivering
-- Verify peers are connected: `yapyap peers`
-- Check node status: `yapyap status`
-- Review logs for transmission errors
+- Check logs for transmission errors: `yapyap logs --filter "error"`
+- Verify peer ID is correct: `yapyap get-peer-id`
 - Ensure both nodes have proper NAT traversal configured
+- Check if peer exists in contacts: use API to query contacts
 
 ### Database issues
-- Database is created automatically on `yapyap init`
-- Location is typically in the current directory (check configuration)
+- Database is created automatically when starting the node
+- Location is typically in current directory/data (use `--data-dir` to specify)
 - Database uses SQLite with better-sqlite3
+- Check logs for database-related errors: `yapyap logs --filter "database"`
+
+### Viewing logs
+- View recent logs: `yapyap logs`
+- View more lines: `yapyap logs --tail 100`
+- Filter for specific patterns: `yapyap logs --filter "error"` or `yapyap logs --filter "message"`
+- Logs file location: current directory/data/yapyap.log
 
 ---
 
@@ -228,27 +207,26 @@ For detailed information about:
    curl -fsSL https://viliamvolosv.github.io/yapyap/install.sh | bash
    ```
 
-2. **Initialize your node:**
-   ```bash
-   yapyap init
-   ```
-
-3. **Start the node:**
+2. **Start your node:**
    ```bash
    yapyap start
    ```
 
-4. **Connect to peers** (after network bootstrap or via DHT discovery)
-
-5. **Send encrypted messages:**
+3. **Get your Peer ID:**
    ```bash
-   yapyap send <peer-id> "Hello, encrypted message!"
+   yapyap get-peer-id
    ```
 
-6. **Monitor status:**
+4. **Share your Peer ID** with others so they can send you messages
+
+5. **Send encrypted messages to peers:**
    ```bash
-   yapyap status
-   yapyap peers
+   yapyap send-message --to <peer-id> --payload "Hello, encrypted message!"
+   ```
+
+6. **Monitor logs and delivery status:**
+   ```bash
+   yapyap logs --tail 50
    ```
 
 ---
