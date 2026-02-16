@@ -38,6 +38,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - No multi-device synchronization
 - Limited offline delivery guarantees (basic store-and-forward)
 
+## [0.0.4] - 2026-02-16
+
+### Added
+- ConnectionHealthMonitor for proactive peer health checks and half-open connection detection
+- Buffer guard and backpressure controls (MAX_RECEIVE_BUFFER_BYTES, stream.abort())
+- Replica-aware ACK validation with signature verification for replica-sent ACKs
+- Message recovery logic for messages stored by replica but no ACK received
+- Database methods for ACK expectation tracking and recovery queries
+
+### Changed
+- Increased default reconnect attempts from 1 to 3
+- Added jitter to retry delays to prevent thundering herd
+- Consolidated duplicate MessageFramer code into core/protocols.ts
+- Deprecated protocols/framing.ts in favor of core/protocols re-export
+
+### Fixed
+- Corrected ACK signature verification payload to match what relay stored
+- Fixed ACK validation to retrieve original message from database for correct hash computation
+- Fixed test isolation with standalone MockDatabaseManager to avoid SQLite init
+
 ## [0.0.3] - 2026-02-15
 
 ### Changed
