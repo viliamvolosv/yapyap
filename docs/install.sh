@@ -1334,6 +1334,23 @@ run_pnpm() {
     "${PNPM_CMD[@]}" "$@"
 }
 
+run_doctor() {
+    warn_yapyap_not_found
+    return 0
+    ui_info "Running doctor to migrate settings"
+    local yapyap="${YAPYAP_BIN:-}"
+    if [[ -z "$yapyap" ]]; then
+        yapyap="$(resolve_yapyap_bin || true)"
+    fi
+    if [[ -z "$yapyap" ]]; then
+        ui_info "Skipping doctor (yapyap not on PATH yet)"
+        warn_yapyap_not_found
+        return 0
+    fi
+    run_quiet_step "Running doctor" "$yapyap" doctor --non-interactive || true
+    ui_success "Doctor complete"
+}
+
 ensure_user_local_bin_on_path() {
     local target="$HOME/.local/bin"
     mkdir -p "$target"
@@ -1715,9 +1732,9 @@ main() {
     if [[ "$is_upgrade" == "true" || "$INSTALL_METHOD" == "git" ]]; then
         run_doctor_after=true
     fi
-    if [[ "$run_doctor_after" == "true" ]]; then
-        run_doctor
-    fi
+    #if [[ "$run_doctor_after" == "true" ]]; then
+       # run_doctor
+   # fi
 
     local installed_version
     installed_version=$(resolve_yapyap_version)
@@ -1838,4 +1855,3 @@ if [[ "${YAPYAP_INSTALL_SH_NO_RUN:-0}" != "1" ]]; then
     configure_verbose
     main
 fi
-No newline at end of file
