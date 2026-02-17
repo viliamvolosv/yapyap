@@ -1,12 +1,12 @@
 import { randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { join } from "node:path";
-import { dirname } from "node:path";
 import { noise } from "@chainsafe/libp2p-noise";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
+
 import { yamux } from "@chainsafe/libp2p-yamux";
 import { generateKeyPair } from "@libp2p/crypto/keys";
 import { tcp } from "@libp2p/tcp";
