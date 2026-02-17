@@ -1,5 +1,3 @@
-new file mode 100755
-@@ -0,0 +1,1842 @@
 #!/bin/bash
 set -euo pipefail
 
