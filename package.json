@@ -26,7 +26,7 @@
 	],
 	"scripts": {
 		"build": "esbuild src/index.ts --bundle --platform=node --target=node22 --format=esm --outdir=dist --sourcemap --packages=external",
-		"build:cli": "esbuild src/cli/index.ts --bundle --platform=node --target=node22 --format=esm --outfile=dist/cli.js --sourcemap --packages=external",
+		"build:cli": "esbuild src/cli/index.ts --bundle --platform=node --target=node22 --format=esm --outfile=dist/cli.js --sourcemap --packages=external --banner:js='#!/usr/bin/env node'",
 		"build:all": "npm run build && npm run build:cli",
 		"test": "tsx --test 'src/**/*.test.ts' 'tests/**/*.test.ts'",
 		"test:integration:docker": "bash tests/integration/docker/run-basic-suite.sh",
