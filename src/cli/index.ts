@@ -1,7 +1,12 @@
 import { randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { join } from "node:path";
+import { dirname } from "node:path";
 import { noise } from "@chainsafe/libp2p-noise";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 import { yamux } from "@chainsafe/libp2p-yamux";
 import { generateKeyPair } from "@libp2p/crypto/keys";
 import { tcp } from "@libp2p/tcp";
@@ -14,7 +19,12 @@ import { ApiModule } from "../api/index.js";
 import { YapYapNode } from "../core/node.js";
 import { DatabaseManager } from "../database/index.js";
 import type { YapYapMessage } from "../message/message.js";
-import { APP_VERSION, BUILD_ENV, BUILD_TIME } from "./version.js";
+
+// Read version directly from package.json
+const packageJson = JSON.parse(
+	readFileSync(join(__dirname, "../../package.json"), "utf-8"),
+);
+const APP_VERSION = packageJson.version;
 
 const logger = pino({
 	level: process.env.YAPYAP_LOG_LEVEL || "info",
@@ -307,8 +317,6 @@ program
 	.description("Display version information")
 	.action(() => {
 		console.log(`YapYap Messenger v${APP_VERSION}`);
-		console.log(`Build time: ${BUILD_TIME}`);
-		console.log(`Build environment: ${BUILD_ENV}`);
 		console.log(`Platform: ${process.platform}-${process.arch}`);
 		process.exit(0);
 	});
