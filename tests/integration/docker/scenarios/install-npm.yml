@@ -1,0 +1,10 @@
+scenario:
+  name: install-npm
+  description: Test installation using npm method (--install-method npm)
+  steps:
+    - setup: create-test-node
+    - run: install-script --install-method npm --no-onboard --no-prompt --dry-run
+    - verify: check-installation-method
+    - verify: check-npm-package
+    - verify: check-binary-exists
+    - cleanup: remove-test-node

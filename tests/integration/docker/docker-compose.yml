@@ -107,3 +107,22 @@ services:
     volumes:
       - ./scenarios:/scenarios:ro
       - ./results:/results
+
+  test-installer:
+    build:
+      context: ../../..
+      dockerfile: tests/integration/docker/Dockerfile.test-installer
+    hostname: test-installer
+    networks:
+      yapyap-test-net:
+    depends_on:
+      node1:
+        condition: service_healthy
+    environment:
+      - TEST_SCENARIO=${TEST_SCENARIO:-install-git}
+      - YAPYAP_DATA_DIR=/data
+    volumes:
+      - ./results:/results
+      - ./scenarios:/scenarios:ro
+      - ./scripts:/scripts:ro
+    command: sh -c "bash /scripts/test-installer.sh"

@@ -1,0 +1,50 @@
+FROM node:22-alpine AS builder
+
+# Install bash and other tools needed for running install.sh
+RUN apk add --no-cache bash curl git jq
+
+WORKDIR /app
+
+# Copy the install script
+COPY docs/install.sh /tmp/install.sh
+RUN chmod +x /tmp/install.sh
+
+# Create test directory structure
+RUN mkdir -p /tmp/yapyap-test && cd /tmp/yapyap-test
+
+# Verify script is executable
+RUN bash -n /tmp/install.sh && echo "Script syntax check passed"
+
+# Build stage for the YapYap node (needed for testing)
+COPY package.json ./
+COPY src ./src
+COPY tests/integration/docker/entrypoint.sh ./entrypoint.sh
+RUN npm install
+RUN npm run build:all
+
+FROM node:22-alpine
+
+WORKDIR /app
+
+# Install bash and other tools needed for running install.sh
+RUN apk add --no-cache bash curl git jq
+
+# Copy built artifacts
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/package.json ./
+COPY --from=builder /app/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+# Copy the install script
+COPY docs/install.sh /tmp/install.sh
+RUN chmod +x /tmp/install.sh
+
+# Create test directories
+RUN mkdir -p /tmp/yapyap-test /tmp/test-results
+
+# Set up PATH for local bin
+ENV PATH="/tmp/yapyap-test:$PATH"
+
+# Default command
+CMD ["/bin/sh"]
