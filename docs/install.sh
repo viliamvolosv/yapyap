@@ -31,7 +31,11 @@ trap cleanup_tmpfiles EXIT
 
 mktempfile() {
     local f
-    f="$(mktemp)"
+    if [[ "$(uname)" == "Darwin" ]]; then
+        f="$(mktemp /tmp/tmp.XXXXXX)"
+    else
+        f="$(mktemp)"
+    fi
     TMPFILES+=("$f")
     echo "$f"
 }
@@ -83,7 +87,7 @@ gum_is_tty() {
     if [[ "${TERM:-dumb}" == "dumb" ]]; then
         return 1
     fi
-    if [[ -t 2 || -t 1 ]]; then
+    if [[ -t 1 && -t 2 ]]; then
         return 0
     fi
     if [[ -r /dev/tty && -w /dev/tty ]]; then
@@ -1003,8 +1007,9 @@ install_homebrew() {
 # Check Node.js version
 check_node() {
     if command -v node &> /dev/null; then
-        NODE_VERSION=$(node -v | cut -d'v' -f2 | cut -d'.' -f1)
-        if [[ "$NODE_VERSION" -ge 22 ]]; then
+        local NODE_MAJOR_VERSION
+        NODE_MAJOR_VERSION=$(node -v | sed 's/^v\([0-9]*\).*/\1/')
+        if [[ "$NODE_MAJOR_VERSION" -ge 22 ]]; then
             ui_success "Node.js v$(node -v | cut -d'v' -f2) found"
             return 0
         else
@@ -1347,23 +1352,17 @@ ensure_user_local_bin_on_path() {
 }
 
 npm_global_bin_dir() {
-    local prefix=""
+    local prefix
     prefix="$(npm prefix -g 2>/dev/null || true)"
-    if [[ -n "$prefix" ]]; then
-        if [[ "$prefix" == /* ]]; then
-            echo "${prefix%/}/bin"
-            return 0
-        fi
+    if [[ -n "$prefix" && "$prefix" == /* ]]; then
+        echo "${prefix%/}/bin"
+        return 0
     fi
-
     prefix="$(npm config get prefix 2>/dev/null || true)"
-    if [[ -n "$prefix" && "$prefix" != "undefined" && "$prefix" != "null" ]]; then
-        if [[ "$prefix" == /* ]]; then
-            echo "${prefix%/}/bin"
-            return 0
-        fi
+    if [[ -n "$prefix" && "$prefix" == /* ]]; then
+        echo "${prefix%/}/bin"
+        return 0
     fi
-
     echo ""
     return 1
 }
