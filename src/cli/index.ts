@@ -22,7 +22,7 @@ import type { YapYapMessage } from "../message/message.js";
 
 // Read version directly from package.json
 const packageJson = JSON.parse(
-	readFileSync(join(__dirname, "../../package.json"), "utf-8"),
+	readFileSync(join(process.cwd(), "package.json"), "utf-8"),
 );
 const APP_VERSION = packageJson.version;
 

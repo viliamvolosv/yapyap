@@ -1741,9 +1741,9 @@ main() {
 
     echo ""
     if [[ -n "$installed_version" ]]; then
-        ui_celebrate "🦞 YapYap installed successfully (${installed_version})!"
+        ui_celebrate "YapYap installed successfully (${installed_version})!"
     else
-        ui_celebrate "🦞 YapYap installed successfully!"
+        ui_celebrate "YapYap installed successfully!"
     fi
     if [[ "$is_upgrade" == "true" ]]; then
         local update_messages=(
