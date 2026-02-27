@@ -1245,11 +1245,14 @@ export class ApiModule {
 	): Promise<Response> {
 		if (method === "GET") {
 			if (path === "/api/peers") return this.getPeers();
+			if (path === "/api/peers/discovered") return this.getDiscoveredPeers();
 			const peerId = this.getPathParam(path, 2);
 			if (peerId) return this.getPeerInfo(peerId);
 		} else if (method === "POST") {
 			const peerId = this.getPathParam(path, 2);
 			if (peerId) return this.dialPeer(peerId);
+			if (path === "/api/peers/discover") return this.triggerDiscovery();
+			if (path === "/api/peers/dial-cached") return this.dialCachedPeers();
 		} else if (method === "DELETE") {
 			const peerId = this.getPathParam(path, 2);
 			if (peerId) return this.disconnectPeer(peerId);
@@ -1454,6 +1457,57 @@ export class ApiModule {
 			return this.fail(
 				500,
 				"Failed to disconnect peer",
+				error instanceof Error ? error.message : String(error),
+			);
+		}
+	}
+
+	private async getDiscoveredPeers(): Promise<Response> {
+		try {
+			const peers = this.yapyapNode.getDiscoveredPeers();
+			const count = this.yapyapNode.getDiscoveredPeerCount();
+			return this.ok({
+				peers,
+				count,
+				timestamp: Date.now(),
+			});
+		} catch (error) {
+			return this.fail(
+				500,
+				"Failed to get discovered peers",
+				error instanceof Error ? error.message : String(error),
+			);
+		}
+	}
+
+	private async triggerDiscovery(): Promise<Response> {
+		try {
+			await this.yapyapNode.triggerPeerDiscovery();
+			return this.ok({
+				message: "Peer discovery triggered",
+				timestamp: Date.now(),
+			});
+		} catch (error) {
+			return this.fail(
+				500,
+				"Failed to trigger discovery",
+				error instanceof Error ? error.message : String(error),
+			);
+		}
+	}
+
+	private async dialCachedPeers(): Promise<Response> {
+		try {
+			const dialed = await this.yapyapNode.dialCachedPeers();
+			return this.ok({
+				message: `Dialed ${dialed} cached peers`,
+				dialed,
+				timestamp: Date.now(),
+			});
+		} catch (error) {
+			return this.fail(
+				500,
+				"Failed to dial cached peers",
 				error instanceof Error ? error.message : String(error),
 			);
 		}

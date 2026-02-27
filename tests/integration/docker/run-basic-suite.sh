@@ -23,9 +23,26 @@ scenarios=(
   "privacy-validation"
 )
 
+echo "========================================"
+echo "Running Standard Docker Scenarios"
+echo "========================================"
+
 for scenario in "${scenarios[@]}"; do
   echo "=== Running ${scenario} ==="
   bash "${RUNNER}" "${scenario}"
 done
 
-echo "All basic Docker integration scenarios passed."
+echo ""
+echo "========================================"
+echo "Running Peer Discovery Tests"
+echo "========================================"
+
+# Run peer discovery integration tests (no Docker required)
+bash "${ROOT_DIR}/tests/integration/docker/discovery-test.sh"
+bash "${ROOT_DIR}/tests/integration/docker/message-forward-test.sh"
+
+echo ""
+echo "========================================"
+echo "All Docker integration scenarios passed."
+echo "All peer discovery tests passed."
+echo "========================================"

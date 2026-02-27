@@ -133,6 +133,97 @@ export class YapYapNode {
 	}
 
 	/**
+	 * Get discovered/cached peers from database
+	 */
+	public getDiscoveredPeers(): Array<{
+		peer_id: string;
+		multiaddrs: string[];
+		last_seen: number;
+	}> {
+		return this.db.getAllCachedPeers();
+	}
+
+	/**
+	 * Get count of discovered peers
+	 */
+	public getDiscoveredPeerCount(): number {
+		return this.db.getCachedPeerCount();
+	}
+
+	/**
+	 * Trigger DHT peer discovery manually
+	 */
+	public async triggerPeerDiscovery(): Promise<void> {
+		// DHT discovery runs automatically, but this can be called
+		// to force an immediate discovery cycle
+		if (!this.libp2p) return;
+
+		const dht = this.libp2p.services.dht as {
+			getClosestPeers?: (peerId: Uint8Array) => AsyncIterable<{
+				id: import("@libp2p/interface").PeerId;
+				multiaddrs?: import("@multiformats/multiaddr").Multiaddr[];
+			}>;
+		};
+
+		if (!dht?.getClosestPeers) return;
+
+		const randomBytes = new Uint8Array(32);
+		crypto.getRandomValues(randomBytes);
+
+		try {
+			const peers = dht.getClosestPeers(randomBytes);
+			for await (const peer of peers) {
+				this.routingTable.updatePeer(peer.id.toString(), {});
+				if (peer.multiaddrs?.length) {
+					this.db.savePeerMultiaddrs(
+						peer.id.toString(),
+						peer.multiaddrs.map((m) => m.toString()),
+					);
+				}
+			}
+		} catch (err) {
+			console.warn("Manual peer discovery failed:", err);
+		}
+	}
+
+	/**
+	 * Dial a specific peer by ID
+	 */
+	public async dialPeer(peerId: string): Promise<boolean> {
+		if (!this.libp2p) return false;
+
+		try {
+			const { peerIdFromString } = await import("@libp2p/peer-id");
+			await this.libp2p.dial(peerIdFromString(peerId));
+			return true;
+		} catch {
+			return false;
+		}
+	}
+
+	/**
+	 * Dial all cached peers
+	 */
+	public async dialCachedPeers(): Promise<number> {
+		if (!this.libp2p) return 0;
+
+		const cachedPeers = this.db.getAllCachedPeers();
+		let dialed = 0;
+
+		for (const { peer_id } of cachedPeers) {
+			try {
+				const { peerIdFromString } = await import("@libp2p/peer-id");
+				await this.libp2p.dial(peerIdFromString(peer_id));
+				dialed++;
+			} catch {
+				// Peer may be offline
+			}
+		}
+
+		return dialed;
+	}
+
+	/**
 	 * Get libp2p instance (for API module)
 	 */
 	private libp2p?: Libp2p;

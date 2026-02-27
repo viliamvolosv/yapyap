@@ -10,6 +10,7 @@ import { privateKeyFromRaw } from "@libp2p/crypto/keys";
 import { identify } from "@libp2p/identify";
 import type { Connection, Libp2p, PeerId, Stream } from "@libp2p/interface";
 import { kadDHT } from "@libp2p/kad-dht";
+import { peerIdFromString } from "@libp2p/peer-id";
 import { ping } from "@libp2p/ping";
 import { tcp } from "@libp2p/tcp";
 import { webSockets } from "@libp2p/websockets";
@@ -233,7 +234,37 @@ export class ConnectionHealthMonitor {
 }
 
 /* -------------------------------------------------------------------------- */
-/*                                   Types                                    */
+/*                         Peer Discovery Config                              */
+/* -------------------------------------------------------------------------- */
+
+export interface PeerDiscoveryConfig {
+	/** Enable DHT random walk discovery (default: true) */
+	dhtDiscovery: {
+		enabled: boolean;
+		intervalMs: number;
+		queryCount: number;
+	};
+	/** Enable peer address caching (default: true) */
+	cache: {
+		enabled: boolean;
+		maxCachedPeers: number;
+		ttlMs: number;
+	};
+}
+
+const DEFAULT_DISCOVERY_CONFIG: PeerDiscoveryConfig = {
+	dhtDiscovery: {
+		enabled: true,
+		intervalMs: 30_000,
+		queryCount: 3,
+	},
+	cache: {
+		enabled: true,
+		maxCachedPeers: 100,
+		ttlMs: 24 * 60 * 60 * 1000, // 24 hours
+	},
+};
+
 /* -------------------------------------------------------------------------- */
 /*                                   Types                                    */
 /* -------------------------------------------------------------------------- */
@@ -256,13 +287,21 @@ export class NetworkModule {
 
 	private privateKey?: import("@libp2p/interface").PrivateKey;
 	protected connectionTimer?: NodeJS.Timeout;
-
+	private discoveryTimer?: NodeJS.Timeout;
 	private readonly DEFAULT_LISTEN = ["/ip4/0.0.0.0/tcp/0"];
+	private discoveryConfig: PeerDiscoveryConfig;
+	private db?: import("../database/index.js").DatabaseManager;
 
-	constructor(privateKeyRaw?: Uint8Array) {
+	constructor(
+		privateKeyRaw?: Uint8Array,
+		discoveryConfig?: Partial<PeerDiscoveryConfig>,
+		db?: import("../database/index.js").DatabaseManager,
+	) {
 		if (privateKeyRaw) {
 			this.privateKey = privateKeyFromRaw(privateKeyRaw);
 		}
+		this.discoveryConfig = { ...DEFAULT_DISCOVERY_CONFIG, ...discoveryConfig };
+		this.db = db;
 		this.routingTable = new RoutingTable();
 		this.nodeState = new NodeState();
 	}
@@ -307,6 +346,9 @@ export class NetworkModule {
 		this.registerProtocols();
 		this.registerEvents();
 
+		// Start DHT peer discovery (works without bootstrap)
+		this.startPeerDiscovery();
+
 		if (options.connectionCheckIntervalMs) {
 			this.startConnectionMonitor(options.connectionCheckIntervalMs);
 		}
@@ -338,6 +380,9 @@ export class NetworkModule {
 			this.healthMonitor.stop();
 			this.healthMonitor = undefined;
 		}
+
+		// Stop peer discovery
+		this.stopPeerDiscovery();
 
 		try {
 			await this.libp2p.stop();
@@ -410,11 +455,24 @@ export class NetworkModule {
 		if (!this.libp2p) return;
 
 		this.libp2p.addEventListener("peer:connect", (e) => {
-			console.log("Peer connected:", e.detail.toString());
+			const peerId = e.detail.toString();
+			console.log("Peer connected:", peerId);
+
+			// Cache peer multiaddrs for future reconnection
+			this.cachePeerMultiaddrs(e.detail);
+
+			// Update routing table
+			this.routingTable.updatePeer(peerId, {});
 		});
 
 		this.libp2p.addEventListener("peer:disconnect", (e) => {
-			console.log("Peer disconnected:", e.detail.toString());
+			const peerId = e.detail.toString();
+			console.log("Peer disconnected:", peerId);
+
+			// Mark peer as unavailable in database
+			if (this.db) {
+				this.db.markPeerUnavailable(peerId);
+			}
 		});
 
 		this.libp2p.addEventListener("connection:open", (e) => {
@@ -433,6 +491,184 @@ export class NetworkModule {
 			const count = this.libp2p.getConnections().length;
 			console.log("Active connections:", count);
 		}, interval);
+	}
+
+	/* ------------------------------------------------------------------------ */
+	/*                          Peer Discovery                                  */
+	/* ------------------------------------------------------------------------ */
+
+	/**
+	 * Start DHT-based peer discovery (random walk)
+	 * Works without bootstrap nodes by querying random peer IDs
+	 */
+	private startPeerDiscovery(): void {
+		if (!this.discoveryConfig.dhtDiscovery.enabled || !this.libp2p) {
+			return;
+		}
+
+		console.log(
+			`Starting DHT peer discovery (interval: ${this.discoveryConfig.dhtDiscovery.intervalMs}ms)`,
+		);
+
+		// Initial discovery
+		void this.doDHTWalk();
+
+		// Periodic discovery
+		this.discoveryTimer = setInterval(() => {
+			void this.doDHTWalk();
+		}, this.discoveryConfig.dhtDiscovery.intervalMs);
+	}
+
+	/**
+	 * Stop peer discovery
+	 */
+	private stopPeerDiscovery(): void {
+		if (this.discoveryTimer) {
+			clearInterval(this.discoveryTimer);
+			this.discoveryTimer = undefined;
+		}
+	}
+
+	/**
+	 * Perform DHT random walk - query random peer IDs to discover peers
+	 */
+	private async doDHTWalk(): Promise<void> {
+		if (!this.libp2p) return;
+
+		const dht = this.libp2p.services.dht as {
+			getClosestPeers?: (peerId: Uint8Array) => AsyncIterable<{
+				id: PeerId;
+				multiaddrs?: Multiaddr[];
+			}>;
+		};
+
+		if (!dht?.getClosestPeers) {
+			console.warn("DHT getClosestPeers not available");
+			return;
+		}
+
+		const { queryCount } = this.discoveryConfig.dhtDiscovery;
+
+		for (let i = 0; i < queryCount; i++) {
+			try {
+				// Generate random peer ID to query
+				const randomPeerId = this.generateRandomPeerId();
+
+				console.log(`DHT walk #${i + 1}: querying closest peers to random ID`);
+
+				const peers = dht.getClosestPeers(randomPeerId);
+
+				let found = 0;
+				for await (const peer of peers) {
+					const peerIdStr = peer.id.toString();
+					this.routingTable.updatePeer(peerIdStr, {});
+
+					// Cache multiaddrs if available
+					if (peer.multiaddrs && peer.multiaddrs.length > 0) {
+						this.savePeerMultiaddrs(peer.id, peer.multiaddrs);
+
+						// Save to database
+						if (this.db) {
+							this.db.savePeerMultiaddrs(
+								peerIdStr,
+								peer.multiaddrs.map((m) => m.toString()),
+							);
+						}
+					}
+
+					found++;
+				}
+
+				console.log(`DHT walk #${i + 1}: found ${found} peers`);
+			} catch (err) {
+				console.warn(`DHT walk #${i + 1} failed:`, err);
+			}
+		}
+	}
+
+	/**
+	 * Generate a random peer ID for DHT queries
+	 */
+	private generateRandomPeerId(): Uint8Array {
+		// Generate 32 random bytes for a valid peer ID
+		const randomBytes = new Uint8Array(32);
+		crypto.getRandomValues(randomBytes);
+		return randomBytes;
+	}
+
+	/**
+	 * Cache peer multiaddrs when connected
+	 */
+	private cachePeerMultiaddrs(peerId: PeerId): void {
+		if (!this.discoveryConfig.cache.enabled || !this.libp2p) return;
+
+		try {
+			const connections = this.libp2p.getConnections(peerId);
+			const multiaddrs = connections.flatMap((c) =>
+				c.remoteAddr ? [c.remoteAddr] : [],
+			);
+
+			if (multiaddrs.length > 0) {
+				this.savePeerMultiaddrs(peerId, multiaddrs);
+			}
+
+			// Also save to database if available
+			if (this.db) {
+				const addrStrings = multiaddrs.map((m) => m.toString());
+				this.db.savePeerMultiaddrs(peerId.toString(), addrStrings);
+				this.db.markPeerAvailable(peerId.toString());
+			}
+		} catch (err) {
+			console.warn(`Failed to cache multiaddrs for peer ${peerId}:`, err);
+		}
+	}
+
+	/**
+	 * Save peer multiaddrs to routing table
+	 */
+	private savePeerMultiaddrs(peerId: PeerId, multiaddrs: Multiaddr[]): void {
+		const addrStrings = multiaddrs.map((m) => m.toString());
+		console.log(
+			`Caching ${addrStrings.length} multiaddrs for peer ${peerId.toString()}`,
+		);
+
+		// Store in routing table
+		this.routingTable.updatePeer(peerId.toString(), {});
+
+		// Database caching is handled in cachePeerMultiaddrs
+	}
+
+	/**
+	 * Dial cached peer multiaddrs
+	 */
+	async dialCachedPeers(): Promise<void> {
+		if (!this.discoveryConfig.cache.enabled || !this.libp2p) return;
+
+		// Use database if available, otherwise use in-memory routing table
+		let peers: string[] = [];
+
+		if (this.db) {
+			const cached = this.db.getAllCachedPeers();
+			peers = cached.map((p) => p.peer_id);
+		} else {
+			peers = this.routingTable.getAllPeers();
+		}
+
+		let dialed = 0;
+
+		for (const peerId of peers) {
+			try {
+				const peerIdObj = peerIdFromString(peerId);
+				await this.libp2p.dial(peerIdObj);
+				dialed++;
+			} catch (_err) {
+				// Peer may be offline
+			}
+		}
+
+		if (dialed > 0) {
+			console.log(`Dialed ${dialed} cached peers`);
+		}
 	}
 
 	/* ------------------------------------------------------------------------ */

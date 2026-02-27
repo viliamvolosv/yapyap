@@ -8,9 +8,14 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 import { yamux } from "@chainsafe/libp2p-yamux";
+import { autoNAT } from "@libp2p/autonat";
+import { circuitRelayServer } from "@libp2p/circuit-relay-v2";
 import { generateKeyPair, privateKeyFromRaw } from "@libp2p/crypto/keys";
+import { identify } from "@libp2p/identify";
 import type { PrivateKey } from "@libp2p/interface";
+import { kadDHT } from "@libp2p/kad-dht";
 import { createFromPrivKey } from "@libp2p/peer-id-factory";
+import { ping } from "@libp2p/ping";
 import { tcp } from "@libp2p/tcp";
 import { webSockets } from "@libp2p/websockets";
 import { multiaddr } from "@multiformats/multiaddr";
@@ -248,6 +253,13 @@ program
 				transports: [tcp(), webSockets()],
 				connectionEncrypters: [noise()],
 				streamMuxers: [yamux()],
+				services: {
+					dht: kadDHT(),
+					identify: identify(),
+					ping: ping(),
+					autonat: autoNAT(),
+					relay: circuitRelayServer(),
+				},
 				connectionManager: {
 					maxConnections: 1000,
 				},
@@ -640,6 +652,70 @@ program
 		} catch (error) {
 			logger.error({
 				msg: "Failed to get status",
+				error: error instanceof Error ? error.message : String(error),
+			});
+			process.exit(1);
+		}
+	});
+
+/* =======================================================
+   DISCOVERED PEERS
+======================================================= */
+
+program
+	.command("peers")
+	.description("Show discovered/cached peers from database")
+	.option("--api-url <url>", "Override API base URL")
+	.option("--api-port <number>", "Override API port")
+	.option("--discover", "Trigger peer discovery")
+	.option("--dial", "Dial all cached peers")
+	.action(async (options) => {
+		const logger = createLogger();
+		try {
+			const apiOptions = { apiUrl: options.apiUrl, apiPort: options.apiPort };
+
+			if (options.discover) {
+				const resp = await apiRequest<unknown>(
+					apiOptions,
+					"/api/peers/discover",
+					"POST",
+				);
+				if (!resp.success) {
+					printApiError(resp);
+					process.exit(1);
+				}
+				console.log("Peer discovery triggered");
+				console.log(JSON.stringify(resp.data, null, 2));
+				return;
+			}
+
+			if (options.dial) {
+				const resp = await apiRequest<unknown>(
+					apiOptions,
+					"/api/peers/dial-cached",
+					"POST",
+				);
+				if (!resp.success) {
+					printApiError(resp);
+					process.exit(1);
+				}
+				console.log(JSON.stringify(resp.data, null, 2));
+				return;
+			}
+
+			const resp = await apiRequest<unknown>(
+				apiOptions,
+				"/api/peers/discovered",
+			);
+			if (!resp.success) {
+				printApiError(resp);
+				process.exit(1);
+			}
+
+			console.log(JSON.stringify(resp.data, null, 2));
+		} catch (error) {
+			logger.error({
+				msg: "Failed to get discovered peers",
 				error: error instanceof Error ? error.message : String(error),
 			});
 			process.exit(1);

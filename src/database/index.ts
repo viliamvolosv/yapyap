@@ -328,6 +328,90 @@ export class DatabaseManager {
 		return stmt.run(now).changes;
 	}
 
+	/**
+	 * Save or update peer multiaddrs in routing cache
+	 */
+	savePeerMultiaddrs(
+		peerId: string,
+		multiaddrs: string[],
+		ttlMs: number = 24 * 60 * 60 * 1000,
+	): void {
+		const now = Date.now();
+		const stmt = this.db.prepare(`
+      INSERT OR REPLACE INTO routing_cache
+      (peer_id, multiaddrs, last_seen, is_available, ttl)
+      VALUES (?, ?, ?, ?, ?)
+    `);
+
+		stmt.run(peerId, JSON.stringify(multiaddrs), now, 1, ttlMs);
+	}
+
+	/**
+	 * Get all cached peer multiaddrs
+	 */
+	getAllCachedPeers(): Array<{
+		peer_id: string;
+		multiaddrs: string[];
+		last_seen: number;
+	}> {
+		const rows = this.db
+			.prepare(`
+      SELECT peer_id, multiaddrs, last_seen
+      FROM routing_cache
+      WHERE is_available = 1 AND last_seen + ttl > ?
+      ORDER BY last_seen DESC
+    `)
+			.all(Date.now()) as Array<{
+			peer_id: string;
+			multiaddrs: string;
+			last_seen: number;
+		}>;
+
+		return rows.map((row) => ({
+			peer_id: row.peer_id,
+			multiaddrs: row.multiaddrs ? JSON.parse(row.multiaddrs) : [],
+			last_seen: row.last_seen,
+		}));
+	}
+
+	/**
+	 * Mark peer as unavailable (disconnect)
+	 */
+	markPeerUnavailable(peerId: string): void {
+		const stmt = this.db.prepare(`
+      UPDATE routing_cache
+      SET is_available = 0
+      WHERE peer_id = ?
+    `);
+		stmt.run(peerId);
+	}
+
+	/**
+	 * Mark peer as available (connect)
+	 */
+	markPeerAvailable(peerId: string): void {
+		const now = Date.now();
+		const stmt = this.db.prepare(`
+      UPDATE routing_cache
+      SET is_available = 1, last_seen = ?
+      WHERE peer_id = ?
+    `);
+		stmt.run(now, peerId);
+	}
+
+	/**
+	 * Get count of cached peers
+	 */
+	getCachedPeerCount(): number {
+		const stmt = this.db.prepare(`
+      SELECT COUNT(*) as count
+      FROM routing_cache
+      WHERE is_available = 1 AND last_seen + ttl > ?
+    `);
+		const result = stmt.get(Date.now()) as { count: number };
+		return result.count;
+	}
+
 	// Pending Messages Methods
 	queueMessage(
 		messageId: string,
