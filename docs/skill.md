@@ -192,12 +192,27 @@ Shows:
 **Options:**
 - `--data-dir <path>` — Custom data directory
 
-#### `yapyap peers` — View connected peers
+#### `yapyap peers` — View discovered/cached peers
 
 ```bash
-yapyap peers              # Connected peers
-yapyap peers known        # All known peers (from DHT/database)
-yapyap peers refresh      # Trigger peer discovery
+yapyap peers              # Show all discovered peers from database
+yapyap peers --discover   # Trigger manual DHT peer discovery
+yapyap peers --dial       # Dial all cached peers to reconnect
+```
+
+**Output example:**
+```json
+{
+  "peers": [
+    {
+      "peer_id": "12D3KooWExample...",
+      "multiaddrs": ["/ip4/192.168.1.1/tcp/4001"],
+      "last_seen": 1709078400000
+    }
+  ],
+  "count": 5,
+  "timestamp": 1709078400000
+}
 ```
 
 ---
@@ -248,6 +263,8 @@ Store-and-forward: messages queued locally and delivered when recipient comes on
 
 ### 🔍 Automatic Peer Discovery
 DHT-based discovery finds peers automatically — no manual bootstrap configuration needed.
+The node performs DHT random walk every 30 seconds, querying random peer IDs to discover
+new peers. Discovered peers are cached in SQLite for 24 hours with automatic reconnection.
 
 ### ✅ ACK-Driven Reliability
 Messages require acknowledgments. Failed deliveries retry with exponential backoff.
@@ -310,11 +327,14 @@ yapyap logs --filter "message"
 # See connected peers
 yapyap status
 
-# Refresh peer discovery
-yapyap peers refresh
+# View discovered/cached peers
+yapyap peers
 
-# View all known peers
-yapyap peers known
+# Trigger peer discovery
+yapyap peers --discover
+
+# Reconnect to cached peers
+yapyap peers --dial
 ```
 
 ---
@@ -335,10 +355,16 @@ Check bootstrap health:
 yapyap status
 ```
 
-The node should auto-discover peers via DHT. Wait ~30 seconds or run:
+The node automatically discovers peers via DHT. Wait ~30 seconds for DHT random walk discovery.
+
+**Force peer discovery:**
 ```bash
-yapyap peers refresh
+yapyap peers --discover   # Trigger manual DHT discovery
+yapyap peers --dial       # Reconnect to cached peers
 ```
+
+**Without bootstrap nodes:**
+YapYap works without bootstrap configuration. The DHT random walk discovers peers by querying random peer IDs every 30 seconds. Discovered peers are cached in the database for 24 hours.
 
 ### View detailed errors
 
@@ -379,6 +405,10 @@ The REST API is available at `http://127.0.0.1:3000` (or custom `--api-port`).
 **Key endpoints:**
 - `GET /api/node/info` — Node status
 - `GET /api/peers` — Connected peers
+- `GET /api/peers/discovered` — Discovered/cached peers from database
+- `POST /api/peers/discover` — Trigger manual DHT peer discovery
+- `POST /api/peers/dial-cached` — Dial all cached peers
+- `POST /api/peers/{peerId}/dial` — Connect to specific peer
 - `POST /api/messages/send` — Send message
 - `GET /api/messages/inbox` — Received messages
 - `GET /api/database/contacts` — List contacts
