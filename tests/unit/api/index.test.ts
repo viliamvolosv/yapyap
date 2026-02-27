@@ -144,7 +144,8 @@ describe("ApiModule", () => {
 		);
 		const body = await json(res);
 		assert.strictEqual(res.status, 200);
-		assert.strictEqual(body.status, "ok");
+		assert.strictEqual(body.success, true);
+		assert.strictEqual((body.data as { status: string }).status, "ok");
 	});
 
 	test("POST /api/messages/send accepts `to` and sends message", async () => {
@@ -158,8 +159,15 @@ describe("ApiModule", () => {
 
 		const body = await json(res);
 		assert.strictEqual(res.status, 200);
-		assert.strictEqual(body.message, "Message sent successfully");
-		assert.strictEqual(body.queued, false);
+		assert.strictEqual(body.success, true);
+		assert.strictEqual(
+			(body.data as { message: string; queued: boolean }).message,
+			"Message sent successfully",
+		);
+		assert.strictEqual(
+			(body.data as { message: string; queued: boolean }).queued,
+			false,
+		);
 		assert.strictEqual(node.sentMessages.length, 1);
 		assert.strictEqual(node.sentMessages[0].to, VALID_PEER_ID);
 	});
@@ -174,7 +182,11 @@ describe("ApiModule", () => {
 		);
 		const body = await json(res);
 		assert.strictEqual(res.status, 400);
-		assert.strictEqual(body.error, "Invalid target peerId");
+		assert.strictEqual(body.success, false);
+		assert.strictEqual(
+			(body.error as { message: unknown }).message,
+			"Invalid target peerId",
+		);
 	});
 
 	test("POST /api/messages/send returns 202 when transport send fails", async () => {
@@ -189,8 +201,15 @@ describe("ApiModule", () => {
 
 		const body = await json(res);
 		assert.strictEqual(res.status, 202);
-		assert.strictEqual(body.message, "Message queued for retry");
-		assert.strictEqual(body.queued, true);
+		assert.strictEqual(body.success, true);
+		assert.strictEqual(
+			(body.data as { message: string; queued: boolean }).message,
+			"Message queued for retry",
+		);
+		assert.strictEqual(
+			(body.data as { message: string; queued: boolean }).queued,
+			true,
+		);
 	});
 
 	test("contacts CRUD endpoints persist and return data", async () => {
@@ -207,15 +226,21 @@ describe("ApiModule", () => {
 			}),
 		);
 		assert.strictEqual(createRes.status, 200);
+		const created = await json(createRes);
+		assert.strictEqual(created.success, true);
 
 		const listRes = await api.handleTestRequest(
 			new Request("http://localhost/api/database/contacts", { method: "GET" }),
 		);
-		const listBody = (await json(listRes)) as {
-			contacts: Array<{ peer_id: string }>;
-		};
-		assert.strictEqual(listBody.contacts.length, 1);
-		assert.strictEqual(listBody.contacts[0].peer_id, VALID_PEER_ID);
+		const listBody = await json(listRes);
+		assert.strictEqual(listBody.success, true);
+		const contacts = (
+			listBody.data as {
+				contacts: Array<{ peer_id: string }>;
+			}
+		).contacts;
+		assert.strictEqual(contacts.length, 1);
+		assert.strictEqual(contacts[0].peer_id, VALID_PEER_ID);
 
 		const detailsRes = await api.handleTestRequest(
 			new Request(`http://localhost/api/database/contacts/${VALID_PEER_ID}`, {
@@ -223,6 +248,8 @@ describe("ApiModule", () => {
 			}),
 		);
 		assert.strictEqual(detailsRes.status, 200);
+		const detailsBody = await json(detailsRes);
+		assert.strictEqual(detailsBody.success, true);
 
 		const deleteRes = await api.handleTestRequest(
 			new Request(`http://localhost/api/database/contacts/${VALID_PEER_ID}`, {
@@ -230,6 +257,8 @@ describe("ApiModule", () => {
 			}),
 		);
 		assert.strictEqual(deleteRes.status, 200);
+		const deleteBody = await json(deleteRes);
+		assert.strictEqual(deleteBody.success, true);
 	});
 
 	test("GET /api/messages/inbox and /api/messages/outbox filter by self peer id", async () => {
@@ -273,22 +302,30 @@ describe("ApiModule", () => {
 		const inboxRes = await api.handleTestRequest(
 			new Request("http://localhost/api/messages/inbox", { method: "GET" }),
 		);
-		const inboxBody = (await json(inboxRes)) as {
-			inbox: Array<{ message: { id: string } }>;
-		};
+		const inboxBody = await json(inboxRes);
+		assert.strictEqual(inboxBody.success, true);
 		assert.strictEqual(inboxRes.status, 200);
-		assert.strictEqual(inboxBody.inbox.length, 1);
-		assert.strictEqual(inboxBody.inbox[0].message.id, "m2");
+		const inbox = (
+			inboxBody.data as {
+				inbox: Array<{ message: { id: string } }>;
+			}
+		).inbox;
+		assert.strictEqual(inbox.length, 1);
+		assert.strictEqual(inbox[0].message.id, "m2");
 
 		const outboxRes = await api.handleTestRequest(
 			new Request("http://localhost/api/messages/outbox", { method: "GET" }),
 		);
-		const outboxBody = (await json(outboxRes)) as {
-			outbox: Array<{ message: { id: string } }>;
-		};
+		const outboxBody = await json(outboxRes);
+		assert.strictEqual(outboxBody.success, true);
 		assert.strictEqual(outboxRes.status, 200);
-		assert.strictEqual(outboxBody.outbox.length, 1);
-		assert.strictEqual(outboxBody.outbox[0].message.id, "m1");
+		const outbox = (
+			outboxBody.data as {
+				outbox: Array<{ message: { id: string } }>;
+			}
+		).outbox;
+		assert.strictEqual(outbox.length, 1);
+		assert.strictEqual(outbox[0].message.id, "m1");
 	});
 
 	test("POST /api/node/stop is forbidden outside development", async () => {

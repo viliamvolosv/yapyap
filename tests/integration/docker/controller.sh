@@ -27,7 +27,16 @@ fi
 
 fetch_json() {
   URL="$1"
-  node -e "const u=process.argv[1]; const res=await fetch(u); if(!res.ok){console.error('http',res.status,'for',u); process.exit(2)} const t=await res.text(); console.log(t);" "$URL"
+  node -e "const u=process.argv[1];
+const res=await fetch(u);
+if(!res.ok){console.error('http',res.status,'for',u); process.exit(2)}
+const payload=await res.json();
+if(payload && payload.success===false){
+  console.error('api-error', payload.error?.message || JSON.stringify(payload.error));
+  process.exit(3);
+}
+const output = payload && payload.success===true ? (payload.data ?? {}) : payload;
+console.log(JSON.stringify(output));" "$URL"
 }
 
 wait_health() {
@@ -56,8 +65,10 @@ wait_peer_connected() {
     if node -e "const host=process.argv[1]; const target=process.argv[2];
       const res=await fetch('http://'+host+':3000/api/peers');
       if(!res.ok){process.exit(1)}
-      const peers=await res.json();
-      const connected=Array.isArray(peers) && peers.some((p)=>p?.peerId===target);
+      const body=await res.json();
+      const payload = body && body.success===true ? body.data : body;
+      const peers = Array.isArray(payload) ? payload : [];
+      const connected=peers.some((p)=>p?.peerId===target);
       process.exit(connected?0:1);" "$HOST" "$TARGET_PEER_ID"; then
       echo "[controller] $HOST connected to $TARGET_PEER_ID"
       return 0
@@ -75,8 +86,10 @@ wait_peer_disconnected() {
     if node -e "const host=process.argv[1]; const target=process.argv[2];
       const res=await fetch('http://'+host+':3000/api/peers');
       if(!res.ok){process.exit(1)}
-      const peers=await res.json();
-      const connected=Array.isArray(peers) && peers.some((p)=>p?.peerId===target);
+      const body=await res.json();
+      const payload = body && body.success===true ? body.data : body;
+      const peers = Array.isArray(payload) ? payload : [];
+      const connected=peers.some((p)=>p?.peerId===target);
       process.exit(connected?1:0);" "$HOST" "$TARGET_PEER_ID"; then
       echo "[controller] $HOST disconnected from $TARGET_PEER_ID"
       return 0
@@ -95,7 +108,8 @@ wait_inbox_delivery() {
       const res=await fetch('http://'+host+':3000/api/messages/inbox');
       if(!res.ok){process.exit(1)}
       const data=await res.json();
-      const inbox=Array.isArray(data.inbox)?data.inbox:[];
+      const payload = data && data.success===true ? data.data : data;
+      const inbox=Array.isArray(payload?.inbox)?payload.inbox:[];
       const delivered=inbox.some((entry)=>entry?.message?.payload?.kind===kind);
       process.exit(delivered?0:1);" "$HOST" "$KIND"; then
       echo "[controller] $HOST inbox received kind=$KIND"
@@ -140,8 +154,10 @@ const createRes=await fetch('http://node1:3000/api/database/contacts',{method:'P
 if(!createRes.ok){console.error('contact-create-status',createRes.status); process.exit(1)}
 const listRes=await fetch('http://node1:3000/api/database/contacts');
 if(!listRes.ok){console.error('contact-list-status',listRes.status); process.exit(1)}
-const data=await listRes.json();
-if(!Array.isArray(data.contacts) || !data.contacts.some((c)=>c.peer_id===peerId)){console.error('contact-not-found'); process.exit(1)}" "$NODE2_PEER_ID"
+const response=await listRes.json();
+const payload = response && response.success===true ? response.data : response;
+const contacts=Array.isArray(payload.contacts) ? payload.contacts : [];
+if(!contacts.some((c)=>c.peer_id===peerId)){console.error('contact-not-found'); process.exit(1)}" "$NODE2_PEER_ID"
 
   echo "[controller] Executing API send-message smoke from node1 -> node2 (to)..."
   SEND_RAW="$(node -e "const res=await fetch('http://node1:3000/api/messages/send',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({to:process.argv[1],payload:{kind:'docker-smoke',t:Date.now()}})});
@@ -266,8 +282,9 @@ console.log(JSON.stringify({status:res.status,body}));" "$NODE2_PEER_ID" "$STATE
   OUTBOX_CHECK="$(node -e "
 const res=await fetch('http://node1:3000/api/messages/outbox');
 if(!res.ok){console.log('{}');process.exit(0)}
-const data=await res.json();
-const outbox=Array.isArray(data.outbox)?data.outbox:[];
+const raw=await res.json();
+const payload = raw && raw.success===true ? raw.data : raw;
+const outbox=Array.isArray(payload?.outbox)?payload.outbox:[];
 const msg=outbox.find(m=>m.message?.payload?.kind==='state-test-1');
 if(msg){
   console.log(JSON.stringify({
@@ -306,8 +323,9 @@ console.log(JSON.stringify({status:res.status,body}));" "$NODE2_PEER_ID" "$STATE
   OUTBOX_2_CHECK="$(node -e "
 const res=await fetch('http://node1:3000/api/messages/outbox');
 if(!res.ok){console.log('{}');process.exit(0)}
-const data=await res.json();
-const outbox=Array.isArray(data.outbox)?data.outbox:[];
+const raw=await res.json();
+const payload = raw && raw.success===true ? raw.data : raw;
+const outbox=Array.isArray(payload?.outbox)?payload.outbox:[];
 const msg=outbox.find(m=>m.message?.payload?.kind==='state-test-2');
 if(msg){
   console.log(JSON.stringify({
@@ -330,8 +348,9 @@ if(msg){
   FINAL_OUTBOX="$(node -e "
 const res=await fetch('http://node1:3000/api/messages/outbox');
 if(!res.ok){console.log('[]');process.exit(0)}
-const data=await res.json();
-const outbox=Array.isArray(data.outbox)?data.outbox:[];
+const raw=await res.json();
+const payload = raw && raw.success===true ? raw.data : raw;
+const outbox=Array.isArray(payload?.outbox)?payload.outbox:[];
 const stateMsgs=outbox.filter(m=>m.message?.payload?.kind && m.message.payload.kind.startsWith('state-test'));
 console.log(stateMsgs.length);
 ")"
@@ -369,8 +388,9 @@ console.log(JSON.stringify({status:res.status,body}));" "$NODE2_PEER_ID" "$RETRY
   OUTBOX_CHECK="$(node -e "
 const res=await fetch('http://node1:3000/api/messages/outbox');
 if(!res.ok){console.log('{}');process.exit(0)}
-const data=await res.json();
-const outbox=Array.isArray(data.outbox)?data.outbox:[];
+const raw=await res.json();
+const payload = raw && raw.success===true ? raw.data : raw;
+const outbox=Array.isArray(payload?.outbox)?payload.outbox:[];
 const msg=outbox.find(m=>m.message?.payload?.kind==='retry-test');
 if(msg){
   console.log(JSON.stringify({
@@ -414,8 +434,9 @@ if(msg){
   OUTBOX_AFTER="$(node -e "
 const res=await fetch('http://node1:3000/api/messages/outbox');
 if(!res.ok){console.log('[]');process.exit(0)}
-const data=await res.json();
-const outbox=Array.isArray(data.outbox)?data.outbox:[];
+const raw=await res.json();
+const payload = raw && raw.success===true ? raw.data : raw;
+const outbox=Array.isArray(payload?.outbox)?payload.outbox:[];
 const msg=outbox.find(m=>m.message?.payload?.kind==='retry-test');
 console.log(msg?'found':'not-found');
 ")"
@@ -512,8 +533,9 @@ console.log(JSON.stringify({status:res.status,body}));" "$NODE2_PEER_ID" "$DEDUP
   DEDUP_CHECK="$(node -e "
 const res=await fetch('http://node2:3000/api/messages/inbox');
 if(!res.ok){console.log('-1');process.exit(0)}
-const data=await res.json();
-const inbox=Array.isArray(data.inbox)?data.inbox:[];
+const raw=await res.json();
+const payload = raw && raw.success===true ? raw.data : raw;
+const inbox=Array.isArray(payload?.inbox)?payload.inbox:[];
 const dedupMsgs=inbox.filter(m=>m.message?.payload?.kind==='dedup-test'&&m.message?.payload?.id===process.argv[1]);
 console.log(dedupMsgs.length);
 " "$DEDUP_MSG_ID")"
@@ -544,8 +566,9 @@ console.log(JSON.stringify({status:res.status,body}));" "$NODE2_PEER_ID" "$DEDUP
   TOTAL_INBOX="$(node -e "
 const res=await fetch('http://node2:3000/api/messages/inbox');
 if(!res.ok){console.log('0');process.exit(0)}
-const data=await res.json();
-const inbox=Array.isArray(data.inbox)?data.inbox:[];
+const raw=await res.json();
+const payload = raw && raw.success===true ? raw.data : raw;
+const inbox=Array.isArray(payload?.inbox)?payload.inbox:[];
 const uniqueMsgs=inbox.filter(m=>m.message?.payload?.kind && (m.message?.payload?.kind==='dedup-test' || m.message?.payload?.kind==='dedup-test-2'));
 console.log(uniqueMsgs.length);
 ")"
@@ -778,7 +801,10 @@ run_queue_cleanup() {
   sleep 2
 
   echo "[controller] Checking outbox queue..."
-  QUEUE_COUNT_1="$(node -e "const res=await fetch('http://node1:3000/api/messages/outbox'); const d=await res.json(); console.log(d.outbox?.length||0);")"
+  QUEUE_COUNT_1="$(node -e "const res=await fetch('http://node1:3000/api/messages/outbox');
+const raw=await res.json();
+const payload = raw && raw.success===true ? raw.data : raw;
+console.log(payload?.outbox?.length||0);" )"
   echo "[controller] Queue has $QUEUE_COUNT_1 messages"
 
   echo "[controller] Reconnecting nodes..."
@@ -860,7 +886,11 @@ run_privacy_validation() {
   wait_inbox_delivery node2 privacy-test-1
 
   echo "[controller] Verifying message delivered..."
-  INBOX_MSG="$(node -e "const res=await fetch('http://node2:3000/api/messages/inbox'); const d=await res.json(); const msg=d.inbox?.find(m=>m.message?.payload?.kind==='privacy-test-1'); console.log(JSON.stringify(msg));")"
+  INBOX_MSG="$(node -e "const res=await fetch('http://node2:3000/api/messages/inbox');
+const raw=await res.json();
+const payload = raw && raw.success===true ? raw.data : raw;
+const msg=payload?.inbox?.find(m=>m.message?.payload?.kind==='privacy-test-1');
+console.log(JSON.stringify(msg));")"
   echo "[controller] Inbox message: $INBOX_MSG"
 
   echo "[controller] Sending privacy-test-2..."

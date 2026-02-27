@@ -117,6 +117,24 @@ export class YapYapNode {
 	public getRoutingTable(): RoutingTable {
 		return this.routingTable;
 	}
+
+	/**
+	 * Set bootstrap addresses (called during node initialization)
+	 */
+	public setBootstrapAddrs(addrs: string[]): void {
+		this.bootstrapAddrs = addrs;
+	}
+
+	/**
+	 * Get bootstrap addresses
+	 */
+	public getBootstrapAddrs(): string[] {
+		return this.bootstrapAddrs;
+	}
+
+	/**
+	 * Get libp2p instance (for API module)
+	 */
 	private libp2p?: Libp2p;
 	private db: DatabaseManager;
 	private sessions: SessionManager;
@@ -129,6 +147,7 @@ export class YapYapNode {
 	public messageRouter: MessageRouter;
 	private nodeState: NodeState;
 	private routingTable: RoutingTable;
+	private bootstrapAddrs: string[] = [];
 
 	constructor(db: DatabaseManager) {
 		this.db = db;

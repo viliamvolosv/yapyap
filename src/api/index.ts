@@ -11,6 +11,12 @@ import type { YapYapNode } from "../core/node.js";
 import type { YapYapMessage } from "../message/message.js";
 
 type JsonObject = Record<string, unknown>;
+type ApiSuccess<T> = { success: true; data: T };
+type ApiError = {
+	success: false;
+	error: { message: string; details?: unknown };
+};
+type ApiResponse<T> = ApiSuccess<T> | ApiError;
 
 function isJsonObject(value: unknown): value is JsonObject {
 	return typeof value === "object" && value !== null;
@@ -179,7 +185,11 @@ export class ApiModule {
 		const method = request.method;
 
 		if (method === "GET" && path === "/health") {
-			return this.jsonResponse({ status: "ok", timestamp: Date.now() });
+			return this.ok({ status: "ok", timestamp: Date.now() });
+		}
+
+		if (method === "GET" && path === "/api/docs") {
+			return this.ok(this.getOpenApiSpec());
 		}
 
 		if (method === "OPTIONS") {
@@ -196,7 +206,7 @@ export class ApiModule {
 			} else if (path.startsWith("/api/database")) {
 				return await this.handleDatabaseRequest(request, path, method);
 			} else {
-				return this.jsonResponse({ error: "API endpoint not found" }, 404);
+				return this.fail(404, "API endpoint not found");
 			}
 		} catch (error) {
 			const errorMessage =
@@ -204,10 +214,7 @@ export class ApiModule {
 			console.error("API error:", error);
 			if (error instanceof Error && error.stack) console.error(error.stack);
 			console.error(`Request method: ${method}, URL: ${url.toString()}`);
-			return this.jsonResponse(
-				{ error: "Internal server error", message: errorMessage },
-				500,
-			);
+			return this.fail(500, "Internal server error", errorMessage);
 		}
 	}
 
@@ -225,6 +232,983 @@ export class ApiModule {
 		});
 	}
 
+	private ok<T>(data: T, status = 200): Response {
+		const payload: ApiResponse<T> = { success: true, data };
+		return this.jsonResponse(payload, status);
+	}
+
+	private fail(status: number, message: string, details?: unknown): Response {
+		const payload: ApiResponse<never> = {
+			success: false,
+			error: details ? { message, details } : { message },
+		};
+		return this.jsonResponse(payload, status);
+	}
+
+	private getOpenApiSpec(): JsonObject {
+		return {
+			openapi: "3.0.3",
+			info: {
+				title: "YapYap API",
+				description:
+					"YapYap is a decentralized, peer-to-peer messenger node API. It provides endpoints for managing contacts, sending/receiving messages, and monitoring node health.",
+				version: "0.0.6",
+				license: {
+					name: "MIT",
+					url: "https://github.com/viliamvolosv/yapyap/blob/main/LICENSE",
+				},
+			},
+			servers: [
+				{
+					url: "http://127.0.0.1:{port}",
+					variables: {
+						port: {
+							default: "3000",
+							description: "API server port",
+						},
+					},
+				},
+			],
+			components: {
+				schemas: {
+					ApiResponse: {
+						type: "object",
+						properties: {
+							success: { type: "boolean", enum: [true] },
+							data: { type: "object" },
+						},
+						required: ["success", "data"],
+					},
+					ApiError: {
+						type: "object",
+						properties: {
+							success: { type: "boolean", enum: [false] },
+							error: {
+								type: "object",
+								properties: {
+									message: { type: "string" },
+									details: { type: "object", nullable: true },
+								},
+								required: ["message"],
+							},
+						},
+						required: ["success", "error"],
+					},
+					PeerId: {
+						type: "string",
+						description: "libp2p Peer ID string",
+						example: "12D3KooWExample...",
+					},
+					Multiaddr: {
+						type: "string",
+						description: "Multiaddr connection string",
+						example: "/ip4/192.168.1.1/tcp/4001/p2p/12D3KooWExample",
+					},
+					Contact: {
+						type: "object",
+						properties: {
+							peer_id: { $ref: "#/components/schemas/PeerId" },
+							alias: { type: "string", description: "Contact alias/name" },
+							last_seen: {
+								type: "integer",
+								description: "Unix timestamp in milliseconds",
+							},
+							metadata: {
+								type: "string",
+								description: "JSON string with additional metadata",
+							},
+							is_trusted: {
+								type: "boolean",
+								description: "Whether the contact is marked as trusted",
+							},
+						},
+						required: ["peer_id"],
+					},
+					YapYapMessage: {
+						type: "object",
+						properties: {
+							id: { type: "string", format: "uuid" },
+							type: { type: "string", enum: ["data", "ping", "pong"] },
+							from: { $ref: "#/components/schemas/PeerId" },
+							to: { $ref: "#/components/schemas/PeerId" },
+							payload: { type: "object" },
+							timestamp: {
+								type: "integer",
+								description: "Unix timestamp in milliseconds",
+							},
+						},
+						required: ["id", "type", "from", "to", "payload", "timestamp"],
+					},
+					InboxEntry: {
+						type: "object",
+						properties: {
+							messageId: { type: "string" },
+							fromPeerId: { $ref: "#/components/schemas/PeerId" },
+							processedAt: { type: "integer" },
+							message: { $ref: "#/components/schemas/YapYapMessage" },
+						},
+					},
+					OutboxEntry: {
+						type: "object",
+						properties: {
+							messageId: { type: "string" },
+							targetPeerId: { $ref: "#/components/schemas/PeerId" },
+							status: { type: "string", enum: ["pending", "sent", "failed"] },
+							attempts: { type: "integer" },
+							createdAt: { type: "integer" },
+							nextRetryAt: { type: "integer", nullable: true },
+							message: { $ref: "#/components/schemas/YapYapMessage" },
+						},
+					},
+					PeerInfo: {
+						type: "object",
+						properties: {
+							peerId: { $ref: "#/components/schemas/PeerId" },
+							isAvailable: { type: "boolean" },
+							lastSeen: { type: "integer" },
+							isInbound: { type: "boolean" },
+						},
+					},
+					NodeInfo: {
+						type: "object",
+						properties: {
+							peerId: { $ref: "#/components/schemas/PeerId" },
+							connectedPeersCount: { type: "integer" },
+							inboundPeersCount: { type: "integer" },
+							uptime: { type: "number" },
+							bootstrap: {
+								type: "object",
+								description: "Bootstrap peer health status",
+								properties: {
+									configured: {
+										type: "array",
+										items: { type: "string" },
+										description: "Configured bootstrap multiaddrs",
+									},
+									connected: {
+										type: "integer",
+										description:
+											"Number of bootstrap peers currently connected",
+									},
+									total: {
+										type: "integer",
+										description: "Total number of configured bootstrap peers",
+									},
+									healthy: {
+										type: "boolean",
+										description:
+											"True if at least one bootstrap peer is connected (or none configured)",
+									},
+								},
+							},
+						},
+						required: [
+							"peerId",
+							"connectedPeersCount",
+							"inboundPeersCount",
+							"uptime",
+						],
+					},
+				},
+				parameters: {
+					PeerIdParam: {
+						name: "peerId",
+						in: "path",
+						required: true,
+						schema: { $ref: "#/components/schemas/PeerId" },
+						description: "The libp2p Peer ID",
+					},
+				},
+				responses: {
+					SuccessResponse: {
+						description: "Successful response",
+						content: {
+							"application/json": {
+								schema: { $ref: "#/components/schemas/ApiResponse" },
+							},
+						},
+					},
+					ErrorResponse: {
+						description: "Error response",
+						content: {
+							"application/json": {
+								schema: { $ref: "#/components/schemas/ApiError" },
+							},
+						},
+					},
+				},
+			},
+			paths: {
+				"/health": {
+					get: {
+						summary: "Health check",
+						description: "Check if the API server is running",
+						operationId: "healthCheck",
+						tags: ["Health"],
+						responses: {
+							"200": {
+								description: "API is healthy",
+								content: {
+									"application/json": {
+										schema: {
+											type: "object",
+											properties: {
+												status: { type: "string", example: "ok" },
+												timestamp: { type: "integer" },
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				"/api/node/info": {
+					get: {
+						summary: "Get node information",
+						description: "Retrieve basic information about the local node",
+						operationId: "getNodeInfo",
+						tags: ["Node"],
+						responses: {
+							"200": {
+								description: "Node information",
+								content: {
+									"application/json": {
+										schema: {
+											allOf: [
+												{ $ref: "#/components/schemas/ApiResponse" },
+												{
+													properties: {
+														data: { $ref: "#/components/schemas/NodeInfo" },
+													},
+												},
+											],
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				"/api/node/stats": {
+					get: {
+						summary: "Get node statistics",
+						description:
+							"Retrieve statistics about connected peers and message queues",
+						operationId: "getNodeStats",
+						tags: ["Node"],
+						responses: {
+							"200": {
+								description: "Node statistics",
+								content: {
+									"application/json": {
+										schema: {
+											allOf: [
+												{ $ref: "#/components/schemas/ApiResponse" },
+												{
+													properties: {
+														data: {
+															type: "object",
+															properties: {
+																connectedPeers: {
+																	type: "array",
+																	items: {
+																		$ref: "#/components/schemas/PeerId",
+																	},
+																},
+																inboundPeers: {
+																	type: "array",
+																	items: {
+																		$ref: "#/components/schemas/PeerId",
+																	},
+																},
+																routingMetrics: { type: "object" },
+																messageQueues: { type: "array" },
+															},
+														},
+													},
+												},
+											],
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				"/api/node/config": {
+					get: {
+						summary: "Get node configuration",
+						description: "Retrieve the current node configuration",
+						operationId: "getNodeConfig",
+						tags: ["Node"],
+						responses: {
+							"200": {
+								description: "Node configuration",
+								content: {
+									"application/json": {
+										schema: {
+											allOf: [
+												{ $ref: "#/components/schemas/ApiResponse" },
+												{
+													properties: {
+														data: {
+															type: "object",
+															properties: {
+																dataDir: { type: "string", nullable: true },
+																network: { type: "string", nullable: true },
+															},
+														},
+													},
+												},
+											],
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				"/api/node/stop": {
+					post: {
+						summary: "Stop the node",
+						description:
+							"Gracefully shutdown the YapYap node (development only)",
+						operationId: "stopNode",
+						tags: ["Node"],
+						responses: {
+							"200": {
+								description: "Shutdown initiated",
+								content: {
+									"application/json": {
+										schema: {
+											allOf: [
+												{ $ref: "#/components/schemas/ApiResponse" },
+												{
+													properties: {
+														data: {
+															type: "object",
+															properties: {
+																message: {
+																	type: "string",
+																	example: "Node shutdown initiated",
+																},
+															},
+														},
+													},
+												},
+											],
+										},
+									},
+								},
+							},
+							"403": { $ref: "#/components/responses/ErrorResponse" },
+						},
+					},
+				},
+				"/api/peers": {
+					get: {
+						summary: "List connected peers",
+						description: "Get a list of all currently connected peers",
+						operationId: "getPeers",
+						tags: ["Peers"],
+						responses: {
+							"200": {
+								description: "List of connected peers",
+								content: {
+									"application/json": {
+										schema: {
+											allOf: [
+												{ $ref: "#/components/schemas/ApiResponse" },
+												{
+													properties: {
+														data: {
+															type: "array",
+															items: {
+																type: "object",
+																properties: {
+																	peerId: {
+																		$ref: "#/components/schemas/PeerId",
+																	},
+																	lastSeen: { type: "integer" },
+																	isAvailable: { type: "boolean" },
+																},
+															},
+														},
+													},
+												},
+											],
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				"/api/peers/{peerId}": {
+					get: {
+						summary: "Get peer information",
+						description: "Get information about a specific peer",
+						operationId: "getPeerInfo",
+						tags: ["Peers"],
+						parameters: [
+							{
+								name: "peerId",
+								in: "path",
+								required: true,
+								schema: { $ref: "#/components/schemas/PeerId" },
+							},
+						],
+						responses: {
+							"200": {
+								description: "Peer information",
+								content: {
+									"application/json": {
+										schema: {
+											allOf: [
+												{ $ref: "#/components/schemas/ApiResponse" },
+												{
+													properties: {
+														data: { $ref: "#/components/schemas/PeerInfo" },
+													},
+												},
+											],
+										},
+									},
+								},
+							},
+							"404": { $ref: "#/components/responses/ErrorResponse" },
+						},
+					},
+					post: {
+						summary: "Dial a peer",
+						description: "Establish a connection to a peer",
+						operationId: "dialPeer",
+						tags: ["Peers"],
+						parameters: [
+							{
+								name: "peerId",
+								in: "path",
+								required: true,
+								schema: { $ref: "#/components/schemas/PeerId" },
+							},
+						],
+						responses: {
+							"200": {
+								description: "Dial request sent",
+								content: {
+									"application/json": {
+										schema: {
+											allOf: [
+												{ $ref: "#/components/schemas/ApiResponse" },
+												{
+													properties: {
+														data: {
+															type: "object",
+															properties: {
+																message: {
+																	type: "string",
+																	example: "Dial request sent",
+																},
+																peerId: { $ref: "#/components/schemas/PeerId" },
+															},
+														},
+													},
+												},
+											],
+										},
+									},
+								},
+							},
+							"500": { $ref: "#/components/responses/ErrorResponse" },
+						},
+					},
+					delete: {
+						summary: "Disconnect a peer",
+						description: "Disconnect from a specific peer",
+						operationId: "disconnectPeer",
+						tags: ["Peers"],
+						parameters: [
+							{
+								name: "peerId",
+								in: "path",
+								required: true,
+								schema: { $ref: "#/components/schemas/PeerId" },
+							},
+						],
+						responses: {
+							"200": {
+								description: "Peer disconnected",
+								content: {
+									"application/json": {
+										schema: {
+											allOf: [
+												{ $ref: "#/components/schemas/ApiResponse" },
+												{
+													properties: {
+														data: {
+															type: "object",
+															properties: {
+																message: {
+																	type: "string",
+																	example: "Disconnected from peer",
+																},
+																peerId: { $ref: "#/components/schemas/PeerId" },
+															},
+														},
+													},
+												},
+											],
+										},
+									},
+								},
+							},
+							"500": { $ref: "#/components/responses/ErrorResponse" },
+						},
+					},
+				},
+				"/api/messages/send": {
+					post: {
+						summary: "Send a message",
+						description:
+							"Send a message to a peer. The message will be encrypted if the recipient's public key is available.",
+						operationId: "sendMessage",
+						tags: ["Messages"],
+						requestBody: {
+							required: true,
+							content: {
+								"application/json": {
+									schema: {
+										type: "object",
+										required: ["payload"],
+										properties: {
+											targetId: {
+												$ref: "#/components/schemas/PeerId",
+												description: "Target peer ID (alternative: 'to')",
+											},
+											to: {
+												$ref: "#/components/schemas/PeerId",
+												description: "Target peer ID (alternative: 'targetId')",
+											},
+											payload: {
+												type: "object",
+												description: "Message payload to send",
+											},
+										},
+									},
+								},
+							},
+						},
+						responses: {
+							"200": {
+								description: "Message sent successfully",
+								content: {
+									"application/json": {
+										schema: {
+											allOf: [
+												{ $ref: "#/components/schemas/ApiResponse" },
+												{
+													properties: {
+														data: {
+															type: "object",
+															properties: {
+																message: { type: "string" },
+																messageId: { type: "string", format: "uuid" },
+																targetId: {
+																	$ref: "#/components/schemas/PeerId",
+																},
+																queued: { type: "boolean" },
+																timestamp: { type: "integer" },
+															},
+														},
+													},
+												},
+											],
+										},
+									},
+								},
+							},
+							"202": {
+								description: "Message queued for retry",
+								content: {
+									"application/json": {
+										schema: {
+											allOf: [
+												{ $ref: "#/components/schemas/ApiResponse" },
+												{
+													properties: {
+														data: {
+															type: "object",
+															properties: {
+																message: { type: "string" },
+																messageId: { type: "string", format: "uuid" },
+																targetId: {
+																	$ref: "#/components/schemas/PeerId",
+																},
+																queued: { type: "boolean", example: true },
+																details: { type: "string" },
+																timestamp: { type: "integer" },
+															},
+														},
+													},
+												},
+											],
+										},
+									},
+								},
+							},
+							"400": { $ref: "#/components/responses/ErrorResponse" },
+						},
+					},
+				},
+				"/api/messages/inbox": {
+					get: {
+						summary: "Get inbox messages",
+						description:
+							"Retrieve received messages from the local message store",
+						operationId: "getInboxMessages",
+						tags: ["Messages"],
+						responses: {
+							"200": {
+								description: "List of received messages",
+								content: {
+									"application/json": {
+										schema: {
+											allOf: [
+												{ $ref: "#/components/schemas/ApiResponse" },
+												{
+													properties: {
+														data: {
+															type: "object",
+															properties: {
+																inbox: {
+																	type: "array",
+																	items: {
+																		$ref: "#/components/schemas/InboxEntry",
+																	},
+																},
+															},
+														},
+													},
+												},
+											],
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				"/api/messages/outbox": {
+					get: {
+						summary: "Get outbox messages",
+						description:
+							"Retrieve sent messages and their delivery status from the local message store",
+						operationId: "getOutboxMessages",
+						tags: ["Messages"],
+						responses: {
+							"200": {
+								description: "List of sent messages",
+								content: {
+									"application/json": {
+										schema: {
+											allOf: [
+												{ $ref: "#/components/schemas/ApiResponse" },
+												{
+													properties: {
+														data: {
+															type: "object",
+															properties: {
+																outbox: {
+																	type: "array",
+																	items: {
+																		$ref: "#/components/schemas/OutboxEntry",
+																	},
+																},
+															},
+														},
+													},
+												},
+											],
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				"/api/database/contacts": {
+					get: {
+						summary: "List contacts",
+						description: "Retrieve all stored contacts",
+						operationId: "getContacts",
+						tags: ["Contacts"],
+						responses: {
+							"200": {
+								description: "List of contacts",
+								content: {
+									"application/json": {
+										schema: {
+											allOf: [
+												{ $ref: "#/components/schemas/ApiResponse" },
+												{
+													properties: {
+														data: {
+															type: "object",
+															properties: {
+																contacts: {
+																	type: "array",
+																	items: {
+																		$ref: "#/components/schemas/Contact",
+																	},
+																},
+															},
+														},
+													},
+												},
+											],
+										},
+									},
+								},
+							},
+						},
+					},
+					post: {
+						summary: "Add or update a contact",
+						description:
+							"Add a new contact or update an existing one. Supports storing metadata and routing information.",
+						operationId: "addOrUpdateContact",
+						tags: ["Contacts"],
+						requestBody: {
+							required: true,
+							content: {
+								"application/json": {
+									schema: {
+										type: "object",
+										required: ["peerId"],
+										properties: {
+											peerId: { $ref: "#/components/schemas/PeerId" },
+											alias: {
+												type: "string",
+												description: "Human-readable alias for the contact",
+											},
+											metadata: {
+												type: "object",
+												description: "Additional metadata as key-value pairs",
+											},
+											isTrusted: {
+												type: "boolean",
+												description: "Mark contact as trusted",
+											},
+											publicKey: {
+												type: "string",
+												description:
+													"Peer's public key in hex format (for encryption)",
+											},
+											multiaddrs: {
+												type: "array",
+												items: { type: "string" },
+												description: "Known multiaddrs for routing",
+											},
+										},
+									},
+								},
+							},
+						},
+						responses: {
+							"200": {
+								description: "Contact saved successfully",
+								content: {
+									"application/json": {
+										schema: {
+											allOf: [
+												{ $ref: "#/components/schemas/ApiResponse" },
+												{
+													properties: {
+														data: {
+															type: "object",
+															properties: {
+																message: { type: "string" },
+																contact: {
+																	$ref: "#/components/schemas/Contact",
+																},
+															},
+														},
+													},
+												},
+											],
+										},
+									},
+								},
+							},
+							"400": { $ref: "#/components/responses/ErrorResponse" },
+							"500": { $ref: "#/components/responses/ErrorResponse" },
+						},
+					},
+				},
+				"/api/database/contacts/{peerId}": {
+					get: {
+						summary: "Get contact details",
+						description: "Retrieve details for a specific contact",
+						operationId: "getContactDetails",
+						tags: ["Contacts"],
+						parameters: [
+							{
+								name: "peerId",
+								in: "path",
+								required: true,
+								schema: { $ref: "#/components/schemas/PeerId" },
+							},
+						],
+						responses: {
+							"200": {
+								description: "Contact details",
+								content: {
+									"application/json": {
+										schema: {
+											allOf: [
+												{ $ref: "#/components/schemas/ApiResponse" },
+												{
+													properties: {
+														data: { $ref: "#/components/schemas/Contact" },
+													},
+												},
+											],
+										},
+									},
+								},
+							},
+							"404": { $ref: "#/components/responses/ErrorResponse" },
+						},
+					},
+					delete: {
+						summary: "Remove a contact",
+						description: "Delete a contact from the database",
+						operationId: "removeContact",
+						tags: ["Contacts"],
+						parameters: [
+							{
+								name: "peerId",
+								in: "path",
+								required: true,
+								schema: { $ref: "#/components/schemas/PeerId" },
+							},
+						],
+						responses: {
+							"200": {
+								description: "Contact removed",
+								content: {
+									"application/json": {
+										schema: {
+											allOf: [
+												{ $ref: "#/components/schemas/ApiResponse" },
+												{
+													properties: {
+														data: {
+															type: "object",
+															properties: {
+																message: { type: "string" },
+																peerId: { $ref: "#/components/schemas/PeerId" },
+															},
+														},
+													},
+												},
+											],
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				"/api/database/messages": {
+					get: {
+						summary: "List message queue entries",
+						description: "Retrieve messages from the outgoing message queue",
+						operationId: "getMessageQueueEntries",
+						tags: ["Database"],
+						responses: {
+							"200": {
+								description: "List of message queue entries",
+								content: {
+									"application/json": {
+										schema: {
+											allOf: [
+												{ $ref: "#/components/schemas/ApiResponse" },
+												{
+													properties: {
+														data: {
+															type: "object",
+															properties: {
+																messages: { type: "array" },
+															},
+														},
+													},
+												},
+											],
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				"/api/database/routing": {
+					get: {
+						summary: "List routing cache entries",
+						description: "Retrieve cached routing information",
+						operationId: "getRoutingCacheEntries",
+						tags: ["Database"],
+						responses: {
+							"200": {
+								description: "List of routing cache entries",
+								content: {
+									"application/json": {
+										schema: {
+											allOf: [
+												{ $ref: "#/components/schemas/ApiResponse" },
+												{
+													properties: {
+														data: {
+															type: "object",
+															properties: {
+																entries: { type: "array" },
+															},
+														},
+													},
+												},
+											],
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			tags: [
+				{ name: "Health", description: "Health check endpoints" },
+				{
+					name: "Node",
+					description: "Node information and management",
+				},
+				{ name: "Peers", description: "Peer connection management" },
+				{
+					name: "Messages",
+					description: "Sending and receiving messages",
+				},
+				{
+					name: "Contacts",
+					description: "Contact management (peers database)",
+				},
+				{
+					name: "Database",
+					description: "Direct database access for messages and routing",
+				},
+			],
+		};
+	}
+
 	private async handleNodeRequest(
 		path: string,
 		method: string,
@@ -235,7 +1219,7 @@ export class ApiModule {
 			if (path === "/api/node/config") return this.getNodeConfig();
 		} else if (method === "POST" && path === "/api/node/stop") {
 			if (process.env.NODE_ENV !== "development")
-				return this.jsonResponse("Forbidden", 403, true);
+				return this.fail(403, "Forbidden");
 			// Start shutdown process asynchronously after sending response
 			setImmediate(async () => {
 				try {
@@ -250,9 +1234,9 @@ export class ApiModule {
 					process.exit(1);
 				}
 			});
-			return this.jsonResponse({ message: "Node shutdown initiated" });
+			return this.ok({ message: "Node shutdown initiated" });
 		}
-		return this.jsonResponse({ error: "Endpoint not found" }, 404);
+		return this.fail(404, "Endpoint not found");
 	}
 
 	private async handlePeerRequest(
@@ -270,7 +1254,7 @@ export class ApiModule {
 			const peerId = this.getPathParam(path, 2);
 			if (peerId) return this.disconnectPeer(peerId);
 		}
-		return this.jsonResponse({ error: "Endpoint not found" }, 404);
+		return this.fail(404, "Endpoint not found");
 	}
 
 	private async handleMessageRequest(
@@ -281,7 +1265,7 @@ export class ApiModule {
 		if (method === "POST" && path === "/api/messages/send") {
 			const body = await this.parseJsonBody(request);
 			if (!body) {
-				return this.jsonResponse({ error: "Invalid JSON body" }, 400);
+				return this.fail(400, "Invalid JSON body");
 			}
 			return this.sendMessage(body);
 		} else if (method === "GET") {
@@ -290,7 +1274,7 @@ export class ApiModule {
 			const messageId = this.getPathParam(path, 2);
 			if (messageId) return this.getMessageDetails(messageId);
 		}
-		return this.jsonResponse({ error: "Endpoint not found" }, 404);
+		return this.fail(404, "Endpoint not found");
 	}
 
 	private async handleDatabaseRequest(
@@ -309,7 +1293,7 @@ export class ApiModule {
 		} else if (method === "POST" && path === "/api/database/contacts") {
 			const body = await this.parseJsonBody(request);
 			if (!body) {
-				return this.jsonResponse({ error: "Invalid JSON body" }, 400);
+				return this.fail(400, "Invalid JSON body");
 			}
 			return this.addOrUpdateContact(body);
 		} else if (
@@ -319,7 +1303,7 @@ export class ApiModule {
 			const peerId = this.getPathParam(path, 3);
 			if (peerId) return this.removeContact(peerId);
 		}
-		return this.jsonResponse({ error: "Endpoint not found" }, 404);
+		return this.fail(404, "Endpoint not found");
 	}
 
 	private async parseJsonBody(request: Request): Promise<JsonObject | null> {
@@ -352,19 +1336,52 @@ export class ApiModule {
 			(c) => c.direction === "inbound",
 		).length;
 
-		return this.jsonResponse({
+		// Get bootstrap configuration and check health
+		const bootstrapAddrs = this.yapyapNode.getBootstrapAddrs();
+		const connectedPeerIds = new Set(
+			connections.map((c) => c.remotePeer.toString()),
+		);
+
+		// Check how many bootstrap peers are connected
+		let bootstrapConnected = 0;
+		for (const addr of bootstrapAddrs) {
+			try {
+				const { multiaddr } = await import("@multiformats/multiaddr");
+				const ma = multiaddr(addr);
+				// Extract peer ID from multiaddr by parsing the path
+				// Multiaddr format: /ip4/1.2.3.4/tcp/4001/p2p/<peer-id>
+				const parts = ma.toString().split("/");
+				const p2pIndex = parts.indexOf("p2p");
+				if (p2pIndex !== -1 && parts[p2pIndex + 1]) {
+					const peerIdFromAddr = parts[p2pIndex + 1];
+					if (connectedPeerIds.has(peerIdFromAddr)) {
+						bootstrapConnected++;
+					}
+				}
+			} catch {
+				// Ignore invalid addresses
+			}
+		}
+
+		return this.ok({
 			peerId,
 			connectedPeersCount,
 			inboundPeersCount,
 			routingMetrics: {},
 			uptime: process.uptime(),
+			bootstrap: {
+				configured: bootstrapAddrs,
+				connected: bootstrapConnected,
+				total: bootstrapAddrs.length,
+				healthy: bootstrapAddrs.length === 0 || bootstrapConnected > 0,
+			},
 		});
 	}
 
 	private async getNodeStats(): Promise<Response> {
 		const libp2p = this.yapyapNode.getLibp2p();
 		const connections = libp2p ? libp2p.getConnections() : [];
-		return this.jsonResponse({
+		return this.ok({
 			connectedPeers: connections.map((c) => c.remotePeer.toString()),
 			inboundPeers: connections
 				.filter((c) => c.direction === "inbound")
@@ -376,7 +1393,7 @@ export class ApiModule {
 
 	private async getNodeConfig(): Promise<Response> {
 		const config = { dataDir: undefined, network: undefined };
-		return this.jsonResponse(config);
+		return this.ok(config);
 	}
 
 	private async getPeers(): Promise<Response> {
@@ -387,7 +1404,7 @@ export class ApiModule {
 			lastSeen: Date.now(),
 			isAvailable: true,
 		}));
-		return this.jsonResponse(peers);
+		return this.ok(peers);
 	}
 
 	private async getPeerInfo(peerId: string): Promise<Response> {
@@ -400,7 +1417,7 @@ export class ApiModule {
 			(c) => c.remotePeer.toString() === peerId && c.direction === "inbound",
 		);
 
-		return this.jsonResponse({
+		return this.ok({
 			peerId,
 			isAvailable,
 			lastSeen: Date.now(),
@@ -415,14 +1432,12 @@ export class ApiModule {
 			const libp2p = this.yapyapNode.getLibp2p();
 			if (!libp2p) throw new Error("libp2p not initialized");
 			await libp2p.dial(peerIdObj);
-			return this.jsonResponse({ message: "Dial request sent", peerId });
+			return this.ok({ message: "Dial request sent", peerId });
 		} catch (error) {
-			return this.jsonResponse(
-				{
-					error: "Failed to dial",
-					details: error instanceof Error ? error.message : String(error),
-				},
+			return this.fail(
 				500,
+				"Failed to dial",
+				error instanceof Error ? error.message : String(error),
 			);
 		}
 	}
@@ -434,14 +1449,12 @@ export class ApiModule {
 			const libp2p = this.yapyapNode.getLibp2p();
 			if (!libp2p) throw new Error("libp2p not initialized");
 			await libp2p.hangUp(peerIdObj);
-			return this.jsonResponse({ message: "Disconnected from peer", peerId });
+			return this.ok({ message: "Disconnected from peer", peerId });
 		} catch (error) {
-			return this.jsonResponse(
-				{
-					error: "Failed to disconnect peer",
-					details: error instanceof Error ? error.message : String(error),
-				},
+			return this.fail(
 				500,
+				"Failed to disconnect peer",
+				error instanceof Error ? error.message : String(error),
 			);
 		}
 	}
@@ -455,17 +1468,14 @@ export class ApiModule {
 					: undefined;
 		const payload = body.payload;
 		if (!targetId || payload === undefined) {
-			return this.jsonResponse(
-				{ error: "Missing targetId/to or payload" },
-				400,
-			);
+			return this.fail(400, "Missing targetId/to or payload");
 		}
 
 		try {
 			const { peerIdFromString } = await import("@libp2p/peer-id");
 			peerIdFromString(targetId);
 		} catch {
-			return this.jsonResponse({ error: "Invalid target peerId" }, 400);
+			return this.fail(400, "Invalid target peerId");
 		}
 
 		const message: YapYapMessage = {
@@ -479,7 +1489,7 @@ export class ApiModule {
 
 		try {
 			await this.yapyapNode.messageRouter.send(message);
-			return this.jsonResponse({
+			return this.ok({
 				message: "Message sent successfully",
 				messageId: message.id,
 				targetId,
@@ -488,7 +1498,7 @@ export class ApiModule {
 			});
 		} catch (error) {
 			// Router persists first; transport failures should not look like request failures.
-			return this.jsonResponse(
+			return this.ok(
 				{
 					message: "Message queued for retry",
 					messageId: message.id,
@@ -527,7 +1537,7 @@ export class ApiModule {
 					message,
 				};
 			});
-		return this.jsonResponse({ inbox });
+		return this.ok({ inbox });
 	}
 
 	private async getOutboxMessages(): Promise<Response> {
@@ -558,74 +1568,95 @@ export class ApiModule {
 				(entry: unknown) =>
 					(entry as { message?: YapYapMessage }).message?.from === selfPeerId,
 			);
-		return this.jsonResponse({ outbox });
+		return this.ok({ outbox });
 	}
 
 	private async getMessageDetails(_messageId: string): Promise<Response> {
-		return this.jsonResponse({ error: "Message not found" }, 404);
+		return this.fail(404, "Message not found");
 	}
 
 	private async getContacts(): Promise<Response> {
 		const contacts = this.yapyapNode.getDatabase().getAllContacts();
-		return this.jsonResponse({ contacts });
+		return this.ok({ contacts });
 	}
 
 	private async getContactDetails(_peerId: string): Promise<Response> {
 		const contact = this.yapyapNode.getDatabase().getContact(_peerId);
 		if (!contact) {
-			return this.jsonResponse({ error: "Contact not found" }, 404);
+			return this.fail(404, "Contact not found");
 		}
-		return this.jsonResponse(contact);
+		return this.ok(contact);
 	}
 
 	private async addOrUpdateContact(body: JsonObject): Promise<Response> {
 		try {
 			const peerId = typeof body.peerId === "string" ? body.peerId : undefined;
 			if (!peerId) {
-				return this.jsonResponse({ error: "Missing peerId" }, 400);
+				return this.fail(400, "Missing peerId");
 			}
 
-			const metadata = JSON.stringify(
-				isJsonObject(body.metadata) ? body.metadata : {},
-			);
+			const alias = typeof body.alias === "string" ? body.alias : "";
+			const metadataObj = isJsonObject(body.metadata) ? body.metadata : {};
+			const isTrusted = body.isTrusted === true;
+			const publicKey =
+				typeof body.publicKey === "string" ? body.publicKey : undefined;
+			const multiaddrs = Array.isArray(body.multiaddrs)
+				? body.multiaddrs.filter((addr) => typeof addr === "string")
+				: [];
+
+			const metadata = JSON.stringify(metadataObj);
 			const contact = {
 				peer_id: peerId,
-				alias: typeof body.alias === "string" ? body.alias : "",
+				alias,
 				last_seen: Date.now(),
 				metadata,
-				is_trusted: body.isTrusted === true,
+				is_trusted: isTrusted,
 			};
 			this.yapyapNode.getDatabase().saveContactLww(contact);
 
-			return this.jsonResponse({
+			if (publicKey) {
+				this.yapyapNode
+					.getDatabase()
+					.savePeerMetadata(peerId, "public_key", publicKey);
+			}
+
+			if (multiaddrs.length > 0) {
+				this.yapyapNode.getDatabase().saveRoutingEntryLww({
+					peer_id: peerId,
+					multiaddrs,
+					last_seen: Date.now(),
+					is_available: true,
+					ttl: 60 * 60 * 1000,
+				});
+			}
+
+			return this.ok({
 				message: "Contact saved successfully",
 				contact,
 			});
 		} catch (error) {
-			return this.jsonResponse(
-				{
-					error: "Failed to save contact",
-					details: error instanceof Error ? error.message : String(error),
-				},
+			return this.fail(
 				500,
+				"Failed to save contact",
+				error instanceof Error ? error.message : String(error),
 			);
 		}
 	}
 
 	private async removeContact(peerId: string): Promise<Response> {
 		this.yapyapNode.getDatabase().deleteContact(peerId);
-		return this.jsonResponse({
+		return this.ok({
 			message: "Contact removed successfully",
 			peerId,
 		});
 	}
 
 	private async getMessageQueueEntries(): Promise<Response> {
-		return this.jsonResponse({ messages: [] });
+		return this.ok({ messages: [] });
 	}
 
 	private async getRoutingCacheEntries(): Promise<Response> {
-		return this.jsonResponse({ entries: [] });
+		return this.ok({ entries: [] });
 	}
 
 	private handleWebSocketMessage(

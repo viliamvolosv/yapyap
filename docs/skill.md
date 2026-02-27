@@ -6,233 +6,388 @@ disable-model-invocation: false
 
 # YapYap Messenger
 
-YapYap is a decentralized, peer-to-peer messenger node and CLI library built with Node.js + TypeScript. It prioritizes reliable end-to-end encrypted delivery, offline/store-and-forward support, deduplication, and ACK-driven reliability.
+YapYap is a decentralized, peer-to-peer messenger node and CLI library built with Node.js + TypeScript. It provides end-to-end encrypted messaging, offline/store-and-forward delivery, automatic peer discovery via DHT, and ACK-driven reliability.
 
 ## Quick Install
 
-Install YapYap with a single command (no options needed):
+Install YapYap with a single command:
 
 ```bash
 curl -fsSL https://viliamvolosv.github.io/yapyap/install.sh | bash
 ```
-
-This installs the `yapyap` CLI binary to your system and sets up a default configuration.
 
 **Requirements:** Node.js ≥22.12.0
 
 ---
 
-## Basic CLI Commands
+## Quick Start
 
-### Start a YapYap node
+### 1. Start your node
 
 ```bash
 yapyap start
 ```
 
-Starts the YapYap node and connects to the P2P network. This runs continuously in the terminal.
+The node automatically:
+- Generates your cryptographic identity (Peer ID + keys)
+- Connects to the P2P network via DHT peer discovery
+- Starts the API server (default port 3000)
 
-**Options:**
-```bash
-yapyap start --data-dir /path/to/data --api-port 3000 --network /ip4/127.0.0.1/tcp/0 --listen /ip4/0.0.0.0/tcp/0 --verbose
-```
-
-- `--data-dir <path>`: Custom data directory (default: current directory/data)
-- `--api-port <number>`: Override API port
-- `--network <bootstrap>`: Bootstrap node addresses (comma-separated)
-- `--listen <multiaddr>`: Libp2p listen multiaddr
-- `--verbose`: Enable verbose logging
-
-### Send a message to a peer
-
-```bash
-yapyap send-message --to <peer-id> --payload "Your message here"
-```
-
-Sends an end-to-end encrypted message to a peer. The message is delivered via the P2P network with retry logic.
-
-**Options:**
-```bash
-yapyap send-message --to <peer-id> --payload "Hello, encrypted world!" --alias "Alice" --encrypted
-```
-
-- `--to <peer-id>`: Target peer ID (required)
-- `--payload <string>`: Message content (required)
-- `--encrypted`: Encrypt message (default: true)
-- `--alias <name>`: Alias for the contact
-
-### Get your Peer ID
+### 2. Get your Peer ID
 
 ```bash
 yapyap get-peer-id
 ```
 
-Displays your node's Peer ID and public key.
+Share this Peer ID with others so they can send you messages.
 
-**Options:**
-```bash
-yapyap get-peer-id --data-dir /path/to/data
-```
-
-- `--data-dir <path>`: Custom data directory (default: current directory/data)
-
-### View logs
+### 3. Add a contact
 
 ```bash
-yapyap logs
+yapyap contact add --peer-id <peer-id> --public-key <hex>
 ```
 
-Shows the last 50 lines of logs.
+Store the recipient's public key for end-to-end encryption.
+
+### 4. Send a message
+
+```bash
+yapyap send-message --to <peer-id> --payload "Hello!"
+```
+
+### 5. Receive messages
+
+```bash
+yapyap receive
+```
+
+---
+
+## CLI Commands Reference
+
+### Node Management
+
+#### `yapyap start` — Start the YapYap node
+
+```bash
+yapyap start [options]
+```
 
 **Options:**
+- `--data-dir <path>` — Custom data directory (default: `./data`)
+- `--api-port <number>` — Override API port (default: 3000)
+- `--network <addrs>` — Bootstrap node addresses (comma-separated)
+- `--listen <multiaddr>` — Libp2p listen address (default: `/ip4/0.0.0.0/tcp/0`)
+- `--verbose` — Enable verbose logging
+
+**Example:**
+```bash
+yapyap start --data-dir ~/.yapyap --api-port 4000 --verbose
+```
+
+#### `yapyap status` — Check node health and connections
+
+```bash
+yapyap status
+```
+
+Shows:
+- Node Peer ID and uptime
+- Connected peers count
+- Bootstrap health status
+- Network configuration
+
+---
+
+### Messaging
+
+#### `yapyap send-message` — Send a message to a peer
+
+```bash
+yapyap send-message --to <peer-id> --payload <message> [options]
+```
+
+**Required:**
+- `--to <peer-id>` — Target peer ID
+- `--payload <string>` — Message content
+
+**Options:**
+- `--encrypted` — Encrypt message (default: true)
+- `--data-dir <path>` — Custom data directory
+
+**Example:**
+```bash
+yapyap send-message --to 12D3KooWExample... --payload "Hello, encrypted!" --encrypted
+```
+
+#### `yapyap receive` — View received messages (inbox)
+
+```bash
+yapyap receive [options]
+```
+
+**Options:**
+- `--api-port <number>` — API port (if not default 3000)
+
+**Example:**
+```bash
+yapyap receive --api-port 4000
+```
+
+---
+
+### Contact Management
+
+#### `yapyap contact add` — Add or update a contact
+
+```bash
+yapyap contact add --peer-id <peer-id> [options]
+```
+
+**Required:**
+- `--peer-id <peer-id>` — Contact's Peer ID
+
+**Options:**
+- `--public-key <hex>` — Public key for encryption
+- `--alias <name>` — Human-readable alias
+- `--metadata <json>` — Additional metadata as JSON
+- `--multiaddr <addr...>` — Known multiaddrs for routing
+- `--trusted` — Mark as trusted contact
+
+**Example:**
+```bash
+yapyap contact add \
+  --peer-id 12D3KooWExample... \
+  --public-key a1b2c3d4... \
+  --alias "Alice" \
+  --multiaddr /ip4/192.168.1.1/tcp/4001/p2p/12D3KooWExample...
+```
+
+#### `yapyap contact list` — List all contacts
+
+```bash
+yapyap contact list
+```
+
+#### `yapyap contact remove` — Remove a contact
+
+```bash
+yapyap contact remove --peer-id <peer-id>
+```
+
+---
+
+### Identity & Discovery
+
+#### `yapyap get-peer-id` — Display your node identity
+
+```bash
+yapyap get-peer-id [options]
+```
+
+Shows:
+- Peer ID (libp2p identity)
+- Public Key (Ed25519, hex format)
+
+**Options:**
+- `--data-dir <path>` — Custom data directory
+
+#### `yapyap peers` — View connected peers
+
+```bash
+yapyap peers              # Connected peers
+yapyap peers known        # All known peers (from DHT/database)
+yapyap peers refresh      # Trigger peer discovery
+```
+
+---
+
+### Utilities
+
+#### `yapyap logs` — View node logs
+
+```bash
+yapyap logs [options]
+```
+
+**Options:**
+- `--tail <number>` — Show last N lines (default: 50)
+- `--filter <pattern>` — Filter by pattern
+- `--data-dir <path>` — Custom data directory
+
+**Example:**
 ```bash
 yapyap logs --tail 100 --filter "error"
 ```
 
-- `--tail <number>`: Show last N lines (default: 50)
-- `--filter <pattern>`: Filter logs by pattern
+#### `yapyap api-docs` — Print API documentation URL
 
-### Display version information
+```bash
+yapyap api-docs
+```
+
+Opens API documentation at `http://127.0.0.1:<port>/api/docs`
+
+#### `yapyap version` — Display version information
 
 ```bash
 yapyap version
 ```
 
-Shows YapYap version, build time, build environment, and platform information.
+Shows version, platform, and build info.
 
 ---
 
 ## Key Features
 
-### End-to-End Encryption
-All messages are encrypted using Noise XX/IK protocol and Ed25519 signatures. Only the intended recipient can decrypt messages.
+### 🔐 End-to-End Encryption
+Messages encrypted with Noise protocol + Ed25519 signatures. Only recipients can decrypt.
 
-### Offline Delivery
-YapYap supports store-and-forward delivery. Messages are queued locally and delivered when the peer comes online.
+### 📦 Offline Delivery
+Store-and-forward: messages queued locally and delivered when recipient comes online.
 
-### Deduplication
-The system maintains a deduplication cache to prevent duplicate message processing.
+### 🔍 Automatic Peer Discovery
+DHT-based discovery finds peers automatically — no manual bootstrap configuration needed.
 
-### ACK-Driven Reliability
-Messages require acknowledgments for reliable delivery. Failed transmissions are automatically retried with exponential backoff.
+### ✅ ACK-Driven Reliability
+Messages require acknowledgments. Failed deliveries retry with exponential backoff.
 
-### Persistence
-Messages and processed messages are persisted in SQLite using `better-sqlite3` with tables for `message_queue` and `processed_messages`.
+### 💾 Persistence
+SQLite database stores messages, contacts, and peer routing information.
 
 ---
 
+## Common Workflows
 
-## Common Use Cases
+### First-time Setup
 
-### Setting up a new YapYap instance
 ```bash
-# Install
+# 1. Install
 curl -fsSL https://viliamvolosv.github.io/yapyap/install.sh | bash
 
-# Start the node
+# 2. Start node (generates identity automatically)
 yapyap start
 
-# Get your Peer ID
+# 3. In another terminal, get your Peer ID
 yapyap get-peer-id
 ```
 
-### Sending encrypted messages
+### Send Message to a New Contact
+
 ```bash
-# After starting the node and connecting to peers, send messages
-yapyap send-message --to <peer-id> --payload "Hello, encrypted world!"
+# 1. Get recipient's Peer ID and public key
+# (they run: yapyap get-peer-id)
+
+# 2. Add them as a contact
+yapyap contact add \
+  --peer-id 12D3KooWRecipient... \
+  --public-key a1b2c3d4e5f6... \
+  --alias "Friend"
+
+# 3. Send encrypted message
+yapyap send-message \
+  --to 12D3KooWRecipient... \
+  --payload "Hello!" \
+  --encrypted
 ```
 
-### Monitoring message delivery
-```bash
-# View logs to see message queue and delivery status
-yapyap logs --tail 50
+### Check Message Delivery
 
-# View more detailed logs with filtering
-yapyap logs --tail 100 --filter "error"
+```bash
+# View inbox
+yapyap receive
+
+# Check node status and connections
+yapyap status
+
+# View logs for delivery confirmation
+yapyap logs --filter "message"
 ```
 
-### Checking logs and debugging
-The CLI runs in the terminal where it's started. Look for:
-- Connection success/failure messages
-- Message transmission logs
-- ACK confirmations
-- Retry attempts
+### Monitor Network
 
-Use `yapyap logs` to view historical logs even after the node has stopped.
+```bash
+# See connected peers
+yapyap status
+
+# Refresh peer discovery
+yapyap peers refresh
+
+# View all known peers
+yapyap peers known
+```
 
 ---
 
 ## Troubleshooting
 
+### Can't send message — "peer not found"
+
+Add the contact with their public key first:
+```bash
+yapyap contact add --peer-id <id> --public-key <hex>
+```
+
+### No peers connected
+
+Check bootstrap health:
+```bash
+yapyap status
+```
+
+The node should auto-discover peers via DHT. Wait ~30 seconds or run:
+```bash
+yapyap peers refresh
+```
+
+### View detailed errors
+
+```bash
+yapyap logs --tail 100 --filter "error"
+```
+
 ### Node won't start
-- Check Node.js version: `node --version` (requires ≥22.12.0)
-- Verify database permissions in the data directory
-- Check for port conflicts (default ports for libp2p)
-- Run with `--verbose` flag to see detailed error messages: `yapyap start --verbose`
 
-### Messages not delivering
-- Check logs for transmission errors: `yapyap logs --filter "error"`
-- Verify peer ID is correct: `yapyap get-peer-id`
-- Ensure both nodes have proper NAT traversal configured
-- Check if peer exists in contacts: use API to query contacts
+```bash
+# Check Node.js version (requires ≥22.12.0)
+node --version
 
-### Database issues
-- Database is created automatically when starting the node
-- Location is typically in current directory/data (use `--data-dir` to specify)
-- Database uses SQLite with better-sqlite3
-- Check logs for database-related errors: `yapyap logs --filter "database"`
+# Run with verbose logging
+yapyap start --verbose
 
-### Viewing logs
-- View recent logs: `yapyap logs`
-- View more lines: `yapyap logs --tail 100`
-- Filter for specific patterns: `yapyap logs --filter "error"` or `yapyap logs --filter "message"`
-- Logs file location: current directory/data/yapyap.log
+# Try custom data directory
+yapyap start --data-dir /tmp/yapyap-test
+```
 
 ---
 
 ## Security Notes
 
-- **Never share your peer ID** — it's your network identity
-- **Messages are encrypted end-to-end** — only recipients can read them
-- **Peer connections are authenticated** using Ed25519 signatures
-- **Network traffic is encrypted** using Noise protocol
-- Do not enable debug mode in production environments
+- **Share your Peer ID** — others need it to send you messages
+- **Keep private keys secure** — stored in `data/` directory
+- **Messages are E2E encrypted** — only recipients can read them
+- **Verify public keys** — ensure you have the correct key for each contact
 
 ---
 
-## Example Workflow
+## API Access
 
-1. **Install YapYap:**
-   ```bash
-   curl -fsSL https://viliamvolosv.github.io/yapyap/install.sh | bash
-   ```
+The REST API is available at `http://127.0.0.1:3000` (or custom `--api-port`).
 
-2. **Start your node:**
-   ```bash
-   yapyap start
-   ```
+**Documentation:** `http://127.0.0.1:<port>/api/docs`
 
-3. **Get your Peer ID:**
-   ```bash
-   yapyap get-peer-id
-   ```
-
-4. **Share your Peer ID** with others so they can send you messages
-
-5. **Send encrypted messages to peers:**
-   ```bash
-   yapyap send-message --to <peer-id> --payload "Hello, encrypted message!"
-   ```
-
-6. **Monitor logs and delivery status:**
-   ```bash
-   yapyap logs --tail 50
-   ```
+**Key endpoints:**
+- `GET /api/node/info` — Node status
+- `GET /api/peers` — Connected peers
+- `POST /api/messages/send` — Send message
+- `GET /api/messages/inbox` — Received messages
+- `GET /api/database/contacts` — List contacts
+- `POST /api/database/contacts` — Add contact
 
 ---
 
-## Related Resources
+## Resources
 
-- **Project GitHub:** https://github.com/viliamvolosv/yapyap
-- **Quick Install:** https://viliamvolosv.github.io/yapyap/install.sh
-- **AGENT skill:** Get started quickly with `curl -s https://viliamvolosv.github.io/yapyap/skill.md | bash`
+- **GitHub:** https://github.com/viliamvolosv/yapyap
+- **API Docs:** `yapyap api-docs` or `http://127.0.0.1:<port>/api/docs`
+- **Install Script:** https://viliamvolosv.github.io/yapyap/install.sh
