@@ -9,6 +9,7 @@ const __dirname = dirname(__filename);
 
 import { yamux } from "@chainsafe/libp2p-yamux";
 import { generateKeyPair, privateKeyFromRaw } from "@libp2p/crypto/keys";
+import type { PrivateKey } from "@libp2p/interface";
 import { createFromPrivKey } from "@libp2p/peer-id-factory";
 import { tcp } from "@libp2p/tcp";
 import { webSockets } from "@libp2p/websockets";
@@ -20,7 +21,6 @@ import { ApiModule } from "../api/index.js";
 import { YapYapNode } from "../core/node.js";
 import { DatabaseManager } from "../database/index.js";
 import type { YapYapMessage } from "../message/message.js";
-import type { PrivateKey } from "@libp2p/interface";
 
 const DEFAULT_DATA_DIR = join(process.cwd(), "data");
 const DEFAULT_BOOTSTRAP_ADDRS: string[] = parseBootstrapAddrs(
