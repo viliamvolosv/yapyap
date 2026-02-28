@@ -33,6 +33,7 @@
 		"test:integration:docker:scenario": "bash tests/integration/docker/run.sh",
 		"test:integration:discovery": "bash tests/integration/docker/discovery-test.sh",
 		"test:integration:message-forward": "bash tests/integration/docker/message-forward-test.sh",
+		"test:integration:cross-network": "bash tests/integration/docker/cross-network-test.sh",
 		"test:integration:all": "npm run test:integration:docker",
 		"lint": "biome lint .",
 		"format": "biome format . --write",

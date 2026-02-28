@@ -1,0 +1,38 @@
+scenario:
+  name: cross-network-messaging
+  description: |
+    Verifies that nodea and nodeb can exchange messages when they are in
+    SEPARATE Docker networks, using bootstrap peer for discovery.
+    
+    This demonstrates how DEFAULT_BOOTSTRAP_ADDRS enables cross-network
+    communication in the YapYap P2P messenger.
+    
+    Network topology:
+      - nodea: network-a (isolated, cannot reach network-b directly)
+      - nodeb: network-b (isolated, cannot reach network-a directly)
+      - bootstrap: connected to both networks (rendezvous point)
+    
+    Test flow:
+      1. Bootstrap node starts (connected to both networks)
+      2. Node A starts in network-a, connects to bootstrap
+      3. Node B starts in network-b, connects to bootstrap
+      4. Both nodes discover each other via DHT through bootstrap
+      5. Node A sends message to Node B
+      6. Message is queued for delivery (retry mechanism)
+    
+    Expected behavior:
+      - Network isolation prevents direct nodea<->nodeb communication
+      - Both nodes connect to bootstrap peer
+      - Bootstrap has both nodes as peers
+      - Message is accepted (status 202) and queued for delivery
+      - Retry mechanism attempts delivery when peer becomes reachable
+    
+    This simulates real-world scenario where nodes use DEFAULT_BOOTSTRAP_ADDRS
+    to discover peers across different networks (NAT, firewalls, etc.).
+  steps:
+    - start: [bootstrap, nodea, nodeb]
+    - wait: bootstrap-discovery
+    - verify: network-isolation
+    - verify: bootstrap-connections
+    - send: nodea -> nodeb
+    - expect: message-queued

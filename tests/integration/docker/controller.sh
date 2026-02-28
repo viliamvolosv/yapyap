@@ -874,6 +874,53 @@ run_handshake_validation() {
   echo "[controller] Handshake validation validated successfully"
 }
 
+run_cli_queries() {
+  echo "[controller] Testing CLI query commands against running node..."
+
+  echo "[controller] Testing /api/node/info endpoint (status command)..."
+  NODE_INFO="$(fetch_json http://node1:3000/api/node/info)"
+  if ! echo "$NODE_INFO" | node -e "const data=JSON.parse(await new Promise(r => { let d=\"\"; process.stdin.on(\"data\", c => d+=c); process.stdin.on(\"end\", () => r(d)); })); if(!data.peerId){console.error('missing-peerId'); process.exit(1)}"; then
+    PASSED=false
+    append_error "cli_query_node_info_failed"
+  fi
+  echo "[controller] Node info query succeeded"
+
+  echo "[controller] Testing /api/messages/inbox endpoint (receive command)..."
+  INBOX="$(fetch_json http://node1:3000/api/messages/inbox)"
+  if ! echo "$INBOX" | node -e "const data=JSON.parse(await new Promise(r => { let d=\"\"; process.stdin.on(\"data\", c => d+=c); process.stdin.on(\"end\", () => r(d)); })); if(!Array.isArray(data.inbox)){console.error('invalid-inbox'); process.exit(1)}"; then
+    PASSED=false
+    append_error "cli_query_receive_failed"
+  fi
+  echo "[controller] Receive query succeeded"
+
+  echo "[controller] Testing /api/peers endpoint (peers command)..."
+  PEERS="$(fetch_json http://node1:3000/api/peers)"
+  if ! echo "$PEERS" | node -e "const data=JSON.parse(await new Promise(r => { let d=\"\"; process.stdin.on(\"data\", c => d+=c); process.stdin.on(\"end\", () => r(d)); })); if(!Array.isArray(data)){console.error('invalid-peers'); process.exit(1)}"; then
+    PASSED=false
+    append_error "cli_query_peers_failed"
+  fi
+  echo "[controller] Peers query succeeded"
+
+  echo "[controller] Testing /api/database/contacts endpoint (contacts list command)..."
+  CONTACTS="$(fetch_json http://node1:3000/api/database/contacts)"
+  if ! echo "$CONTACTS" | node -e "const data=JSON.parse(await new Promise(r => { let d=\"\"; process.stdin.on(\"data\", c => d+=c); process.stdin.on(\"end\", () => r(d)); })); if(!Array.isArray(data.contacts)){console.error('invalid-contacts'); process.exit(1)}"; then
+    PASSED=false
+    append_error "cli_query_contacts_failed"
+  fi
+  echo "[controller] Contacts list query succeeded"
+
+  echo "[controller] Testing /health endpoint..."
+  HEALTH="$(fetch_json http://node1:3000/health)"
+  if ! echo "$HEALTH" | node -e "const data=JSON.parse(await new Promise(r => { let d=\"\"; process.stdin.on(\"data\", c => d+=c); process.stdin.on(\"end\", () => r(d)); })); if(data.status!=='ok'){console.error('unhealthy'); process.exit(1)}"; then
+    PASSED=false
+    append_error "cli_query_health_failed"
+  fi
+  echo "[controller] Health check succeeded"
+
+  echo "[controller] All CLI query commands validated successfully"
+}
+
+
 run_privacy_validation() {
   NODE2_PEER_ID="$(fetch_json http://node2:3000/api/node/info | node -e "const data=JSON.parse(await new Promise(r => { let d=\"\"; process.stdin.on(\"data\", c => d+=c); process.stdin.on(\"end\", () => r(d)); })); console.log(data.peerId)")"
   NODE1_PEER_ID="$(fetch_json http://node1:3000/api/node/info | node -e "const data=JSON.parse(await new Promise(r => { let d=\"\"; process.stdin.on(\"data\", c => d+=c); process.stdin.on(\"end\", () => r(d)); })); console.log(data.peerId)")"
@@ -953,6 +1000,9 @@ case "$SCENARIO" in
     ;;
   privacy-validation)
     run_privacy_validation
+    ;;
+  cli-queries)
+    run_cli_queries
     ;;
   *)
     echo "[controller] Unsupported scenario: $SCENARIO" >&2

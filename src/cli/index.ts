@@ -14,7 +14,7 @@ import { generateKeyPair, privateKeyFromRaw } from "@libp2p/crypto/keys";
 import { identify } from "@libp2p/identify";
 import type { PrivateKey } from "@libp2p/interface";
 import { kadDHT } from "@libp2p/kad-dht";
-import { createFromPrivKey } from "@libp2p/peer-id-factory";
+import { peerIdFromPrivateKey } from "@libp2p/peer-id";
 import { ping } from "@libp2p/ping";
 import { tcp } from "@libp2p/tcp";
 import { webSockets } from "@libp2p/websockets";
@@ -23,14 +23,12 @@ import { Command } from "commander";
 import { createLibp2p } from "libp2p";
 import pino from "pino";
 import { ApiModule } from "../api/index.js";
+import { getBootstrapAddrs } from "../config/index.js";
 import { YapYapNode } from "../core/node.js";
 import { DatabaseManager } from "../database/index.js";
 import type { YapYapMessage } from "../message/message.js";
 
 const DEFAULT_DATA_DIR = join(process.cwd(), "data");
-const DEFAULT_BOOTSTRAP_ADDRS: string[] = parseBootstrapAddrs(
-	process.env.YAPYAP_DEFAULT_BOOTSTRAP_ADDRS,
-);
 
 type ApiResponse<T> =
 	| { success: true; data: T }
@@ -107,12 +105,15 @@ function resolveBootstrapAddrs(options: { cliNetwork?: string }): {
 		return { addrs: parseBootstrapAddrs(options.cliNetwork), source: "cli" };
 	}
 
-	const envAddrs = parseBootstrapAddrs(process.env.YAPYAP_BOOTSTRAP_ADDRS);
+	const envAddrs = getBootstrapAddrs(process.env.YAPYAP_BOOTSTRAP_ADDRS);
 	if (envAddrs.length > 0) {
-		return { addrs: envAddrs, source: "env" };
+		return {
+			addrs: envAddrs,
+			source: process.env.YAPYAP_BOOTSTRAP_ADDRS ? "env" : "default",
+		};
 	}
 
-	return { addrs: DEFAULT_BOOTSTRAP_ADDRS, source: "default" };
+	return { addrs: [], source: "none" };
 }
 
 function resolveApiBaseUrl(options: { apiUrl?: string; apiPort?: string }) {
@@ -125,36 +126,253 @@ function resolveApiBaseUrl(options: { apiUrl?: string; apiPort?: string }) {
 	return `http://127.0.0.1:${port}`;
 }
 
+/**
+ * Makes an API request with retry logic for handling node startup delays.
+ * Retries on connection errors and 503 Service Unavailable responses.
+ */
 async function apiRequest<T>(
-	options: { apiUrl?: string; apiPort?: string },
+	options: { apiUrl?: string; apiPort?: string; verbose?: boolean },
 	path: string,
 	method: "GET" | "POST" | "DELETE" = "GET",
 	body?: Record<string, unknown>,
+	retryConfig: { maxRetries?: number; retryDelayMs?: number } = {},
 ): Promise<ApiResponse<T>> {
+	const { maxRetries = 3, retryDelayMs = 500 } = retryConfig;
 	const baseUrl = resolveApiBaseUrl(options);
-	const response = await fetch(`${baseUrl}${path}`, {
-		method,
-		headers: body ? { "Content-Type": "application/json" } : undefined,
-		body: body ? JSON.stringify(body) : undefined,
-	});
+	const url = `${baseUrl}${path}`;
+	const verbose = options.verbose === true;
 
-	let payload: ApiResponse<T> | null = null;
-	try {
-		payload = (await response.json()) as ApiResponse<T>;
-	} catch {
-		payload = null;
+	if (verbose) {
+		console.error(`[verbose] API request: ${method} ${url}`);
 	}
 
-	if (!payload) {
-		return {
-			success: false,
-			error: {
-				message: `Unexpected API response (status ${response.status})`,
+	let lastError: Error | undefined;
+
+	for (let attempt = 0; attempt <= maxRetries; attempt++) {
+		if (verbose) {
+			console.error(`[verbose] Attempt ${attempt + 1}/${maxRetries + 1}`);
+		}
+
+		try {
+			const startTime = Date.now();
+			const response = await fetch(url, {
+				method,
+				headers: body ? { "Content-Type": "application/json" } : undefined,
+				body: body ? JSON.stringify(body) : undefined,
+				signal: AbortSignal.timeout(5000), // 5 second timeout per request
+			});
+			const duration = Date.now() - startTime;
+
+			if (verbose) {
+				console.error(`[verbose] Response: ${response.status} (${duration}ms)`);
+			}
+
+			// Handle 503 Service Unavailable - node is still starting
+			if (response.status === 503) {
+				lastError = new Error(
+					"Node is still starting (503 Service Unavailable)",
+				);
+				if (attempt < maxRetries) {
+					const delay = retryDelayMs * (attempt + 1);
+					if (verbose) {
+						console.error(
+							`[verbose] Node starting up, retrying in ${delay}ms...`,
+						);
+					}
+					await sleep(delay);
+					continue;
+				}
+				return {
+					success: false,
+					error: {
+						message:
+							"Node is still starting. Please wait a few seconds and try again.",
+						details: { status: response.status, url },
+					},
+				};
+			}
+
+			let payload: ApiResponse<T> | null = null;
+			const contentType = response.headers.get("content-type");
+
+			// Check if response is JSON before parsing
+			if (contentType?.includes("application/json")) {
+				try {
+					const rawPayload = await response.json();
+					payload = rawPayload as ApiResponse<T>;
+					if (verbose) {
+						console.error(
+							`[verbose] Response payload: ${JSON.stringify(payload).slice(0, 200)}...`,
+						);
+					}
+				} catch (parseError) {
+					// Response was JSON content-type but failed to parse
+					return {
+						success: false,
+						error: {
+							message: "Invalid JSON response from node API",
+							details: {
+								status: response.status,
+								url,
+								parseError:
+									parseError instanceof Error
+										? parseError.message
+										: String(parseError),
+							},
+						},
+					};
+				}
+			} else {
+				// Non-JSON response (likely HTML error page or empty)
+				const textBody = await response.text().catch(() => "");
+				if (verbose) {
+					console.error(
+						`[verbose] Non-JSON response (${contentType}): ${textBody.slice(0, 100)}`,
+					);
+				}
+				return {
+					success: false,
+					error: {
+						message: `Unexpected API response format (status ${response.status})`,
+						details: {
+							status: response.status,
+							url,
+							contentType: contentType ?? "unknown",
+							bodyPreview: textBody.slice(0, 200),
+						},
+					},
+				};
+			}
+
+			// Payload is null after successful JSON parse - malformed API response
+			if (!payload) {
+				return {
+					success: false,
+					error: {
+						message: "Empty response from node API",
+						details: { status: response.status, url },
+					},
+				};
+			}
+
+			return payload;
+		} catch (error) {
+			lastError = error instanceof Error ? error : new Error(String(error));
+
+			if (verbose) {
+				console.error(`[verbose] Request error: ${lastError.message}`);
+			}
+
+			// Check if it's a connection error (node not running yet)
+			const isConnectionError =
+				lastError.name === "TypeError" &&
+				(lastError.message.includes("fetch failed") ||
+					lastError.message.includes("ECONNREFUSED") ||
+					lastError.message.includes("ENOTFOUND"));
+
+			const isTimeoutError =
+				lastError.name === "TimeoutError" ||
+				lastError.message.includes("timed out");
+
+			// Retry on connection errors or timeouts
+			if ((isConnectionError || isTimeoutError) && attempt < maxRetries) {
+				const delay = retryDelayMs * (attempt + 1);
+				if (verbose) {
+					console.error(
+						`[verbose] Connection error/timeout, retrying in ${delay}ms...`,
+					);
+				}
+				await sleep(delay);
+				continue;
+			}
+
+			// Non-retryable error or max retries reached
+			if (verbose) {
+				console.error(`[verbose] Max retries reached or non-retryable error`);
+			}
+			break;
+		}
+	}
+
+	// All retries exhausted or non-retryable error
+	const errorMessage = lastError?.message ?? "Unknown error occurred";
+	const isConnectionError =
+		errorMessage.includes("ECONNREFUSED") ||
+		errorMessage.includes("fetch failed");
+
+	return {
+		success: false,
+		error: {
+			message: isConnectionError
+				? "Cannot connect to YapYap node. Is it running? Try: yapyap start"
+				: `API request failed: ${errorMessage}`,
+			details: {
+				url,
+				attempts: maxRetries + 1,
+				error: lastError?.name ?? "Unknown",
 			},
-		};
+		},
+	};
+}
+
+/**
+ * Sleep for a given number of milliseconds.
+ */
+function sleep(ms: number): Promise<void> {
+	return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Checks if the node API is healthy and ready to accept requests.
+ * Polls the /health endpoint with retry logic.
+ */
+async function waitForNodeHealth(
+	options: { apiUrl?: string; apiPort?: string; verbose?: boolean },
+	timeoutMs: number = 10000,
+	pollIntervalMs: number = 500,
+): Promise<{ healthy: boolean; error?: string }> {
+	const startTime = Date.now();
+	const verbose = options.verbose === true;
+
+	if (verbose) {
+		console.error(
+			`[verbose] Waiting for node to be healthy (timeout: ${timeoutMs}ms)...`,
+		);
 	}
 
-	return payload;
+	let attempts = 0;
+	while (Date.now() - startTime < timeoutMs) {
+		attempts++;
+		const response = await apiRequest<{ status: string; timestamp: number }>(
+			options,
+			"/health",
+			"GET",
+			undefined,
+			{ maxRetries: 0, retryDelayMs: pollIntervalMs },
+		);
+
+		if (response.success && response.data.status === "ok") {
+			if (verbose) {
+				console.error(
+					`[verbose] Node is healthy after ${attempts} attempts (${Date.now() - startTime}ms)`,
+				);
+			}
+			return { healthy: true };
+		}
+
+		if (verbose && attempts % 5 === 0) {
+			console.error(
+				`[verbose] Still waiting for node... (${attempts} attempts, ${Date.now() - startTime}ms elapsed)`,
+			);
+		}
+
+		await sleep(pollIntervalMs);
+	}
+
+	return {
+		healthy: false,
+		error: `Node did not become healthy within ${timeoutMs}ms`,
+	};
 }
 
 function parseJsonArg(value?: string): Record<string, unknown> | undefined {
@@ -170,12 +388,105 @@ function parseJsonArg(value?: string): Record<string, unknown> | undefined {
 	return undefined;
 }
 
+/**
+ * Prints user-friendly error messages for API failures.
+ * Translates technical error details into actionable user guidance.
+ */
 function printApiError(resp: ApiResponse<unknown>): void {
 	if (resp.success) return;
-	const details = resp.error.details
-		? ` (${JSON.stringify(resp.error.details)})`
-		: "";
-	console.error(`${resp.error.message}${details}`);
+
+	const error = resp.error;
+	const details = error.details as Record<string, unknown> | undefined;
+
+	// Provide user-friendly messages based on error type
+	let userMessage = error.message;
+	let troubleshooting: string[] = [];
+
+	// Connection errors
+	if (error.message.includes("Cannot connect to YapYap node")) {
+		userMessage = "Cannot connect to the YapYap node";
+		troubleshooting = [
+			"Make sure the node is running: yapyap start",
+			"Check if the API port is correct (default: 3000)",
+			"Use --api-port to specify a custom port if needed",
+		];
+	}
+
+	// Node still starting
+	if (error.message.includes("still starting")) {
+		userMessage =
+			"The node is still starting up. Please wait a moment and try again.";
+		troubleshooting = [
+			"Wait 5-10 seconds for the node to fully initialize",
+			"Check node status with: yapyap status",
+		];
+	}
+
+	// Timeout errors
+	if (error.message.includes("timed out")) {
+		userMessage = "Request timed out. The node may be busy or unreachable.";
+		troubleshooting = [
+			"Try again in a few seconds",
+			"Check if your node is running: yapyap status",
+		];
+	}
+
+	// Invalid JSON
+	if (error.message.includes("Invalid JSON")) {
+		userMessage = "Received an unexpected response from the node";
+		troubleshooting = [
+			"Try restarting the node: yapyap start",
+			"If the problem persists, check the node logs: yapyap logs",
+		];
+	}
+
+	// 404 errors
+	if (details?.status === 404) {
+		userMessage =
+			"API endpoint not found. The node may be running an incompatible version.";
+		troubleshooting = [
+			"Check your YapYap version: yapyap version",
+			"Try restarting with the latest version",
+		];
+	}
+
+	// 500 errors
+	if (details?.status === 500) {
+		userMessage = "Internal node error. Check the node logs for details.";
+		troubleshooting = [
+			"View node logs: yapyap logs --tail 100",
+			"Try restarting the node if the problem persists",
+		];
+	}
+
+	console.error(`Error: ${userMessage}`);
+
+	if (troubleshooting.length > 0) {
+		console.error("\nTroubleshooting:");
+		for (const tip of troubleshooting) {
+			console.error(`  • ${tip}`);
+		}
+	}
+
+	// Show technical details only if available and not already covered
+	if (
+		details &&
+		Object.keys(details).length > 0 &&
+		!userMessage.includes("technical")
+	) {
+		const { status, url, ...otherDetails } = details;
+		if (status || url) {
+			const techDetails: string[] = [];
+			if (status) techDetails.push(`Status: ${status}`);
+			if (url) techDetails.push(`URL: ${url}`);
+			if (techDetails.length > 0) {
+				console.error(`\nTechnical details: ${techDetails.join(" | ")}`);
+			}
+		}
+		if (otherDetails && Object.keys(otherDetails).length > 0) {
+			console.error(`Details: ${JSON.stringify(otherDetails)}`);
+		}
+	}
 }
 
 async function getOrCreateNodeKey(db: DatabaseManager): Promise<PrivateKey> {
@@ -192,10 +503,10 @@ async function getOrCreateNodeKey(db: DatabaseManager): Promise<PrivateKey> {
 	return generated;
 }
 
-type PeerIdKeyArg = Parameters<typeof createFromPrivKey>[0];
+type PeerIdKeyArg = Parameters<typeof peerIdFromPrivateKey>[0];
 
 async function getPeerIdFromPrivateKey(key: PrivateKey): Promise<string> {
-	const peerId = await createFromPrivKey(key as unknown as PeerIdKeyArg);
+	const peerId = await peerIdFromPrivateKey(key as unknown as PeerIdKeyArg);
 	return peerId.toString();
 }
 
@@ -529,11 +840,35 @@ contact
 	.description("List contacts")
 	.option("--api-url <url>", "Override API base URL")
 	.option("--api-port <number>", "Override API port")
+	.option("--no-wait", "Skip waiting for node to be healthy")
+	.option("--verbose", "Enable verbose output for debugging")
 	.action(async (options) => {
 		const logger = createLogger();
+
+		// Wait for node to be healthy before querying
+		if (!options.noWait) {
+			const health = await waitForNodeHealth(
+				{
+					apiUrl: options.apiUrl,
+					apiPort: options.apiPort,
+					verbose: options.verbose,
+				},
+				10000,
+			);
+			if (!health.healthy) {
+				logger.error(`Node is not ready: ${health.error}`);
+				logger.info("Make sure the node is running: yapyap start");
+				process.exit(1);
+			}
+		}
+
 		try {
 			const response = await apiRequest<{ contacts: unknown[] }>(
-				{ apiUrl: options.apiUrl, apiPort: options.apiPort },
+				{
+					apiUrl: options.apiUrl,
+					apiPort: options.apiPort,
+					verbose: options.verbose,
+				},
 				"/api/database/contacts",
 				"GET",
 			);
@@ -593,11 +928,35 @@ program
 	.description("Show inbox messages")
 	.option("--api-url <url>", "Override API base URL")
 	.option("--api-port <number>", "Override API port")
+	.option("--no-wait", "Skip waiting for node to be healthy")
+	.option("--verbose", "Enable verbose output for debugging")
 	.action(async (options) => {
 		const logger = createLogger();
+
+		// Wait for node to be healthy before querying
+		if (!options.noWait) {
+			const health = await waitForNodeHealth(
+				{
+					apiUrl: options.apiUrl,
+					apiPort: options.apiPort,
+					verbose: options.verbose,
+				},
+				10000,
+			);
+			if (!health.healthy) {
+				logger.error(`Node is not ready: ${health.error}`);
+				logger.info("Make sure the node is running: yapyap start");
+				process.exit(1);
+			}
+		}
+
 		try {
 			const response = await apiRequest<{ inbox: unknown[] }>(
-				{ apiUrl: options.apiUrl, apiPort: options.apiPort },
+				{
+					apiUrl: options.apiUrl,
+					apiPort: options.apiPort,
+					verbose: options.verbose,
+				},
 				"/api/messages/inbox",
 				"GET",
 			);
@@ -622,40 +981,56 @@ program
 	.description("Show node health and peer connections")
 	.option("--api-url <url>", "Override API base URL")
 	.option("--api-port <number>", "Override API port")
+	.option("--no-wait", "Skip waiting for node to be healthy")
+	.option("--verbose", "Enable verbose output for debugging")
 	.action(async (options) => {
 		const logger = createLogger();
-		try {
-			const apiOptions = { apiUrl: options.apiUrl, apiPort: options.apiPort };
-			const info = await apiRequest<unknown>(apiOptions, "/api/node/info");
-			const peers = await apiRequest<unknown>(apiOptions, "/api/peers");
 
-			if (!info.success) {
-				printApiError(info);
-				process.exit(1);
-			}
-
-			if (!peers.success) {
-				printApiError(peers);
-				process.exit(1);
-			}
-
-			console.log(
-				JSON.stringify(
-					{
-						node: info.data,
-						peers: peers.data,
-					},
-					null,
-					2,
-				),
+		// Wait for node to be healthy before querying
+		if (!options.noWait) {
+			const health = await waitForNodeHealth(
+				{
+					apiUrl: options.apiUrl,
+					apiPort: options.apiPort,
+					verbose: options.verbose,
+				},
+				10000,
 			);
-		} catch (error) {
-			logger.error({
-				msg: "Failed to get status",
-				error: error instanceof Error ? error.message : String(error),
-			});
+			if (!health.healthy) {
+				logger.error(`Node is not ready: ${health.error}`);
+				logger.info("Make sure the node is running: yapyap start");
+				process.exit(1);
+			}
+		}
+
+		const apiOptions = {
+			apiUrl: options.apiUrl,
+			apiPort: options.apiPort,
+			verbose: options.verbose,
+		};
+		const info = await apiRequest<unknown>(apiOptions, "/api/node/info");
+		const peers = await apiRequest<unknown>(apiOptions, "/api/peers");
+
+		if (!info.success) {
+			printApiError(info);
 			process.exit(1);
 		}
+
+		if (!peers.success) {
+			printApiError(peers);
+			process.exit(1);
+		}
+
+		console.log(
+			JSON.stringify(
+				{
+					node: info.data,
+					peers: peers.data,
+				},
+				null,
+				2,
+			),
+		);
 	});
 
 /* =======================================================
@@ -669,10 +1044,34 @@ program
 	.option("--api-port <number>", "Override API port")
 	.option("--discover", "Trigger peer discovery")
 	.option("--dial", "Dial all cached peers")
+	.option("--no-wait", "Skip waiting for node to be healthy")
+	.option("--verbose", "Enable verbose output for debugging")
 	.action(async (options) => {
 		const logger = createLogger();
+
+		// Wait for node to be healthy before querying (unless using --no-wait)
+		if (!options.noWait && !options.discover && !options.dial) {
+			const health = await waitForNodeHealth(
+				{
+					apiUrl: options.apiUrl,
+					apiPort: options.apiPort,
+					verbose: options.verbose,
+				},
+				10000,
+			);
+			if (!health.healthy) {
+				logger.error(`Node is not ready: ${health.error}`);
+				logger.info("Make sure the node is running: yapyap start");
+				process.exit(1);
+			}
+		}
+
 		try {
-			const apiOptions = { apiUrl: options.apiUrl, apiPort: options.apiPort };
+			const apiOptions = {
+				apiUrl: options.apiUrl,
+				apiPort: options.apiPort,
+				verbose: options.verbose,
+			};
 
 			if (options.discover) {
 				const resp = await apiRequest<unknown>(

@@ -1,0 +1,10 @@
+scenario:
+  name: cli-queries
+  description: Test CLI query commands (status, receive, peers, contacts) against a running node
+  steps:
+    - start: [node1]
+    - wait: health
+    - query: node1 status
+    - query: node1 receive
+    - query: node1 peers
+    - expect: all_queries_succeed

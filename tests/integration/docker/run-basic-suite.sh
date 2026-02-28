@@ -21,6 +21,7 @@ scenarios=(
   "queue-cleanup"
   "handshake-validation"
   "privacy-validation"
+  "cli-queries"
 )
 
 echo "========================================"

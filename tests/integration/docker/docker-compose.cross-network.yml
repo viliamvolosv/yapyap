@@ -1,0 +1,134 @@
+# Docker Compose for Cross-Network Messaging Test
+# This configuration places nodea and nodeb in SEPARATE Docker networks
+# to verify that messaging works through DEFAULT_BOOTSTRAP_ADDRS
+#
+# Network topology:
+#   nodea: network-a (isolated) - cannot reach nodeb directly
+#   nodeb: network-b (isolated) - cannot reach nodea directly
+#   bootstrap: connected to both networks (simulates external bootstrap)
+#
+# Both nodes use bootstrap for peer discovery, demonstrating how
+# DEFAULT_BOOTSTRAP_ADDRS enables cross-network communication
+
+networks:
+  network-a:
+    driver: bridge
+  network-b:
+    driver: bridge
+
+volumes:
+  nodea-data:
+  nodeb-data:
+  bootstrap-data:
+
+services:
+  # Bootstrap node - simulates external bootstrap peer (like 217.177.72.152:4001)
+  # Connected to BOTH networks to enable cross-network discovery
+  bootstrap:
+    build:
+      context: ../../..
+      dockerfile: tests/integration/docker/Dockerfile.node
+    hostname: bootstrap
+    networks:
+      - network-a
+      - network-b
+    restart: always
+    volumes:
+      - bootstrap-data:/data
+    environment:
+      - YAPYAP_NODE_NAME=bootstrap
+      - YAPYAP_DATA_DIR=/data
+      - YAPYAP_API_PORT=3000
+      - YAPYAP_LISTEN_ADDR=/ip4/0.0.0.0/tcp/4001
+      - YAPYAP_BOOTSTRAP_ADDRS=
+      - YAPYAP_TEST_MODE=true
+      - NODE_ENV=development
+      - YAPYAP_LOG_LEVEL=debug
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  # Node A - in isolated network-a
+  # Uses bootstrap for discovery (simulates DEFAULT_BOOTSTRAP_ADDRS mechanism)
+  nodea:
+    build:
+      context: ../../..
+      dockerfile: tests/integration/docker/Dockerfile.node
+    hostname: nodea
+    networks:
+      - network-a
+    restart: always
+    volumes:
+      - nodea-data:/data
+    environment:
+      - YAPYAP_NODE_NAME=nodea
+      - YAPYAP_DATA_DIR=/data
+      - YAPYAP_API_PORT=3000
+      - YAPYAP_LISTEN_ADDR=/ip4/0.0.0.0/tcp/4001
+      # Use bootstrap node - simulates DEFAULT_BOOTSTRAP_ADDRS behavior
+      - YAPYAP_BOOTSTRAP_ADDRS=/dns4/bootstrap/tcp/4001
+      - YAPYAP_TEST_MODE=true
+      - NODE_ENV=development
+      - YAPYAP_LOG_LEVEL=debug
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    depends_on:
+      bootstrap:
+        condition: service_healthy
+
+  # Node B - in isolated network-b (SEPARATE from nodea)
+  # Uses bootstrap for discovery (simulates DEFAULT_BOOTSTRAP_ADDRS mechanism)
+  nodeb:
+    build:
+      context: ../../..
+      dockerfile: tests/integration/docker/Dockerfile.node
+    hostname: nodeb
+    networks:
+      - network-b
+    restart: always
+    volumes:
+      - nodeb-data:/data
+    environment:
+      - YAPYAP_NODE_NAME=nodeb
+      - YAPYAP_DATA_DIR=/data
+      - YAPYAP_API_PORT=3000
+      - YAPYAP_LISTEN_ADDR=/ip4/0.0.0.0/tcp/4001
+      # Use bootstrap node - simulates DEFAULT_BOOTSTRAP_ADDRS behavior
+      - YAPYAP_BOOTSTRAP_ADDRS=/dns4/bootstrap/tcp/4001
+      - YAPYAP_TEST_MODE=true
+      - NODE_ENV=development
+      - YAPYAP_LOG_LEVEL=debug
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    depends_on:
+      bootstrap:
+        condition: service_healthy
+
+  # Controller - has access to both networks
+  # Orchestrates the test and verifies messaging works
+  controller:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.controller
+    hostname: controller
+    networks:
+      - network-a
+      - network-b
+    depends_on:
+      nodea:
+        condition: service_healthy
+      nodeb:
+        condition: service_healthy
+    environment:
+      - TEST_SCENARIO=${TEST_SCENARIO:-cross-network-messaging}
+    volumes:
+      - ./scenarios:/scenarios:ro
+      - ./results:/results
