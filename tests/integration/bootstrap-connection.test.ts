@@ -8,12 +8,12 @@
  * 3. Bootstrap connection status is reported correctly via API
  */
 
-import { describe, it, before, after } from "node:test";
 import assert from "node:assert";
-import { spawn, type ChildProcess } from "node:child_process";
+import { type ChildProcess, spawn } from "node:child_process";
+import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { mkdtemp, rm } from "node:fs/promises";
+import { after, before, describe, it } from "node:test";
 import { DEFAULT_BOOTSTRAP_ADDRS } from "../../src/config/index.js";
 
 interface NodeProcess {
