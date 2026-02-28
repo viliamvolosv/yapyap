@@ -1603,6 +1603,10 @@ install_yapyap() {
 
     ensure_yapyap_bin_link || true
 
+    # Add npm global bin to PATH for the current session
+    ensure_npm_global_bin_on_path
+    refresh_shell_command_cache
+
     ui_success "YapYap installed"
 }
 
@@ -1715,10 +1719,10 @@ main() {
 
     YAPYAP_BIN="$(resolve_yapyap_bin || true)"
 
-    # PATH warning: installs can succeed while the user's login shell still lacks npm's global bin dir.
+    # PATH warning: only show if yapyap still can't be found after install
     local npm_bin=""
     npm_bin="$(npm_global_bin_dir || true)"
-    if [[ "$INSTALL_METHOD" == "npm" ]]; then
+    if [[ "$INSTALL_METHOD" == "npm" && -z "$YAPYAP_BIN" && -n "$npm_bin" ]]; then
         warn_shell_path_missing_dir "$npm_bin" "npm global bin dir"
     fi
     if [[ "$INSTALL_METHOD" == "git" ]]; then
@@ -1800,32 +1804,7 @@ main() {
         ui_info "Upgrade complete"
         ui_info "Run: yapyap --help to get started"
     else
-        if [[ "$NO_ONBOARD" == "1" ]]; then
-            ui_info "Skipping onboard (requested); run yapyap --help to get started"
-        else
-            local config_path="${YAPYAP_CONFIG_PATH:-$HOME/.yapyap/yapyap.json}"
-            if [[ -f "${config_path}" ]]; then
-                ui_info "Config already present; skipping onboarding"
-            else
-                ui_info "Starting setup"
-                echo ""
-                if [[ -r /dev/tty && -w /dev/tty ]]; then
-                    local yapyap="${YAPYAP_BIN:-}"
-                    if [[ -z "$yapyap" ]]; then
-                        yapyap="$(resolve_yapyap_bin || true)"
-                    fi
-                    if [[ -z "$yapyap" ]]; then
-                        ui_info "Skipping onboarding (yapyap not on PATH yet)"
-                        warn_yapyap_not_found
-                        return 0
-                    fi
-                    exec </dev/tty
-                    exec "$yapyap" onboard
-                fi
-                ui_info "No TTY; run yapyap onboard to finish setup"
-                return 0
-            fi
-        fi
+        ui_info "Run: yapyap --help to get started"
     fi
 
     show_footer_links
