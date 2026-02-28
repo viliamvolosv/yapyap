@@ -1172,24 +1172,31 @@ fix_npm_permissions() {
         return 0
     fi
 
-    if [[ -w "$npm_prefix" || -w "$npm_prefix/lib" ]]; then
-        return 0
+    local needs_setup=false
+    local npm_global_dir="$HOME/.npm-global"
+
+    # Check if npm prefix is system-wide (not writable by user)
+    if [[ ! -w "$npm_prefix" && ! -w "$npm_prefix/lib" ]]; then
+        needs_setup=true
+        ui_info "Configuring npm for user-local installs"
+        mkdir -p "$npm_global_dir"
+        npm config set prefix "$npm_global_dir"
     fi
 
-    ui_info "Configuring npm for user-local installs"
-    mkdir -p "$HOME/.npm-global"
-    npm config set prefix "$HOME/.npm-global"
+    # If using user-local npm directory, ensure PATH is in shell rc files
+    if [[ "$npm_prefix" == "$HOME/.npm-global"* ]] || [[ "$needs_setup" == "true" ]]; then
+        # shellcheck disable=SC2016
+        local path_line='export PATH="$HOME/.npm-global/bin:$PATH"'
+        for rc in "$HOME/.bashrc" "$HOME/.zshrc"; do
+            if [[ -f "$rc" ]] && ! grep -q ".npm-global" "$rc"; then
+                echo "$path_line" >> "$rc"
+                ui_info "Added npm bin to $rc"
+            fi
+        done
 
-    # shellcheck disable=SC2016
-    local path_line='export PATH="$HOME/.npm-global/bin:$PATH"'
-    for rc in "$HOME/.bashrc" "$HOME/.zshrc"; do
-        if [[ -f "$rc" ]] && ! grep -q ".npm-global" "$rc"; then
-            echo "$path_line" >> "$rc"
-        fi
-    done
-
-    export PATH="$HOME/.npm-global/bin:$PATH"
-    ui_success "npm configured for user installs"
+        export PATH="$HOME/.npm-global/bin:$PATH"
+        ui_success "npm configured for user installs"
+    fi
 }
 
 ensure_yapyap_bin_link() {
@@ -1719,11 +1726,24 @@ main() {
 
     YAPYAP_BIN="$(resolve_yapyap_bin || true)"
 
-    # PATH warning: only show if yapyap still can't be found after install
+    # PATH warning for npm installs: the PATH export in this script runs in a subshell
+    # (due to curl | bash), so it won't persist in the user's shell. We need to show
+    # instructions even if yapyap was found during the script execution.
     local npm_bin=""
     npm_bin="$(npm_global_bin_dir || true)"
-    if [[ "$INSTALL_METHOD" == "npm" && -z "$YAPYAP_BIN" && -n "$npm_bin" ]]; then
-        warn_shell_path_missing_dir "$npm_bin" "npm global bin dir"
+    if [[ "$INSTALL_METHOD" == "npm" && -n "$npm_bin" ]]; then
+        # Check if npm_bin is in ORIGINAL_PATH (user's shell PATH before script ran)
+        if ! path_has_dir "$ORIGINAL_PATH" "$npm_bin"; then
+            echo ""
+            ui_warn "PATH missing npm global bin dir: ${npm_bin}"
+            echo "  This can make yapyap show as \"command not found\" in new terminals."
+            echo "  Fix (add to ~/.bashrc or ~/.zshrc):"
+            echo "    export PATH=\"${npm_bin}:\$PATH\""
+            echo ""
+            echo "  For this session, run:"
+            echo "    export PATH=\"${npm_bin}:\$PATH\""
+            echo "    hash -r  # Clear command cache (bash)"
+        fi
     fi
     if [[ "$INSTALL_METHOD" == "git" ]]; then
         if [[ -x "$HOME/.local/bin/yapyap" ]]; then
