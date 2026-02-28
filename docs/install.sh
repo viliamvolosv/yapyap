@@ -1614,6 +1614,22 @@ install_yapyap() {
     ensure_npm_global_bin_on_path
     refresh_shell_command_cache
 
+    # Also persist PATH to shell rc files for future sessions
+    local npm_bin=""
+    npm_bin="$(npm_global_bin_dir || true)"
+    if [[ -n "$npm_bin" && "$INSTALL_METHOD" == "npm" ]]; then
+        # shellcheck disable=SC2016
+        local path_line='export PATH="$HOME/.npm-global/bin:$PATH"'
+        if [[ "$npm_bin" == "$HOME/.npm-global/bin" ]]; then
+            for rc in "$HOME/.bashrc" "$HOME/.zshrc"; do
+                if [[ -f "$rc" ]] && ! grep -q ".npm-global" "$rc"; then
+                    echo "$path_line" >> "$rc"
+                    ui_info "Added npm bin to $rc"
+                fi
+            done
+        fi
+    fi
+
     ui_success "YapYap installed"
 }
 
