@@ -1,6 +1,6 @@
 /**
  * Integration Test: Bootstrap Connection
- * 
+ *
  * This test verifies that nodes can connect to the default bootstrap addresses
  * configured in src/config/index.ts. It ensures that:
  * 1. Default bootstrap addresses are properly loaded
@@ -55,13 +55,20 @@ async function cleanupDir(path: string): Promise<void> {
 	await rm(path, { recursive: true, force: true });
 }
 
-async function startNode(dataDir: string, apiPort: number, bootstrapAddrs?: string[]): Promise<NodeProcess> {
+async function startNode(
+	dataDir: string,
+	apiPort: number,
+	bootstrapAddrs?: string[],
+): Promise<NodeProcess> {
 	const args = [
 		"dist/cli.js",
 		"start",
-		"--data-dir", dataDir,
-		"--api-port", apiPort.toString(),
-		"--listen", "/ip4/127.0.0.1/tcp/0",
+		"--data-dir",
+		dataDir,
+		"--api-port",
+		apiPort.toString(),
+		"--listen",
+		"/ip4/127.0.0.1/tcp/0",
 	];
 
 	if (bootstrapAddrs && bootstrapAddrs.length > 0) {
@@ -72,9 +79,9 @@ async function startNode(dataDir: string, apiPort: number, bootstrapAddrs?: stri
 		stdio: ["ignore", "pipe", "pipe"],
 	});
 
-	let stderr = "";
+	let _stderr = "";
 	process.stderr?.on("data", (data) => {
-		stderr += data.toString();
+		_stderr += data.toString();
 	});
 
 	return { process, apiPort, dataDir };
@@ -82,7 +89,10 @@ async function startNode(dataDir: string, apiPort: number, bootstrapAddrs?: stri
 
 async function getPeerId(apiPort: number): Promise<string> {
 	const response = await fetch(`http://127.0.0.1:${apiPort}/api/node/info`);
-	const json = await response.json() as { success: boolean; data?: { peerId: string } };
+	const json = (await response.json()) as {
+		success: boolean;
+		data?: { peerId: string };
+	};
 	if (!json.success || !json.data?.peerId) {
 		throw new Error(`Failed to get peer ID: ${JSON.stringify(json)}`);
 	}
@@ -96,15 +106,22 @@ async function getBootstrapStatus(apiPort: number): Promise<{
 	healthy: boolean;
 }> {
 	const response = await fetch(`http://127.0.0.1:${apiPort}/api/node/info`);
-	const json = await response.json() as { 
-		success: boolean; 
-		data?: { bootstrap?: { configured: string[]; connected: number; total: number; healthy: boolean } } 
+	const json = (await response.json()) as {
+		success: boolean;
+		data?: {
+			bootstrap?: {
+				configured: string[];
+				connected: number;
+				total: number;
+				healthy: boolean;
+			};
+		};
 	};
-	
+
 	if (!json.success || !json.data?.bootstrap) {
 		throw new Error(`Failed to get bootstrap status: ${JSON.stringify(json)}`);
 	}
-	
+
 	return json.data.bootstrap;
 }
 
@@ -147,7 +164,9 @@ describe("Bootstrap Connection Integration Tests", () => {
 				`Bootstrap address should contain /p2p/ component: ${addr}`,
 			);
 			assert.ok(
-				addr.startsWith("/ip4/") || addr.startsWith("/dns4/") || addr.startsWith("/ip6/"),
+				addr.startsWith("/ip4/") ||
+					addr.startsWith("/dns4/") ||
+					addr.startsWith("/ip6/"),
 				`Bootstrap address should start with /ip4/, /dns4/, or /ip6/: ${addr}`,
 			);
 		}
@@ -164,7 +183,7 @@ describe("Bootstrap Connection Integration Tests", () => {
 		// Get bootstrap node's peer ID
 		const bootstrapPeerId = await getPeerId(bootstrapNode.apiPort);
 		console.log("Bootstrap node peer ID:", bootstrapPeerId);
-		
+
 		// Construct the bootstrap address for the client using the known API port
 		// Note: The node listens on a dynamic TCP port, but we can use the API port
 		// as a reference for testing purposes
@@ -196,10 +215,10 @@ describe("Bootstrap Connection Integration Tests", () => {
 
 		// Get final bootstrap status
 		const bootstrapStatus = await getBootstrapStatus(clientNode.apiPort);
-		
+
 		// Verify bootstrap configuration is loaded
 		assert.ok(
-			bootstrapStatus.configured.some(addr => addr.includes(bootstrapPeerId)),
+			bootstrapStatus.configured.some((addr) => addr.includes(bootstrapPeerId)),
 			`Bootstrap address should be in configured list`,
 		);
 		assert.ok(
@@ -227,7 +246,8 @@ describe("Bootstrap Connection Integration Tests", () => {
 		console.log("Default bootstrap status:", bootstrapStatus);
 
 		// Verify the default bootstrap address from config is loaded
-		const expectedAddr = "/ip4/217.177.72.152/tcp/4001/p2p/12D3KooWF9981QXoXUXxpsEQ13NXt6eBvAGVfSfwVTCGz3FhLh6X";
+		const expectedAddr =
+			"/ip4/217.177.72.152/tcp/4001/p2p/12D3KooWF9981QXoXUXxpsEQ13NXt6eBvAGVfSfwVTCGz3FhLh6X";
 		assert.ok(
 			bootstrapStatus.configured.includes(expectedAddr),
 			`Should have default bootstrap address configured: ${expectedAddr}`,
@@ -235,7 +255,11 @@ describe("Bootstrap Connection Integration Tests", () => {
 
 		// Verify the node attempted to connect (connection may fail if bootstrap is offline,
 		// but the configuration should be loaded and dial attempt should be made)
-		assert.strictEqual(bootstrapStatus.total, 1, "Should have 1 total bootstrap peer");
+		assert.strictEqual(
+			bootstrapStatus.total,
+			1,
+			"Should have 1 total bootstrap peer",
+		);
 		assert.ok(
 			bootstrapStatus.configured.length === 1,
 			"Should have exactly one bootstrap address configured",
@@ -265,20 +289,27 @@ describe("Bootstrap Connection Integration Tests", () => {
 			console.log("Real bootstrap status:", bootstrapStatus);
 
 			// Verify the default bootstrap address from config is loaded
-			const expectedAddr = "/ip4/217.177.72.152/tcp/4001/p2p/12D3KooWF9981QXoXUXxpsEQ13NXt6eBvAGVfSfwVTCGz3FhLh6X";
+			const expectedAddr =
+				"/ip4/217.177.72.152/tcp/4001/p2p/12D3KooWF9981QXoXUXxpsEQ13NXt6eBvAGVfSfwVTCGz3FhLh6X";
 			assert.ok(
 				bootstrapStatus.configured.includes(expectedAddr),
 				`Should have default bootstrap address configured: ${expectedAddr}`,
 			);
 
 			// Verify configuration is correct
-			assert.strictEqual(bootstrapStatus.total, 1, "Should have 1 total bootstrap peer");
+			assert.strictEqual(
+				bootstrapStatus.total,
+				1,
+				"Should have 1 total bootstrap peer",
+			);
 
 			// Note: Bootstrap connections may close after initial handshake if no protocols
 			// are registered for communication. This is expected behavior - bootstrap nodes
 			// are used for initial peer discovery, not persistent connections.
 			// The important thing is that the dial succeeds and the remote node sees us.
-			console.log("✓ Bootstrap dial succeeded (connection may close after handshake - this is normal)");
+			console.log(
+				"✓ Bootstrap dial succeeded (connection may close after handshake - this is normal)",
+			);
 
 			console.log("✓ Real bootstrap connection test passed");
 		} finally {
@@ -298,10 +329,22 @@ describe("Bootstrap Connection Integration Tests", () => {
 			const bootstrapStatus = await getBootstrapStatus(testNode.apiPort);
 
 			// Verify health endpoint returns correct structure
-			assert.ok(Array.isArray(bootstrapStatus.configured), "configured should be an array");
-			assert.ok(typeof bootstrapStatus.connected === "number", "connected should be a number");
-			assert.ok(typeof bootstrapStatus.total === "number", "total should be a number");
-			assert.ok(typeof bootstrapStatus.healthy === "boolean", "healthy should be a boolean");
+			assert.ok(
+				Array.isArray(bootstrapStatus.configured),
+				"configured should be an array",
+			);
+			assert.ok(
+				typeof bootstrapStatus.connected === "number",
+				"connected should be a number",
+			);
+			assert.ok(
+				typeof bootstrapStatus.total === "number",
+				"total should be a number",
+			);
+			assert.ok(
+				typeof bootstrapStatus.healthy === "boolean",
+				"healthy should be a boolean",
+			);
 
 			// Verify consistency
 			assert.strictEqual(
@@ -311,7 +354,8 @@ describe("Bootstrap Connection Integration Tests", () => {
 			);
 
 			// Health should be true if connected > 0 or total === 0
-			const expectedHealthy = bootstrapStatus.connected > 0 || bootstrapStatus.total === 0;
+			const expectedHealthy =
+				bootstrapStatus.connected > 0 || bootstrapStatus.total === 0;
 			assert.strictEqual(
 				bootstrapStatus.healthy,
 				expectedHealthy,
@@ -333,7 +377,8 @@ describe("Bootstrap Connection Integration Tests", () => {
 		);
 
 		// Verify the specific address added is present
-		const expectedAddr = "/ip4/217.177.72.152/tcp/4001/p2p/12D3KooWF9981QXoXUXxpsEQ13NXt6eBvAGVfSfwVTCGz3FhLh6X";
+		const expectedAddr =
+			"/ip4/217.177.72.152/tcp/4001/p2p/12D3KooWF9981QXoXUXxpsEQ13NXt6eBvAGVfSfwVTCGz3FhLh6X";
 		assert.ok(
 			DEFAULT_BOOTSTRAP_ADDRS.includes(expectedAddr),
 			`Default bootstrap addresses should include: ${expectedAddr}`,
