@@ -647,8 +647,10 @@ export class NetworkModule {
 		// Use database if available, otherwise use in-memory routing table
 		let peers: string[] = [];
 
+		let cached: Array<{ peer_id: string; multiaddrs: string[] }> = [];
+
 		if (this.db) {
-			const cached = this.db.getAllCachedPeers();
+			cached = this.db.getAllCachedPeers();
 			peers = cached.map((p) => p.peer_id);
 		} else {
 			peers = this.routingTable.getAllPeers();
@@ -658,7 +660,23 @@ export class NetworkModule {
 
 		for (const peerId of peers) {
 			try {
+				const { multiaddr } = await import("@multiformats/multiaddr");
 				const peerIdObj = peerIdFromString(peerId);
+
+				// Try to dial via cached multiaddrs first
+				const peerCache = cached.find((p) => p.peer_id === peerId);
+				if (peerCache?.multiaddrs && peerCache.multiaddrs.length > 0) {
+					try {
+						const ma = multiaddr(peerCache.multiaddrs[0]);
+						await this.libp2p.dial(ma);
+						dialed++;
+						continue;
+					} catch {
+						// Fall back to peer ID dial if cached multiaddr fails
+					}
+				}
+
+				// Fall back to peer ID dial
 				await this.libp2p.dial(peerIdObj);
 				dialed++;
 			} catch (_err) {

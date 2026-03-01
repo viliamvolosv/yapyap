@@ -151,6 +151,17 @@ export class YapYapNode {
 	}
 
 	/**
+	 * Get discovered peer information for a specific peer ID
+	 */
+	public getDiscoveredPeer(peerId: string): {
+		peer_id: string;
+		multiaddrs: string[];
+		last_seen: number;
+	} | undefined {
+		return this.db.getAllCachedPeers().find(p => p.peer_id === peerId);
+	}
+
+	/**
 	 * Trigger DHT peer discovery manually
 	 */
 	public async triggerPeerDiscovery(): Promise<void> {
@@ -210,10 +221,26 @@ export class YapYapNode {
 		const cachedPeers = this.db.getAllCachedPeers();
 		let dialed = 0;
 
-		for (const { peer_id } of cachedPeers) {
+		for (const { peer_id, multiaddrs } of cachedPeers) {
 			try {
 				const { peerIdFromString } = await import("@libp2p/peer-id");
-				await this.libp2p.dial(peerIdFromString(peer_id));
+				const { multiaddr } = await import("@multiformats/multiaddr");
+				const peerIdObj = peerIdFromString(peer_id);
+
+				// Try to dial via cached multiaddrs first
+				if (multiaddrs && multiaddrs.length > 0) {
+					try {
+						const ma = multiaddr(multiaddrs[0]);
+						await this.libp2p.dial(ma);
+						dialed++;
+						continue;
+					} catch {
+						// Fall back to peer ID dial if cached multiaddr fails
+					}
+				}
+
+				// Fall back to peer ID dial
+				await this.libp2p.dial(peerIdObj);
 				dialed++;
 			} catch {
 				// Peer may be offline
@@ -261,6 +288,7 @@ export class YapYapNode {
 			verifyRelayEnvelope: this.verifyRelayEnvelope.bind(this),
 			getBootstrapPeerIds: this.getBootstrapPeerIds.bind(this),
 			getThrottleKeyForPeer: this.getThrottleKeyForPeer.bind(this),
+			getDiscoveredPeers: this.getDiscoveredPeers.bind(this),
 		});
 	}
 

@@ -1349,11 +1349,9 @@ export class ApiModule {
 		let bootstrapConnected = 0;
 		for (const addr of bootstrapAddrs) {
 			try {
-				const { multiaddr } = await import("@multiformats/multiaddr");
-				const ma = multiaddr(addr);
 				// Extract peer ID from multiaddr by parsing the path
 				// Multiaddr format: /ip4/1.2.3.4/tcp/4001/p2p/<peer-id>
-				const parts = ma.toString().split("/");
+				const parts = addr.split("/").filter(Boolean);
 				const p2pIndex = parts.indexOf("p2p");
 				if (p2pIndex !== -1 && parts[p2pIndex + 1]) {
 					const peerIdFromAddr = parts[p2pIndex + 1];
@@ -1431,9 +1429,35 @@ export class ApiModule {
 	private async dialPeer(peerId: string): Promise<Response> {
 		try {
 			const { peerIdFromString } = await import("@libp2p/peer-id");
+			const { multiaddr } = await import("@multiformats/multiaddr");
 			const peerIdObj = peerIdFromString(peerId);
 			const libp2p = this.yapyapNode.getLibp2p();
 			if (!libp2p) throw new Error("libp2p not initialized");
+
+			// Try to dial via cached multiaddrs first
+			const cachedPeers = this.yapyapNode.getDiscoveredPeers();
+			const cachedPeer = cachedPeers.find(
+				(p: { peer_id: string; multiaddrs: string[] }) => p.peer_id === peerId,
+			);
+
+			if (cachedPeer?.multiaddrs && cachedPeer.multiaddrs.length > 0) {
+				try {
+					// Try the first cached multiaddr
+					const ma = multiaddr(cachedPeer.multiaddrs[0]);
+					await libp2p.dial(ma);
+					return this.ok({
+						message: "Dial request sent via cached address",
+						peerId,
+					});
+				} catch (dialError) {
+					// Fall back to peerId dial if cached multiaddr fails
+					console.warn(
+						`Failed to dial via cached multiaddr: ${dialError instanceof Error ? dialError.message : String(dialError)}. Falling back to peer ID dial.`,
+					);
+				}
+			}
+
+			// Fall back to peer ID dial
 			await libp2p.dial(peerIdObj);
 			return this.ok({ message: "Dial request sent", peerId });
 		} catch (error) {

@@ -667,7 +667,7 @@ program
 	.requiredOption("--to <peer-id>", "Target peer ID")
 	.requiredOption("--payload <string>", "Message content")
 	.option("--data-dir <path>", "Custom data directory", DEFAULT_DATA_DIR)
-	.option("--encrypted", "Encrypt message (default: true)")
+	.option("--encrypted", "Encrypt message", false)
 	.option("--alias <name>", "Alias for the contact")
 	.action(async (options) => {
 		const logger = createLogger();
@@ -713,7 +713,7 @@ program
 				content: options.payload,
 			};
 
-			const encrypted = options.encrypted !== false;
+			const encrypted = options.encrypted === true;
 
 			let finalPayload: unknown = payload;
 

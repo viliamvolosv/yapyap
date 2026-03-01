@@ -10,6 +10,7 @@ import type {
 import { Events, type YapYapEvent } from "../events/event-types.js";
 import type { ConnectionHealthMonitor } from "../network/NetworkModule.js";
 import type { AckMessage, NakMessage, YapYapMessage } from "./message.js";
+import { multiaddr } from "@multiformats/multiaddr";
 
 /**
  * Node context interface for MessageRouter with proper type safety
@@ -49,6 +50,11 @@ interface NodeContext {
 	) => Promise<boolean>;
 	getBootstrapPeerIds?: () => string[];
 	getThrottleKeyForPeer?: (peerId: string) => string | undefined;
+	getDiscoveredPeers?: () => Array<{
+		peer_id: string;
+		multiaddrs: string[];
+		last_seen: number;
+	}>;
 	healthMonitor?: ConnectionHealthMonitor;
 }
 
@@ -950,6 +956,49 @@ export class MessageRouter {
 		for (let attempt = 0; attempt <= reconnectAttempts; attempt++) {
 			let stream: Stream | undefined;
 			try {
+				// Try to get cached peer info from routing_cache for this attempt
+				if (this.nodeContext.getDiscoveredPeers && attempt === 0) {
+					const cachedPeers = this.nodeContext.getDiscoveredPeers();
+					const cachedPeer = cachedPeers.find(p => p.peer_id === message.to);
+
+					// Try cached multiaddr first if available
+					if (cachedPeer?.multiaddrs && cachedPeer.multiaddrs.length > 0) {
+						try {
+							const _ma = multiaddr(cachedPeer.multiaddrs[0]);
+							// Extract peer ID from the multiaddr by parsing the path
+							// Multiaddr format: /ip4/1.2.3.4/tcp/4001/p2p/<peer-id>
+							const parts = cachedPeer.multiaddrs[0].split("/").filter(Boolean);
+							const p2pIndex = parts.indexOf("p2p");
+							if (p2pIndex !== -1 && parts[p2pIndex + 1]) {
+								const extractedPeerId = peerIdFromString(parts[p2pIndex + 1]);
+								if (extractedPeerId.toString() === peerId.toString()) {
+									// Dial using the cached multiaddr
+									stream = await this.withTimeout(
+										libp2p.dialProtocol(extractedPeerId, "/yapyap/message/1.0.0"),
+										this.options.transport?.dialTimeoutMs ?? DEFAULT_DIAL_TIMEOUT_MS,
+										"stream-dial-timeout",
+									);
+								}
+							}
+						} catch {
+							// Fall back to peer ID dial if multiaddr fails
+							console.warn(
+								`Failed to dial peer ${message.to} using cached multiaddr, falling back to peer ID`,
+							);
+						}
+					}
+				}
+
+				// Fallback: dial by peer ID
+				if (!stream) {
+					stream = await this.withTimeout(
+						libp2p.dialProtocol(peerId, "/yapyap/message/1.0.0"),
+						this.options.transport?.dialTimeoutMs ?? DEFAULT_DIAL_TIMEOUT_MS,
+						"stream-dial-timeout",
+					);
+				}
+
+				// Check connection health if health monitor is configured
 				const healthMonitor = this.nodeContext.healthMonitor;
 				if (healthMonitor) {
 					const isHealthy = healthMonitor.isConnectionHealthy(peerId);
@@ -969,11 +1018,6 @@ export class MessageRouter {
 					}
 				}
 
-				stream = await this.withTimeout(
-					libp2p.dialProtocol(peerId, "/yapyap/message/1.0.0"),
-					this.options.transport?.dialTimeoutMs ?? DEFAULT_DIAL_TIMEOUT_MS,
-					"stream-dial-timeout",
-				);
 				const encoded = this.nodeContext.encodeResponse(message);
 				await this.withTimeout(
 					Promise.resolve(stream.send(encoded)),

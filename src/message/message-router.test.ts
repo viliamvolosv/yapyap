@@ -451,6 +451,7 @@ function createContext(db: DbMock, emittedEvents: YapYapEvent[] = []) {
 			signature === signRelayEnvelopePayload(payload),
 		getBootstrapPeerIds: () => [],
 		getThrottleKeyForPeer: (_peerId: string) => undefined,
+		getDiscoveredPeers: () => [],
 	};
 }
 
