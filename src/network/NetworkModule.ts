@@ -166,7 +166,6 @@ export class ConnectionHealthMonitor {
 				await this.withTimeout(
 					pingSvc.ping(peerId),
 					this.config.pingTimeoutMs,
-					"Ping timeout",
 				);
 				return true;
 			}
@@ -179,7 +178,6 @@ export class ConnectionHealthMonitor {
 	private async withTimeout<T>(
 		promise: Promise<T>,
 		timeoutMs: number,
-		_errorMsg: string,
 	): Promise<T> {
 		let timeoutHandle: NodeJS.Timeout | undefined;
 
@@ -733,7 +731,7 @@ export class NetworkModule {
 				}
 
 				if (buffer.length > BUFFER_THRESHOLD_BYTES) {
-					await this.applyBackpressure(stream, buffer.length, label);
+					await this.applyBackpressure(buffer.length, label);
 				}
 
 				buffer = await this.processFrames(
@@ -754,7 +752,6 @@ export class NetworkModule {
 	}
 
 	private async applyBackpressure(
-		_stream: Stream,
 		bufferSize: number,
 		label: string,
 	): Promise<void> {

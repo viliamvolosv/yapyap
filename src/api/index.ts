@@ -1274,8 +1274,7 @@ export class ApiModule {
 		} else if (method === "GET") {
 			if (path === "/api/messages/inbox") return this.getInboxMessages();
 			if (path === "/api/messages/outbox") return this.getOutboxMessages();
-			const messageId = this.getPathParam(path, 2);
-			if (messageId) return this.getMessageDetails(messageId);
+			if (this.getPathParam(path, 2)) return this.getMessageDetails();
 		}
 		return this.fail(404, "Endpoint not found");
 	}
@@ -1649,7 +1648,7 @@ export class ApiModule {
 		return this.ok({ outbox });
 	}
 
-	private async getMessageDetails(_messageId: string): Promise<Response> {
+	private async getMessageDetails(): Promise<Response> {
 		return this.fail(404, "Message not found");
 	}
 

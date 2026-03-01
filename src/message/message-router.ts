@@ -10,7 +10,6 @@ import type {
 import { Events, type YapYapEvent } from "../events/event-types.js";
 import type { ConnectionHealthMonitor } from "../network/NetworkModule.js";
 import type { AckMessage, NakMessage, YapYapMessage } from "./message.js";
-import { multiaddr } from "@multiformats/multiaddr";
 
 /**
  * Node context interface for MessageRouter with proper type safety
@@ -959,13 +958,11 @@ export class MessageRouter {
 				// Try to get cached peer info from routing_cache for this attempt
 				if (this.nodeContext.getDiscoveredPeers && attempt === 0) {
 					const cachedPeers = this.nodeContext.getDiscoveredPeers();
-					const cachedPeer = cachedPeers.find(p => p.peer_id === message.to);
+					const cachedPeer = cachedPeers.find((p) => p.peer_id === message.to);
 
 					// Try cached multiaddr first if available
 					if (cachedPeer?.multiaddrs && cachedPeer.multiaddrs.length > 0) {
 						try {
-							// Validate multiaddr format before use
-							const _ma = multiaddr(cachedPeer.multiaddrs[0]);
 							// Extract peer ID from the multiaddr by parsing the path
 							// Multiaddr format: /ip4/1.2.3.4/tcp/4001/p2p/<peer-id>
 							const parts = cachedPeer.multiaddrs[0].split("/").filter(Boolean);
@@ -975,8 +972,12 @@ export class MessageRouter {
 								if (extractedPeerId.toString() === peerId.toString()) {
 									// Dial using the cached multiaddr
 									stream = await this.withTimeout(
-										libp2p.dialProtocol(extractedPeerId, "/yapyap/message/1.0.0"),
-										this.options.transport?.dialTimeoutMs ?? DEFAULT_DIAL_TIMEOUT_MS,
+										libp2p.dialProtocol(
+											extractedPeerId,
+											"/yapyap/message/1.0.0",
+										),
+										this.options.transport?.dialTimeoutMs ??
+											DEFAULT_DIAL_TIMEOUT_MS,
 										"stream-dial-timeout",
 									);
 								}

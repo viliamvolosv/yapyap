@@ -41,7 +41,7 @@ describe("EventBus", () => {
 	describe("Event Listener Registration", () => {
 		it("should add a listener to an event type", () => {
 			const eventType = "test.event";
-			const handler = (_event: YapYapEvent) => {};
+			const handler = (_event: unknown) => {};
 
 			const remove = eventBus.addListener(eventType, handler);
 
@@ -54,9 +54,9 @@ describe("EventBus", () => {
 
 		it("should allow multiple listeners for the same event type", () => {
 			const eventType = "test.event";
-			const handler1 = (_event: YapYapEvent) => {};
-			const handler2 = (_event: YapYapEvent) => {};
-			const handler3 = (_event: YapYapEvent) => {};
+			const handler1 = (_event: unknown) => {};
+			const handler2 = (_event: unknown) => {};
+			const handler3 = (_event: unknown) => {};
 
 			eventBus.addListener(eventType, handler1);
 			eventBus.addListener(eventType, handler2);
@@ -67,7 +67,7 @@ describe("EventBus", () => {
 
 		it("should return a removal function when adding a listener", () => {
 			const eventType = "test.event";
-			const handler = (_event: YapYapEvent) => {};
+			const handler = (_event: unknown) => {};
 
 			const remove = eventBus.addListener(eventType, handler);
 
@@ -79,8 +79,8 @@ describe("EventBus", () => {
 
 		it("should remove a specific listener when calling the removal function", () => {
 			const eventType = "test.event";
-			const handler1 = (_event: YapYapEvent) => {};
-			const handler2 = (_event: YapYapEvent) => {};
+			const handler1 = (_event: unknown) => {};
+			const handler2 = (_event: unknown) => {};
 
 			eventBus.addListener(eventType, handler1);
 			const remove = eventBus.addListener(eventType, handler2);
@@ -93,9 +93,9 @@ describe("EventBus", () => {
 
 		it("should remove all listeners when removeAllListeners is called", () => {
 			const eventType = "test.event";
-			const handler1 = (_event: YapYapEvent) => {};
-			const handler2 = (_event: YapYapEvent) => {};
-			const handler3 = (_event: YapYapEvent) => {};
+			const handler1 = (_event: unknown) => {};
+			const handler2 = (_event: unknown) => {};
+			const handler3 = (_event: unknown) => {};
 
 			eventBus.addListener(eventType, handler1);
 			eventBus.addListener(eventType, handler2);
@@ -110,7 +110,7 @@ describe("EventBus", () => {
 			eventBus.shutdown();
 
 			const eventType = "test.event";
-			const handler = (_event: YapYapEvent) => {};
+			const handler = (_event: unknown) => {};
 
 			assert.throws(() => {
 				eventBus.addListener(eventType, handler);
@@ -121,7 +121,7 @@ describe("EventBus", () => {
 	describe("Event Emission", () => {
 		it("should emit events to all registered listeners", async () => {
 			const eventType = "test.event";
-			const handler = (_event: YapYapEvent) => {
+			const handler = (_event: unknown) => {
 				// Simulate processing
 			};
 
@@ -157,15 +157,15 @@ describe("EventBus", () => {
 			const eventType = "test.event";
 			const results: unknown[] = [];
 
-			const handler1 = (_event: YapYapEvent) => {
+			const handler1 = (_event: unknown) => {
 				results.push("handler1");
 			};
 
-			const handler2 = (_event: YapYapEvent) => {
+			const handler2 = (_event: unknown) => {
 				results.push("handler2");
 			};
 
-			const handler3 = (_event: YapYapEvent) => {
+			const handler3 = (_event: unknown) => {
 				results.push("handler3");
 			};
 
@@ -188,11 +188,11 @@ describe("EventBus", () => {
 			const eventType = "test.event";
 			const error = new Error("Handler error");
 
-			const failingHandler = (_event: YapYapEvent) => {
+			const failingHandler = (_event: unknown) => {
 				throw error;
 			};
 
-			const successHandler = (_event: YapYapEvent) => {
+			const successHandler = (_event: unknown) => {
 				// Should still execute
 			};
 
@@ -211,7 +211,7 @@ describe("EventBus", () => {
 
 		it("should emit events after shutdown", async () => {
 			const eventType = "test.event";
-			const handler = (_event: YapYapEvent) => {};
+			const handler = (_event: unknown) => {};
 
 			eventBus.addListener(eventType, handler);
 			eventBus.shutdown();
@@ -389,7 +389,7 @@ describe("EventBus", () => {
 			const eventType = "test.event";
 			const results: string[] = [];
 
-			const handler = (_event: YapYapEvent) => {
+			const handler = (_event: unknown) => {
 				results.push("called");
 			};
 
@@ -423,7 +423,7 @@ describe("EventBus", () => {
 			const scope = eventBus.createListenerScope();
 
 			const eventType = "test.event";
-			const handler = (_event: YapYapEvent) => {};
+			const handler = (_event: unknown) => {};
 
 			scope.addListener(eventType, handler);
 
@@ -434,7 +434,7 @@ describe("EventBus", () => {
 			const scope = eventBus.createListenerScope();
 
 			const eventType = "test.event";
-			const handler = (_event: YapYapEvent) => {};
+			const handler = (_event: unknown) => {};
 
 			scope.addListener(eventType, handler);
 
@@ -449,7 +449,7 @@ describe("EventBus", () => {
 			scope.destroy();
 
 			const eventType = "test.event";
-			const handler = (_event: YapYapEvent) => {};
+			const handler = (_event: unknown) => {};
 
 			assert.throws(() => {
 				scope.addListener(eventType, handler);
@@ -496,7 +496,7 @@ describe("EventBus", () => {
 
 		it("should clear all listeners on shutdown", async () => {
 			const eventType = "test.event";
-			const handler = (_event: YapYapEvent) => {};
+			const handler = (_event: unknown) => {};
 
 			eventBus.addListener(eventType, handler);
 

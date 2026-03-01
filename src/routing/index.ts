@@ -281,7 +281,7 @@ export class RoutingModule {
 
 		if (oldestPeerId) {
 			// Before eviction, check if peer is still alive
-			if (await this.ping(oldestPeerId)) {
+			if (await this.ping()) {
 				// Peer is still alive, keep it
 				return;
 			}
@@ -293,7 +293,7 @@ export class RoutingModule {
 		}
 	}
 
-	async ping(_peerId: string): Promise<boolean> {
+	async ping(): Promise<boolean> {
 		return true;
 	}
 
@@ -452,7 +452,7 @@ export class RoutingModule {
 	/**
 	 * Find peers with a given capability
 	 */
-	findPeersWithCapability(_cap: string): string[] {
+	findPeersWithCapability(): string[] {
 		// In a real implementation, this would check peer capabilities
 		// For now, return all available peers
 		return Array.from(this.routingTable.entries())

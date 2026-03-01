@@ -153,12 +153,14 @@ export class YapYapNode {
 	/**
 	 * Get discovered peer information for a specific peer ID
 	 */
-	public getDiscoveredPeer(peerId: string): {
-		peer_id: string;
-		multiaddrs: string[];
-		last_seen: number;
-	} | undefined {
-		return this.db.getAllCachedPeers().find(p => p.peer_id === peerId);
+	public getDiscoveredPeer(peerId: string):
+		| {
+				peer_id: string;
+				multiaddrs: string[];
+				last_seen: number;
+		  }
+		| undefined {
+		return this.db.getAllCachedPeers().find((p) => p.peer_id === peerId);
 	}
 
 	/**
@@ -440,7 +442,7 @@ export class YapYapNode {
 				}
 
 				if (buffer.length > BUFFER_THRESHOLD_BYTES) {
-					await this.applyBackpressure(stream, buffer.length, label);
+					await this.applyBackpressure(buffer.length, label);
 				}
 
 				buffer = await this.processFrames(
@@ -464,7 +466,6 @@ export class YapYapNode {
 	};
 
 	private async applyBackpressure(
-		_stream: Stream,
 		bufferSize: number,
 		label: string,
 	): Promise<void> {
