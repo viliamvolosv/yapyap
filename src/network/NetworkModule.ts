@@ -103,6 +103,8 @@ export class ConnectionHealthMonitor {
 	}
 
 	async checkAllConnections(): Promise<void> {
+		if (!this.libp2p) return;
+
 		const connections = this.libp2p.getConnections();
 		const now = Date.now();
 
@@ -416,7 +418,7 @@ export class NetworkModule {
 		if (this.bootstrapAddrs.length === 0) return;
 
 		// Access DHT service with proper typing
-		const dht = this.libp2p.services.dht as {
+		const dht = this.libp2p?.services.dht as {
 			bootstrap?: () => Promise<void>;
 		};
 
@@ -671,8 +673,11 @@ export class NetworkModule {
 						await this.libp2p.dial(ma);
 						dialed++;
 						continue;
-					} catch {
+					} catch (err) {
 						// Fall back to peer ID dial if cached multiaddr fails
+						console.warn(
+							`Failed to dial peer ${peerId} using cached multiaddr: ${err instanceof Error ? err.message : String(err)}. Falling back to peer ID dial.`,
+						);
 					}
 				}
 

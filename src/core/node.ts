@@ -234,8 +234,11 @@ export class YapYapNode {
 						await this.libp2p.dial(ma);
 						dialed++;
 						continue;
-					} catch {
+					} catch (err) {
 						// Fall back to peer ID dial if cached multiaddr fails
+						console.warn(
+							`Failed to dial peer ${peer_id} using cached multiaddr: ${err instanceof Error ? err.message : String(err)}. Falling back to peer ID dial.`,
+						);
 					}
 				}
 

@@ -964,6 +964,7 @@ export class MessageRouter {
 					// Try cached multiaddr first if available
 					if (cachedPeer?.multiaddrs && cachedPeer.multiaddrs.length > 0) {
 						try {
+							// Validate multiaddr format before use
 							const _ma = multiaddr(cachedPeer.multiaddrs[0]);
 							// Extract peer ID from the multiaddr by parsing the path
 							// Multiaddr format: /ip4/1.2.3.4/tcp/4001/p2p/<peer-id>
@@ -980,10 +981,10 @@ export class MessageRouter {
 									);
 								}
 							}
-						} catch {
+						} catch (err) {
 							// Fall back to peer ID dial if multiaddr fails
 							console.warn(
-								`Failed to dial peer ${message.to} using cached multiaddr, falling back to peer ID`,
+								`Failed to dial peer ${message.to} using cached multiaddr: ${err instanceof Error ? err.message : String(err)}. Falling back to peer ID`,
 							);
 						}
 					}
