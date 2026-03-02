@@ -5,7 +5,11 @@ import { ApiModule } from "../../../src/api/index.js";
 import type { YapYapNode } from "../../../src/core/node.js";
 import type { YapYapMessage } from "../../../src/message/message.js";
 import type { EncryptedPayload } from "../../../src/message/message.js";
-import { encryptE2EMessage } from "../../../src/crypto/index.js";
+import { encryptE2EMessage, generateEphemeralKeyPair, generateIdentityKeyPair } from "../../../src/crypto/index.js";
+
+// Generate valid key pairs for tests
+const testIdentityKeyPair = await generateIdentityKeyPair();
+const testRecipientKeyPair = await generateEphemeralKeyPair();
 
 const VALID_PEER_ID = "12D3KooWE5fP2xCV6W9iM8vfA2HRM6k9K9jS5rvnV5wM6x9KfGqA";
 const SELF_PEER_ID = "12D3KooWSELFpeer12345678901234567890123456789012345";
@@ -107,23 +111,27 @@ class MockNode {
 
 	async getPeerPublicKey(peerId: string): Promise<string | null> {
 		if (peerId === VALID_PEER_ID) {
-			return "public_key_" + peerId;
+			return Buffer.from(testRecipientKeyPair.publicKey).toString("hex");
 		}
 		return null;
 	}
 
 	getNodeKeyPair() {
 		return {
-			privateKey: Buffer.from("private_key"),
-			publicKey: Buffer.from("public_key"),
+			privateKey: Buffer.from(testIdentityKeyPair.privateKey),
+			publicKey: Buffer.from(testIdentityKeyPair.publicKey),
 		};
+	}
+
+	getBootstrapAddrs(): string[] {
+		return [];
 	}
 
 	async encryptMessage(payload: unknown, recipient: Uint8Array): Promise<EncryptedPayload> {
 		const encrypted = await encryptE2EMessage(
 			JSON.stringify(payload),
 			recipient,
-			Buffer.from("private_key"),
+			Buffer.from(testIdentityKeyPair.privateKey),
 		);
 		return {
 			encrypted: true,

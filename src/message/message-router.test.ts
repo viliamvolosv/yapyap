@@ -6,7 +6,11 @@ import type { YapYapEvent } from "../events/event-types.js";
 import { Events } from "../events/event-types.js";
 import type { AckMessage, YapYapMessage } from "./message.js";
 import { MessageRouter } from "./message-router.js";
-import { encryptE2EMessage } from "../crypto/index.js";
+import { encryptE2EMessage, generateEphemeralKeyPair, generateIdentityKeyPair } from "../crypto/index.js";
+
+// Generate valid key pairs for tests
+const testIdentityKeyPair = await generateIdentityKeyPair();
+const testEphemeralKeyPair = await generateEphemeralKeyPair();
 
 const VALID_PEER_ID = "12D3KooWCJDjHYFsC3TJzDE6rtmyL6wRonuY9qEKnBH1r5y1jRWx";
 const RELAY_PEER_ID = "12D3KooWQv6UQhEMaXbYJHseY4R4vkc7x4S76QfW8D2V6Q3cQJjX";
@@ -418,16 +422,16 @@ function createContext(db: DbMock, emittedEvents: YapYapEvent[] = []) {
 	return {
 		db: db as never,
 		getPeerId: () => "peer-local",
-		fetchRecipientPublicKey: async () => Buffer.from("recipient_public_key"),
+		fetchRecipientPublicKey: async () => Buffer.from(testEphemeralKeyPair.publicKey),
 		getNodeKeyPair: () => ({
-			privateKey: Buffer.from("test_private_key"),
-			publicKey: Buffer.from("test_public_key"),
+			privateKey: Buffer.from(testIdentityKeyPair.privateKey),
+			publicKey: Buffer.from(testIdentityKeyPair.publicKey),
 		}),
 		encryptMessage: async (payload: unknown, recipient: Uint8Array) => {
 			const encrypted = await encryptE2EMessage(
 				JSON.stringify(payload),
 				recipient,
-				Buffer.from("test_private_key"),
+				Buffer.from(testIdentityKeyPair.privateKey),
 			);
 			return {
 				encrypted: true,
