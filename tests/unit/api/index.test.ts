@@ -5,7 +5,7 @@ import { ApiModule } from "../../../src/api/index.js";
 import type { YapYapNode } from "../../../src/core/node.js";
 import type { YapYapMessage } from "../../../src/message/message.js";
 import type { EncryptedPayload } from "../../../src/message/message.js";
-import { encryptE2EMessage } from "../../../src/message/crypto.js";
+import { encryptE2EMessage } from "../../../src/crypto/index.js";
 
 const VALID_PEER_ID = "12D3KooWE5fP2xCV6W9iM8vfA2HRM6k9K9jS5rvnV5wM6x9KfGqA";
 const SELF_PEER_ID = "12D3KooWSELFpeer12345678901234567890123456789012345";

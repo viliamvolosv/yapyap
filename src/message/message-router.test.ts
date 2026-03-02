@@ -6,7 +6,7 @@ import type { YapYapEvent } from "../events/event-types.js";
 import { Events } from "../events/event-types.js";
 import type { AckMessage, YapYapMessage } from "./message.js";
 import { MessageRouter } from "./message-router.js";
-import { encryptE2EMessage } from "./crypto.js";
+import { encryptE2EMessage } from "../crypto/index.js";
 
 const VALID_PEER_ID = "12D3KooWCJDjHYFsC3TJzDE6rtmyL6wRonuY9qEKnBH1r5y1jRWx";
 const RELAY_PEER_ID = "12D3KooWQv6UQhEMaXbYJHseY4R4vkc7x4S76QfW8D2V6Q3cQJjX";
