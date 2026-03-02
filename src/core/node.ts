@@ -674,6 +674,14 @@ export class YapYapNode {
 		};
 	}
 
+	/**
+	 * Get recipient's public key for encryption
+	 */
+	async getPeerPublicKey(peerId: string): Promise<string | null> {
+		const key = await this.db.getPeerMetadata(peerId, "public_key");
+		return key && typeof key === "string" ? key : null;
+	}
+
 	/* ------------------------------------------------------------------------ */
 	/*                              Messaging                                   */
 	/* ------------------------------------------------------------------------ */

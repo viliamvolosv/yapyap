@@ -1,8 +1,11 @@
 import assert from "node:assert";
+import { createHash } from "node:crypto";
 import { afterEach, beforeEach, describe, test } from "node:test";
 import { ApiModule } from "../../../src/api/index.js";
 import type { YapYapNode } from "../../../src/core/node.js";
 import type { YapYapMessage } from "../../../src/message/message.js";
+import type { EncryptedPayload } from "../../../src/message/message.js";
+import { encryptE2EMessage } from "../../../src/message/crypto.js";
 
 const VALID_PEER_ID = "12D3KooWE5fP2xCV6W9iM8vfA2HRM6k9K9jS5rvnV5wM6x9KfGqA";
 const SELF_PEER_ID = "12D3KooWSELFpeer12345678901234567890123456789012345";
@@ -100,6 +103,35 @@ class MockNode {
 
 	getDatabase() {
 		return this.db;
+	}
+
+	async getPeerPublicKey(peerId: string): Promise<string | null> {
+		if (peerId === VALID_PEER_ID) {
+			return "public_key_" + peerId;
+		}
+		return null;
+	}
+
+	getNodeKeyPair() {
+		return {
+			privateKey: Buffer.from("private_key"),
+			publicKey: Buffer.from("public_key"),
+		};
+	}
+
+	async encryptMessage(payload: unknown, recipient: Uint8Array): Promise<EncryptedPayload> {
+		const encrypted = await encryptE2EMessage(
+			JSON.stringify(payload),
+			recipient,
+			Buffer.from("private_key"),
+		);
+		return {
+			encrypted: true,
+			ciphertext: Buffer.isBuffer(encrypted.ciphertext)
+				? encrypted.ciphertext.toString("hex")
+				: encrypted.ciphertext,
+			mac: encrypted.mac,
+		};
 	}
 
 	messageRouter = {

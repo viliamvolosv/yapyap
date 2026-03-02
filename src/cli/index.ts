@@ -667,7 +667,6 @@ program
 	.requiredOption("--to <peer-id>", "Target peer ID")
 	.requiredOption("--payload <string>", "Message content")
 	.option("--data-dir <path>", "Custom data directory", DEFAULT_DATA_DIR)
-	.option("--encrypted", "Encrypt message", false)
 	.option("--alias <name>", "Alias for the contact")
 	.action(async (options) => {
 		const logger = createLogger();
@@ -713,36 +712,27 @@ program
 				content: options.payload,
 			};
 
-			const encrypted = options.encrypted === true;
-
-			let finalPayload: unknown = payload;
-
-			if (encrypted) {
-				const publicKey = Buffer.from(peerKey, "hex");
-				try {
-					finalPayload = await node.encryptMessage(payload, publicKey);
-				} catch (encryptError) {
-					logger.error(
-						"Failed to encrypt message. Check that the public key is valid.",
-					);
-					logger.error(
-						`Encryption error: ${encryptError instanceof Error ? encryptError.message : String(encryptError)}`,
-					);
-					logger.info("");
-					logger.info("To send without encryption, use --encrypted=false");
-					await node.shutdown();
-					process.exit(1);
-				}
+			const publicKey = Buffer.from(peerKey, "hex");
+			try {
+				const finalPayload = await node.encryptMessage(payload, publicKey);
+				const message: YapYapMessage = {
+					id: randomUUID(),
+					type: "data",
+					from: node.getPeerId(),
+					to: options.to,
+					payload: finalPayload,
+					timestamp: Date.now(),
+				};
+			} catch (encryptError) {
+				logger.error(
+					"Failed to encrypt message. Check that the public key is valid.",
+				);
+				logger.error(
+					`Encryption error: ${encryptError instanceof Error ? encryptError.message : String(encryptError)}`,
+				);
+				await node.shutdown();
+				process.exit(1);
 			}
-
-			const message: YapYapMessage = {
-				id: randomUUID(),
-				type: "data",
-				from: node.getPeerId(),
-				to: options.to,
-				payload: finalPayload,
-				timestamp: Date.now(),
-			};
 
 			try {
 				await node.messageRouter.send(message);

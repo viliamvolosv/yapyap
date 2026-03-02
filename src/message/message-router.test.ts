@@ -6,6 +6,7 @@ import type { YapYapEvent } from "../events/event-types.js";
 import { Events } from "../events/event-types.js";
 import type { AckMessage, YapYapMessage } from "./message.js";
 import { MessageRouter } from "./message-router.js";
+import { encryptE2EMessage } from "./crypto.js";
 
 const VALID_PEER_ID = "12D3KooWCJDjHYFsC3TJzDE6rtmyL6wRonuY9qEKnBH1r5y1jRWx";
 const RELAY_PEER_ID = "12D3KooWQv6UQhEMaXbYJHseY4R4vkc7x4S76QfW8D2V6Q3cQJjX";
@@ -417,9 +418,25 @@ function createContext(db: DbMock, emittedEvents: YapYapEvent[] = []) {
 	return {
 		db: db as never,
 		getPeerId: () => "peer-local",
-		fetchRecipientPublicKey: async () => null,
-		getNodeKeyPair: () => ({ privateKey: undefined, publicKey: undefined }),
-		encryptMessage: async (payload: unknown) => payload,
+		fetchRecipientPublicKey: async () => Buffer.from("recipient_public_key"),
+		getNodeKeyPair: () => ({
+			privateKey: Buffer.from("test_private_key"),
+			publicKey: Buffer.from("test_public_key"),
+		}),
+		encryptMessage: async (payload: unknown, recipient: Uint8Array) => {
+			const encrypted = await encryptE2EMessage(
+				JSON.stringify(payload),
+				recipient,
+				Buffer.from("test_private_key"),
+			);
+			return {
+				encrypted: true,
+				ciphertext: Buffer.isBuffer(encrypted.ciphertext)
+					? encrypted.ciphertext.toString("hex")
+					: encrypted.ciphertext,
+				mac: encrypted.mac,
+			};
+		},
 		safeClose: async () => {},
 		messageQueues: new Map(),
 		pendingAcks: new Map(),

@@ -182,23 +182,28 @@ export class MessageRouter {
 			},
 		});
 
-		// 2. Encrypt payload if needed
+		// 2. Encrypt payload (mandatory)
 		if (message.payload && typeof message.payload === "object") {
 			const recipientPublicKey = await this.nodeContext.fetchRecipientPublicKey(
 				message.to,
 			);
 			const nodeKeyPair = this.nodeContext.getNodeKeyPair();
+
 			if (
-				recipientPublicKey &&
-				nodeKeyPair?.privateKey &&
-				nodeKeyPair?.publicKey
+				!recipientPublicKey ||
+				!nodeKeyPair?.privateKey ||
+				!nodeKeyPair?.publicKey
 			) {
-				const encrypted = await this.nodeContext.encryptMessage(
-					message.payload,
-					recipientPublicKey,
+				throw new Error(
+					"Encryption required but recipient public key or node key pair not available",
 				);
-				message.payload = encrypted;
 			}
+
+			const encrypted = await this.nodeContext.encryptMessage(
+				message.payload,
+				recipientPublicKey,
+			);
+			message.payload = encrypted;
 		}
 
 		// 3. Transmit message using libp2p
