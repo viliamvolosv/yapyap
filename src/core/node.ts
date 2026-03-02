@@ -307,6 +307,7 @@ export class YapYapNode {
 		this.encryptionKeyPair = await generateEphemeralKeyPair();
 
 		this.registerProtocols();
+		this.registerPeerEvents();
 		await this.emitEvent({
 			id: `evt_${Date.now()}_node_started`,
 			type: Events.Node.Started,
@@ -355,6 +356,30 @@ export class YapYapNode {
 		this.libp2p.handle(PROTOCOL_HANDSHAKE, this.handleHandshake);
 		this.libp2p.handle(PROTOCOL_ROUTE, this.handleRoute);
 		this.libp2p.handle(PROTOCOL_SYNC, this.handleSync);
+	}
+
+	private registerPeerEvents() {
+		if (!this.libp2p) return;
+
+		this.libp2p.addEventListener("peer:connect", (e) => {
+			const peerId = e.detail.toString();
+			console.log("Peer connected:", peerId);
+
+			// Create E2E session for encrypted communication
+			this.sessions
+				.getOrCreateSession(peerId)
+				.catch((err) =>
+					console.error("Failed to create E2E session:", err),
+				);
+		});
+
+		this.libp2p.addEventListener("peer:disconnect", (e) => {
+			const peerId = e.detail.toString();
+			console.log("Peer disconnected:", peerId);
+
+			// Mark peer as unavailable in database
+			this.db.markPeerUnavailable(peerId);
+		});
 	}
 
 	/* ------------------------------------------------------------------------ */
@@ -574,7 +599,14 @@ export class YapYapNode {
 			throw new Error("Handshake message missing public key");
 		}
 
-		await this.sessions.createSession(peer.toString());
+		const peerId = peer.toString();
+
+		// Store peer's X25519 public key for E2E encryption
+		const publicKeyHex = Buffer.from(msg.publicKey).toString("hex");
+		await this.db.savePeerMetadata(peerId, "public_key", publicKeyHex);
+
+		// Create E2E session for encrypted communication
+		await this.sessions.createSession(peerId);
 
 		return this.buildResponse(peer, {
 			type: "handshake_ack",

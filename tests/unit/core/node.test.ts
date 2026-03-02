@@ -36,6 +36,7 @@ describe("YapYapNode", () => {
 			handle: (protocol: string) => {
 				handled.push(protocol);
 			},
+			addEventListener: () => {},
 			getConnections: () => [],
 		};
 

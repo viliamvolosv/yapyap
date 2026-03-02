@@ -41,6 +41,7 @@ import type {
 	SyncResponseMessage,
 } from "../protocols/sync.js";
 import { handleSyncMessage } from "../protocols/sync.js";
+import type { SessionManager } from "../crypto/session-manager.js";
 
 const MAX_RECEIVE_BUFFER_BYTES = MAX_FRAME_SIZE_BYTES * 2;
 const BUFFER_THRESHOLD_BYTES = Math.floor(MAX_RECEIVE_BUFFER_BYTES * 0.75);
@@ -291,17 +292,20 @@ export class NetworkModule {
 	private readonly DEFAULT_LISTEN = ["/ip4/0.0.0.0/tcp/0"];
 	private discoveryConfig: PeerDiscoveryConfig;
 	private db?: import("../database/index.js").DatabaseManager;
+	private sessionManager?: SessionManager;
 
 	constructor(
 		privateKeyRaw?: Uint8Array,
 		discoveryConfig?: Partial<PeerDiscoveryConfig>,
 		db?: import("../database/index.js").DatabaseManager,
+		sessionManager?: SessionManager,
 	) {
 		if (privateKeyRaw) {
 			this.privateKey = privateKeyFromRaw(privateKeyRaw);
 		}
 		this.discoveryConfig = { ...DEFAULT_DISCOVERY_CONFIG, ...discoveryConfig };
 		this.db = db;
+		this.sessionManager = sessionManager;
 		this.routingTable = new RoutingTable();
 		this.nodeState = new NodeState();
 	}
@@ -463,6 +467,15 @@ export class NetworkModule {
 
 			// Update routing table
 			this.routingTable.updatePeer(peerId, {});
+
+			// Create E2E session for encrypted communication
+			if (this.sessionManager) {
+				this.sessionManager
+					.getOrCreateSession(peerId)
+					.catch((err) =>
+						console.error("Failed to create E2E session:", err),
+					);
+			}
 		});
 
 		this.libp2p.addEventListener("peer:disconnect", (e) => {
@@ -794,6 +807,19 @@ export class NetworkModule {
 
 	private processHandshake: ProtocolHandler<HandshakeMessage, YapYapMessage> =
 		async (msg, peer) => {
+			const peerId = peer.toString();
+
+			// Store peer's X25519 public key for E2E encryption
+			if (msg.publicKey && this.db) {
+				const publicKeyHex = Buffer.from(msg.publicKey).toString("hex");
+				await this.db.savePeerMetadata(peerId, "public_key", publicKeyHex);
+			}
+
+			// Use actual identity keys from node context
+			// Note: NetworkModule doesn't have direct access to identity keys
+			// The keys are passed from YapYapNode via handleHandshakeMessage
+			// For now, we use empty buffers as the actual key handling happens
+			// in YapYapNode's handshake handler
 			return handleHandshakeMessage(
 				msg,
 				peer,
