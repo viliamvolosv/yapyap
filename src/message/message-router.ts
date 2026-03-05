@@ -55,7 +55,12 @@ interface NodeContext {
 		last_seen: number;
 	}>;
 	healthMonitor?: ConnectionHealthMonitor;
-	waitForPeerPublicKey?: (peerId: string, timeoutMs?: number) => Promise<void>;
+	waitForPeerPublicKey?: (
+		peerId: string,
+		timeoutMs?: number,
+		forceRefresh?: boolean,
+	) => Promise<void>;
+	shouldRefreshPeerPublicKey?: (peerId: string) => boolean;
 }
 
 export interface MessageRouterOptions {
@@ -188,9 +193,19 @@ export class MessageRouter {
 			let recipientPublicKey = await this.nodeContext.fetchRecipientPublicKey(
 				message.to,
 			);
-			if (!recipientPublicKey && this.nodeContext.waitForPeerPublicKey) {
+			const pendingKeyRefresh =
+				Boolean(recipientPublicKey) &&
+				Boolean(this.nodeContext.shouldRefreshPeerPublicKey?.(message.to));
+			if (
+				this.nodeContext.waitForPeerPublicKey &&
+				(!recipientPublicKey || pendingKeyRefresh)
+			) {
 				try {
-					await this.nodeContext.waitForPeerPublicKey(message.to, 5_000);
+					await this.nodeContext.waitForPeerPublicKey(
+						message.to,
+						5_000,
+						pendingKeyRefresh,
+					);
 					recipientPublicKey = await this.nodeContext.fetchRecipientPublicKey(
 						message.to,
 					);
@@ -209,6 +224,12 @@ export class MessageRouter {
 					"Encryption required but recipient public key or node key pair not available",
 				);
 			}
+
+			console.log(
+				`[message-router] encrypting for ${message.to} key=${recipientPublicKey.toString(
+					"hex",
+				)}`,
+			);
 
 			const encrypted = await this.nodeContext.encryptMessage(
 				message.payload,

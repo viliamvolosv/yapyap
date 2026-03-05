@@ -112,9 +112,13 @@ export class YapYapNode {
 	public async waitForPeerPublicKey(
 		peerId: string,
 		timeoutMs = 5_000,
+		forceRefresh = false,
 	): Promise<void> {
 		const existing = await this.fetchRecipientPublicKey(peerId);
-		if (existing) {
+		if (!forceRefresh && existing) {
+			return;
+		}
+		if (forceRefresh && !this.shouldRefreshPeerPublicKey(peerId)) {
 			return;
 		}
 
@@ -152,6 +156,18 @@ export class YapYapNode {
 			waiter();
 		}
 		this.peerKeyWaiters.delete(peerId);
+	}
+
+	private markPeerKeyRefreshPending(peerId: string) {
+		this.peerKeyRefreshPending.add(peerId);
+	}
+
+	private clearPeerKeyRefresh(peerId: string) {
+		this.peerKeyRefreshPending.delete(peerId);
+	}
+
+	public shouldRefreshPeerPublicKey(peerId: string): boolean {
+		return this.peerKeyRefreshPending.has(peerId);
 	}
 
 	/**
@@ -318,6 +334,7 @@ export class YapYapNode {
 	private encryptionKeyPair?: EncryptionKeyPair;
 	private handshakeInProgress = new Set<string>();
 	private peerKeyWaiters = new Map<string, (() => void)[]>();
+	private peerKeyRefreshPending = new Set<string>();
 
 	public messageRouter: MessageRouter;
 	private nodeState: NodeState;
@@ -347,6 +364,7 @@ export class YapYapNode {
 			getThrottleKeyForPeer: this.getThrottleKeyForPeer.bind(this),
 			getDiscoveredPeers: this.getDiscoveredPeers.bind(this),
 			waitForPeerPublicKey: this.waitForPeerPublicKey.bind(this),
+			shouldRefreshPeerPublicKey: this.shouldRefreshPeerPublicKey.bind(this),
 		});
 	}
 
@@ -423,6 +441,7 @@ export class YapYapNode {
 				.getOrCreateSession(peerId)
 				.catch((err) => console.error("Failed to create E2E session:", err));
 			if (peerId !== this.getPeerId()) {
+				this.markPeerKeyRefreshPending(peerId);
 				void this.performHandshake(peerId).catch((err) =>
 					console.warn("Handshake failed for peer", peerId, err),
 				);
@@ -496,6 +515,7 @@ export class YapYapNode {
 			}
 		} finally {
 			this.handshakeInProgress.delete(peerId);
+			this.clearPeerKeyRefresh(peerId);
 		}
 	}
 
@@ -722,6 +742,7 @@ export class YapYapNode {
 		const publicKeyHex = Buffer.from(msg.publicKey).toString("hex");
 		await this.db.savePeerMetadata(peerId, "public_key", publicKeyHex);
 		this.signalPeerKeyAvailable(peerId);
+		this.clearPeerKeyRefresh(peerId);
 
 		// Create E2E session for encrypted communication
 		await this.sessions.createSession(peerId);
