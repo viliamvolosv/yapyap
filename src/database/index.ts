@@ -12,6 +12,14 @@ export interface NodeKey {
 	updated_at: number;
 }
 
+export interface EncryptionKeyRecord {
+	id: number;
+	public_key: string;
+	private_key: string;
+	created_at: number;
+	updated_at: number;
+}
+
 export interface RoutingCacheEntry {
 	peer_id: string;
 	multiaddrs: string[]; // JSON array
@@ -180,6 +188,7 @@ export class DatabaseManager {
 
 	private createTables(): void {
 		this.db.exec(yapyapSchema.node_keys);
+		this.db.exec(yapyapSchema.encryption_keys);
 		this.db.exec(yapyapSchema.routing_cache);
 		this.db.exec(yapyapSchema.pending_messages);
 		this.db.exec(yapyapSchema.replicated_messages);
@@ -225,6 +234,29 @@ export class DatabaseManager {
 
 		const result = stmt.get(publicKey);
 		return result as NodeKey | null;
+	}
+
+	saveEncryptionKey(publicKey: string, privateKey: string): number {
+		const now = Date.now();
+		const stmt = this.db.prepare(`
+			INSERT INTO encryption_keys (id, public_key, private_key, created_at, updated_at)
+			VALUES (1, ?, ?, ?, ?)
+			ON CONFLICT(id) DO UPDATE SET
+				public_key = excluded.public_key,
+				private_key = excluded.private_key,
+				updated_at = excluded.updated_at
+		`);
+
+		const result = stmt.run(publicKey, privateKey, now, now);
+		return Number(result.lastInsertRowid);
+	}
+
+	getEncryptionKey(): EncryptionKeyRecord | null {
+		const stmt = this.db.prepare(`
+			SELECT * FROM encryption_keys WHERE id = 1
+		`);
+		const result = stmt.get();
+		return (result as EncryptionKeyRecord) ?? null;
 	}
 
 	/**

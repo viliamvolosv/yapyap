@@ -115,7 +115,13 @@ export class YapYapNode {
 		forceRefresh = false,
 	): Promise<void> {
 		const existing = await this.fetchRecipientPublicKey(peerId);
-		if (!forceRefresh && existing) {
+		const currentVersion = this.peerKeyVersions.get(peerId) ?? 0;
+		const pendingVersion =
+			this.peerKeyRefreshPendingVersion.get(peerId) ?? currentVersion;
+		const shouldWait =
+			!existing || (forceRefresh && currentVersion <= pendingVersion);
+
+		if (!shouldWait) {
 			return;
 		}
 		if (forceRefresh && !this.shouldRefreshPeerPublicKey(peerId)) {
@@ -160,10 +166,13 @@ export class YapYapNode {
 
 	private markPeerKeyRefreshPending(peerId: string) {
 		this.peerKeyRefreshPending.add(peerId);
+		const currentVersion = this.peerKeyVersions.get(peerId) ?? 0;
+		this.peerKeyRefreshPendingVersion.set(peerId, currentVersion);
 	}
 
 	private clearPeerKeyRefresh(peerId: string) {
 		this.peerKeyRefreshPending.delete(peerId);
+		this.peerKeyRefreshPendingVersion.delete(peerId);
 	}
 
 	public shouldRefreshPeerPublicKey(peerId: string): boolean {
@@ -335,6 +344,8 @@ export class YapYapNode {
 	private handshakeInProgress = new Set<string>();
 	private peerKeyWaiters = new Map<string, (() => void)[]>();
 	private peerKeyRefreshPending = new Set<string>();
+	private peerKeyVersions = new Map<string, number>();
+	private peerKeyRefreshPendingVersion = new Map<string, number>();
 
 	public messageRouter: MessageRouter;
 	private nodeState: NodeState;
@@ -375,7 +386,19 @@ export class YapYapNode {
 	async init(libp2p: Libp2p) {
 		this.libp2p = libp2p;
 		this.identity = await generateIdentityKeyPair();
-		this.encryptionKeyPair = await generateEphemeralKeyPair();
+		const storedEncryptionKey = this.db.getEncryptionKey();
+		if (storedEncryptionKey) {
+			this.encryptionKeyPair = {
+				publicKey: Buffer.from(storedEncryptionKey.public_key, "hex"),
+				privateKey: Buffer.from(storedEncryptionKey.private_key, "hex"),
+			};
+		} else {
+			this.encryptionKeyPair = await generateEphemeralKeyPair();
+			this.db.saveEncryptionKey(
+				Buffer.from(this.encryptionKeyPair.publicKey).toString("hex"),
+				Buffer.from(this.encryptionKeyPair.privateKey).toString("hex"),
+			);
+		}
 
 		this.registerProtocols();
 		this.registerPeerEvents();
@@ -741,6 +764,8 @@ export class YapYapNode {
 		// Store peer's X25519 public key for E2E encryption
 		const publicKeyHex = Buffer.from(msg.publicKey).toString("hex");
 		await this.db.savePeerMetadata(peerId, "public_key", publicKeyHex);
+		const nextVersion = (this.peerKeyVersions.get(peerId) ?? 0) + 1;
+		this.peerKeyVersions.set(peerId, nextVersion);
 		this.signalPeerKeyAvailable(peerId);
 		this.clearPeerKeyRefresh(peerId);
 

@@ -9,6 +9,15 @@ export const yapyapSchema = {
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL
     )
+	`,
+	encryption_keys: `
+    CREATE TABLE IF NOT EXISTS encryption_keys (
+      id INTEGER PRIMARY KEY,
+      public_key TEXT UNIQUE NOT NULL,
+      private_key TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    )
   `,
 	routing_cache: `
     CREATE TABLE IF NOT EXISTS routing_cache (
