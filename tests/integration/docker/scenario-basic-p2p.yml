@@ -1,0 +1,29 @@
+# Basic P2P Scenario for YapYap
+version: "1.0"
+description: "Test basic P2P message flow between two nodes"
+scenarios:
+  - name: "node1-to-node2-message"
+    steps:
+      - action: "start-node"
+        node: "node1"
+      - action: "start-node"
+        node: "node2"
+      - action: "connect-peers"
+        peers:
+          - "node1"
+          - "node2"
+      - action: "send-message"
+        from: "node1"
+        to: "node2"
+        content: "hello world"
+      - action: "verify-message-received"
+        from: "node2"
+        content: "hello world"
+      - action: "stop-node"
+        node: "node1"
+      - action: "stop-node"
+        node: "node2"
+artifacts:
+  - path: "results/node1/logs"
+  - path: "results/node2/logs"
+  - path: "results/message-queue"
