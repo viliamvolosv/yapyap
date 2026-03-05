@@ -1,7 +1,6 @@
 import assert from "node:assert";
 import { test } from "node:test";
 
-// Contract tests for Database
 test("Database contract: transactional multi-step operations", () => {
 	assert.ok(true, "Database transaction contract test placeholder");
 });
