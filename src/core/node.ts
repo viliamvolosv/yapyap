@@ -346,6 +346,7 @@ export class YapYapNode {
 			getBootstrapPeerIds: this.getBootstrapPeerIds.bind(this),
 			getThrottleKeyForPeer: this.getThrottleKeyForPeer.bind(this),
 			getDiscoveredPeers: this.getDiscoveredPeers.bind(this),
+			waitForPeerPublicKey: this.waitForPeerPublicKey.bind(this),
 		});
 	}
 
@@ -771,9 +772,20 @@ export class YapYapNode {
 	async decryptMessage(msg: YapYapMessage): Promise<unknown | null> {
 		if (!isEncryptedPayload(msg.payload)) return null;
 		if (!this.encryptionKeyPair?.privateKey) return null;
+		let senderPublicKey: Buffer | null = null;
 		const senderNodeKey = await this.db.getNodeKey(msg.from);
-		if (!senderNodeKey || !senderNodeKey.public_key) return null;
-		const senderPublicKey = Buffer.from(senderNodeKey.public_key, "hex");
+		if (senderNodeKey?.public_key) {
+			senderPublicKey = Buffer.from(senderNodeKey.public_key, "hex");
+		} else {
+			const metadataKey = await this.db.getPeerMetadata(
+				msg.from,
+				"public_key",
+			);
+			if (typeof metadataKey === "string") {
+				senderPublicKey = Buffer.from(metadataKey, "hex");
+			}
+		}
+		if (!senderPublicKey) return null;
 		const decrypted = await decryptE2EMessage(
 			{
 				ciphertext: Buffer.from(msg.payload.ciphertext, "hex"),
@@ -797,6 +809,10 @@ export class YapYapNode {
 		const nodeKey = this.db.getNodeKey(peerId);
 		if (nodeKey?.public_key) {
 			return Buffer.from(nodeKey.public_key, "hex");
+		}
+		const metadataKey = await this.db.getPeerMetadata(peerId, "public_key");
+		if (typeof metadataKey === "string") {
+			return Buffer.from(metadataKey, "hex");
 		}
 		// Optionally: fallback to session public key
 		const sessions = this.db.getAllActiveSessions();

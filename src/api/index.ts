@@ -1588,31 +1588,54 @@ export class ApiModule {
 		}
 	}
 
+	private isEncryptedPayload(payload: unknown): boolean {
+		return (
+			typeof payload === "object" &&
+			payload !== null &&
+			"encrypted" in payload &&
+			(payload as { encrypted?: unknown }).encrypted === true
+		);
+	}
+
 	private async getInboxMessages(): Promise<Response> {
 		const selfPeerId = this.yapyapNode.getPeerId();
-		const inbox = this.yapyapNode
+		const entries = this.yapyapNode
 			.getDatabase()
 			.getRecentProcessedMessages(200)
 			.filter(
 				(entry: unknown) =>
 					(entry as { to_peer_id: string }).to_peer_id === selfPeerId,
-			)
-			.map((entry: unknown) => {
-				let message: YapYapMessage | null = null;
-				try {
-					message = JSON.parse(
-						(entry as { message_data: string }).message_data,
-					) as YapYapMessage;
-				} catch {
-					message = null;
+			);
+		const inbox = [];
+		for (const entry of entries) {
+			let message: YapYapMessage | null = null;
+			try {
+				message = JSON.parse(
+					(entry as { message_data: string }).message_data,
+				) as YapYapMessage;
+			} catch {
+				message = null;
+			}
+
+			let decryptionError: string | undefined;
+			if (message && this.isEncryptedPayload(message.payload)) {
+				const decrypted = await this.yapyapNode.decryptMessage(message);
+				if (decrypted !== null) {
+					message.payload = decrypted;
+				} else {
+					decryptionError = "decryption-failed";
 				}
-				return {
-					messageId: (entry as { message_id: string }).message_id,
-					fromPeerId: (entry as { from_peer_id: string }).from_peer_id,
-					processedAt: (entry as { processed_at: number }).processed_at,
-					message,
-				};
+			}
+
+			inbox.push({
+				messageId: (entry as { message_id: string }).message_id,
+				fromPeerId: (entry as { from_peer_id: string }).from_peer_id,
+				processedAt: (entry as { processed_at: number }).processed_at,
+				message,
+				decryptionError,
 			});
+		}
+
 		return this.ok({ inbox });
 	}
 
