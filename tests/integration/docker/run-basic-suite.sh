@@ -28,6 +28,10 @@ echo "========================================"
 echo "Running Standard Docker Scenarios"
 echo "========================================"
 
+export TEST_RUN_ID="${TEST_RUN_ID:-$(date -u +"%Y%m%dT%H%M%SZ")}"
+echo "Artifact Run ID: ${TEST_RUN_ID}"
+echo "Artifacts Path: tests/integration/docker/results/artifacts/${TEST_RUN_ID}/"
+
 for scenario in "${scenarios[@]}"; do
   echo "=== Running ${scenario} ==="
   bash "${RUNNER}" "${scenario}"

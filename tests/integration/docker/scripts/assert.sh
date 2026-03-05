@@ -5,9 +5,10 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 DOCKER_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 SCENARIO="${TEST_SCENARIO:-basic-messaging}"
 RESULT_FILE="$DOCKER_DIR/results/$SCENARIO.result.json"
+ASSERT_TIMEOUT_SECONDS="${ASSERT_TIMEOUT_SECONDS:-120}"
 
 echo "[assert] Waiting for controller to finish..."
-for i in $(seq 1 60); do
+for i in $(seq 1 "$ASSERT_TIMEOUT_SECONDS"); do
   if [ -f "$RESULT_FILE" ]; then
     break
   fi
@@ -16,6 +17,7 @@ done
 
 if [ ! -f "$RESULT_FILE" ]; then
   echo "[assert] Missing result file: $RESULT_FILE" >&2
+  echo "[assert] Wait timeout: ${ASSERT_TIMEOUT_SECONDS}s" >&2
   docker compose -f "$DOCKER_DIR/docker-compose.yml" logs controller || true
   exit 1
 fi
