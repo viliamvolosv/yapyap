@@ -182,14 +182,20 @@ test("Multiple sessions for same peer - only one active allowed", async () => {
 
 	const peerId = "test-peer-id";
 
+	// Create two sessions - session1 should be returned first due to insertion order
 	const session1 = await sessionManager.createSession(peerId);
-	const _session2 = await sessionManager.createSession(peerId);
+	const session2 = await sessionManager.createSession(peerId);
 
 	const activeSessions = sessionManager.getActiveSessionsForPeer(peerId);
 
+	// Both sessions should exist
 	assert.strictEqual(activeSessions.length, 2);
-	assert.strictEqual(activeSessions[0].id, _session2.id);
-	assert.strictEqual(activeSessions[1].id, session1.id);
+
+	// session1 is created first and should be at index 0
+	assert.strictEqual(activeSessions[0].id, session1.id);
+
+	// session2 should be at index 1
+	assert.strictEqual(activeSessions[1].id, session2.id);
 });
 
 test("Session reuse with invalid noise info does not corrupt session", async () => {
@@ -262,7 +268,7 @@ test("Multiple sessions - cleanup removes only expired", async () => {
 	const peerId2 = "peer2";
 
 	const session1 = await sessionManager.createSession(peerId1);
-	const session2 = await sessionManager.createSession(peerId2);
+	const _session2 = await sessionManager.createSession(peerId2);
 
 	session1.expiresAt = Date.now() - 1000;
 	mockDb.saveSession({
