@@ -8,6 +8,7 @@ export interface YapYapNodeOptions {
 // focusing on DRY, separation of concerns, and maintainability.
 
 import type { Connection, Libp2p, PeerId, Stream } from "@libp2p/interface";
+import { peerIdFromString } from "@libp2p/peer-id";
 import {
 	decryptE2EMessage,
 	type EncryptionKeyPair,
@@ -42,6 +43,7 @@ import {
 	PROTOCOL_HANDSHAKE,
 	PROTOCOL_ROUTE,
 	PROTOCOL_SYNC,
+	PROTOCOL_VERSION,
 	RoutingTable,
 } from "./protocols.js";
 
@@ -77,6 +79,9 @@ function isEncryptedPayload(p: unknown): p is EncryptedPayload {
 const STREAM_IDLE_TIMEOUT_MS = 30_000;
 const MAX_RECEIVE_BUFFER_BYTES = MAX_FRAME_SIZE_BYTES * 2;
 const BUFFER_THRESHOLD_BYTES = Math.floor(MAX_RECEIVE_BUFFER_BYTES * 0.75);
+const HANDSHAKE_MAX_ATTEMPTS = 3;
+const HANDSHAKE_RETRY_BASE_MS = 250;
+const HANDSHAKE_CAPABILITIES = ["e2e"];
 
 /* -------------------------------------------------------------------------- */
 /*                               Node Service                                 */
@@ -266,6 +271,7 @@ export class YapYapNode {
 
 	private identity?: EncryptionKeyPair;
 	private encryptionKeyPair?: EncryptionKeyPair;
+	private handshakeInProgress = new Set<string>();
 
 	public messageRouter: MessageRouter;
 	private nodeState: NodeState;
@@ -368,9 +374,12 @@ export class YapYapNode {
 			// Create E2E session for encrypted communication
 			this.sessions
 				.getOrCreateSession(peerId)
-				.catch((err) =>
-					console.error("Failed to create E2E session:", err),
+				.catch((err) => console.error("Failed to create E2E session:", err));
+			if (peerId !== this.getPeerId()) {
+				void this.performHandshake(peerId).catch((err) =>
+					console.warn("Handshake failed for peer", peerId, err),
 				);
+			}
 		});
 
 		this.libp2p.addEventListener("peer:disconnect", (e) => {
@@ -380,6 +389,67 @@ export class YapYapNode {
 			// Mark peer as unavailable in database
 			this.db.markPeerUnavailable(peerId);
 		});
+	}
+
+	private async performHandshake(peerId: string): Promise<void> {
+		if (!this.libp2p || !this.encryptionKeyPair?.publicKey) {
+			return;
+		}
+		if (this.handshakeInProgress.has(peerId)) {
+			return;
+		}
+
+		const handshakePayload: HandshakeMessage = {
+			type: "hello",
+			version: PROTOCOL_VERSION,
+			capabilities: HANDSHAKE_CAPABILITIES,
+			timestamp: Date.now(),
+			publicKey: this.encryptionKeyPair.publicKey,
+			e2eCapabilities: {
+				supported: true,
+				keyExchange: "X25519",
+				encryption: "AES-GCM",
+				signature: "Ed25519",
+			},
+		};
+
+		this.handshakeInProgress.add(peerId);
+		try {
+			const peerIdObj = peerIdFromString(peerId);
+
+			for (let attempt = 1; attempt <= HANDSHAKE_MAX_ATTEMPTS; attempt++) {
+				let stream: Stream | undefined;
+				try {
+					stream = await this.libp2p.dialProtocol(
+						peerIdObj,
+						PROTOCOL_HANDSHAKE,
+					);
+					await stream.send(MessageFramer.encode(handshakePayload));
+
+					for await (const chunk of stream) {
+						decodeMessage<YapYapMessage>(
+							chunk instanceof Uint8Array ? chunk : chunk.subarray(),
+						);
+						break;
+					}
+
+					return;
+				} catch (error) {
+					if (attempt === HANDSHAKE_MAX_ATTEMPTS) {
+						throw error;
+					}
+					await new Promise((resolve) =>
+						setTimeout(resolve, HANDSHAKE_RETRY_BASE_MS * attempt),
+					);
+				} finally {
+					if (stream) {
+						await this.safeClose(stream);
+					}
+				}
+			}
+		} finally {
+			this.handshakeInProgress.delete(peerId);
+		}
 	}
 
 	/* ------------------------------------------------------------------------ */
@@ -622,13 +692,13 @@ export class YapYapNode {
 		payload: unknown,
 		recipient: Uint8Array,
 	): Promise<EncryptedPayload> {
-		if (!this.encryptionKeyPair) {
-			throw new Error("Encryption key pair not initialized");
+		if (!this.identity?.privateKey) {
+			throw new Error("Identity key pair not initialized");
 		}
 		const encrypted = await encryptE2EMessage(
 			JSON.stringify(payload),
 			recipient,
-			this.encryptionKeyPair.privateKey,
+			this.identity.privateKey,
 		);
 		return {
 			encrypted: true,
@@ -653,7 +723,7 @@ export class YapYapNode {
 
 	async decryptMessage(msg: YapYapMessage): Promise<unknown | null> {
 		if (!isEncryptedPayload(msg.payload)) return null;
-		if (!this.identity) return null;
+		if (!this.encryptionKeyPair?.privateKey) return null;
 		const senderNodeKey = await this.db.getNodeKey(msg.from);
 		if (!senderNodeKey || !senderNodeKey.public_key) return null;
 		const senderPublicKey = Buffer.from(senderNodeKey.public_key, "hex");
@@ -665,7 +735,7 @@ export class YapYapNode {
 				signature: Buffer.from(msg.payload.signature, "hex"),
 			},
 			senderPublicKey,
-			this.identity.privateKey,
+			this.encryptionKeyPair.privateKey,
 		);
 		return JSON.parse(decrypted);
 	}

@@ -6,7 +6,11 @@ import type { YapYapEvent } from "../events/event-types.js";
 import { Events } from "../events/event-types.js";
 import type { AckMessage, YapYapMessage } from "./message.js";
 import { MessageRouter } from "./message-router.js";
-import { encryptE2EMessage, generateEphemeralKeyPair, generateIdentityKeyPair } from "../crypto/index.js";
+import {
+	encryptE2EMessage,
+	generateEphemeralKeyPair,
+	generateIdentityKeyPair,
+} from "../crypto/index.js";
 
 // Generate valid key pairs for tests
 const testIdentityKeyPair = await generateIdentityKeyPair();
@@ -422,7 +426,8 @@ function createContext(db: DbMock, emittedEvents: YapYapEvent[] = []) {
 	return {
 		db: db as never,
 		getPeerId: () => "peer-local",
-		fetchRecipientPublicKey: async () => Buffer.from(testEphemeralKeyPair.publicKey),
+		fetchRecipientPublicKey: async () =>
+			Buffer.from(testEphemeralKeyPair.publicKey),
 		getNodeKeyPair: () => ({
 			privateKey: Buffer.from(testIdentityKeyPair.privateKey),
 			publicKey: Buffer.from(testIdentityKeyPair.publicKey),

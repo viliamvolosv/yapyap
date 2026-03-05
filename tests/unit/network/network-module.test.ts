@@ -23,7 +23,14 @@ class TestNetworkModule extends NetworkModule {
 
 	public getProcessHandshake() {
 		// Access the private processHandshake via type casting
-		return (this as unknown as { processHandshake: (msg: HandshakeMessage, peer: PeerId) => Promise<YapYapMessage | null> }).processHandshake;
+		return (
+			this as unknown as {
+				processHandshake: (
+					msg: HandshakeMessage,
+					peer: PeerId,
+				) => Promise<YapYapMessage | null>;
+			}
+		).processHandshake;
 	}
 
 	public triggerPeerConnect(peerId: PeerId) {
@@ -31,6 +38,10 @@ class TestNetworkModule extends NetworkModule {
 		if (this.libp2p) {
 			this.libp2p.dispatchEvent("peer:connect", { detail: peerId });
 		}
+	}
+
+	public triggerRegisterEvents() {
+		return (this as unknown as { registerEvents: () => void }).registerEvents();
 	}
 }
 
@@ -115,22 +126,25 @@ describe("NetworkModule", () => {
 	});
 
 	test("processHandshake stores peer public key in database", async () => {
-		const savedMetadata: Array<{ peerId: string; key: string; value: string }> = [];
-		
+		const savedMetadata: Array<{ peerId: string; key: string; value: string }> =
+			[];
+
 		const dbMock = {
 			savePeerMetadata: async (peerId: string, key: string, value: string) => {
 				savedMetadata.push({ peerId, key, value });
 			},
 		} as unknown as DatabaseManager;
 
-		const network = new TestNetworkModule(undefined, undefined, dbMock);
-		
+		new TestNetworkModule(undefined, undefined, dbMock);
+
 		const peerId = { toString: () => "12D3KooWTestPeer" } as PeerId;
-		
+
 		// Generate identity key pair (Ed25519) for signing and verification
-		const { generateIdentityKeyPair, signMessage } = await import("../../../src/crypto/index.js");
+		const { generateIdentityKeyPair, signMessage } = await import(
+			"../../../src/crypto/index.js"
+		);
 		const identityKeyPair = await generateIdentityKeyPair();
-		
+
 		// Create a properly signed handshake message
 		const timestamp = Date.now();
 		const basePayload = {
@@ -146,10 +160,13 @@ describe("NetworkModule", () => {
 				signature: "Ed25519",
 			},
 		};
-		
+
 		const messageBytes = new TextEncoder().encode(JSON.stringify(basePayload));
-		const signatureBytes = await signMessage(messageBytes, identityKeyPair.privateKey);
-		
+		const signatureBytes = await signMessage(
+			messageBytes,
+			identityKeyPair.privateKey,
+		);
+
 		const handshakeMsg: HandshakeMessage = {
 			...basePayload,
 			publicKey: identityKeyPair.publicKey,
@@ -160,19 +177,26 @@ describe("NetworkModule", () => {
 		// which requires valid local keys for response generation
 		if (handshakeMsg.publicKey && dbMock) {
 			const publicKeyHex = Buffer.from(handshakeMsg.publicKey).toString("hex");
-			await dbMock.savePeerMetadata(peerId.toString(), "public_key", publicKeyHex);
+			await dbMock.savePeerMetadata(
+				peerId.toString(),
+				"public_key",
+				publicKeyHex,
+			);
 		}
 
 		assert.strictEqual(savedMetadata.length, 1);
 		assert.strictEqual(savedMetadata[0].peerId, "12D3KooWTestPeer");
 		assert.strictEqual(savedMetadata[0].key, "public_key");
 		// Verify the stored public key matches
-		assert.strictEqual(savedMetadata[0].value, Buffer.from(identityKeyPair.publicKey).toString("hex"));
+		assert.strictEqual(
+			savedMetadata[0].value,
+			Buffer.from(identityKeyPair.publicKey).toString("hex"),
+		);
 	});
 
 	test("peer:connect event creates E2E session", async () => {
 		const createdSessions: string[] = [];
-		
+
 		const sessionManagerMock = {
 			getOrCreateSession: async (peerId: string) => {
 				createdSessions.push(peerId);
@@ -189,15 +213,25 @@ describe("NetworkModule", () => {
 			},
 		} as unknown as SessionManager;
 
-		const network = new TestNetworkModule(undefined, undefined, undefined, sessionManagerMock);
-		
+		const network = new TestNetworkModule(
+			undefined,
+			undefined,
+			undefined,
+			sessionManagerMock,
+		);
+
+		const eventHandlers: Record<string, (e: { detail: PeerId }) => void> = {};
+
 		const libp2pMock = {
-			addEventListener: function(event: string, handler: (e: { detail: PeerId }) => void) {
+			addEventListener: (
+				event: string,
+				handler: (e: { detail: PeerId }) => void,
+			) => {
 				// Store handler for later use
-				(this as any)[`handler_${event}`] = handler;
+				eventHandlers[`handler_${event}`] = handler;
 			},
-			dispatchEvent: function(event: string, detail: { detail: PeerId }) {
-				const handler = (this as any)[`handler_${event}`];
+			dispatchEvent: (event: string, detail: { detail: PeerId }) => {
+				const handler = eventHandlers[`handler_${event}`];
 				if (handler) handler(detail);
 			},
 			getConnections: () => [],
@@ -206,8 +240,7 @@ describe("NetworkModule", () => {
 		} as unknown as Libp2p;
 
 		network.libp2p = libp2pMock;
-		// Trigger registerEvents to set up the handlers
-		(network as any).registerEvents();
+		network.triggerRegisterEvents();
 
 		const peerId = { toString: () => "12D3KooWTestPeer2" } as PeerId;
 		network.triggerPeerConnect(peerId);

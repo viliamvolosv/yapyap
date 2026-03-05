@@ -164,10 +164,7 @@ export class ConnectionHealthMonitor {
 				}
 			).services?.ping;
 			if (pingSvc) {
-				await this.withTimeout(
-					pingSvc.ping(peerId),
-					this.config.pingTimeoutMs,
-				);
+				await this.withTimeout(pingSvc.ping(peerId), this.config.pingTimeoutMs);
 				return true;
 			}
 		} catch {
@@ -472,9 +469,7 @@ export class NetworkModule {
 			if (this.sessionManager) {
 				this.sessionManager
 					.getOrCreateSession(peerId)
-					.catch((err) =>
-						console.error("Failed to create E2E session:", err),
-					);
+					.catch((err) => console.error("Failed to create E2E session:", err));
 			}
 		});
 

@@ -1,11 +1,14 @@
 import assert from "node:assert";
-import { createHash } from "node:crypto";
 import { afterEach, beforeEach, describe, test } from "node:test";
 import { ApiModule } from "../../../src/api/index.js";
 import type { YapYapNode } from "../../../src/core/node.js";
 import type { YapYapMessage } from "../../../src/message/message.js";
 import type { EncryptedPayload } from "../../../src/message/message.js";
-import { encryptE2EMessage, generateEphemeralKeyPair, generateIdentityKeyPair } from "../../../src/crypto/index.js";
+import {
+	encryptE2EMessage,
+	generateEphemeralKeyPair,
+	generateIdentityKeyPair,
+} from "../../../src/crypto/index.js";
 
 // Generate valid key pairs for tests
 const testIdentityKeyPair = await generateIdentityKeyPair();
@@ -127,7 +130,10 @@ class MockNode {
 		return [];
 	}
 
-	async encryptMessage(payload: unknown, recipient: Uint8Array): Promise<EncryptedPayload> {
+	async encryptMessage(
+		payload: unknown,
+		recipient: Uint8Array,
+	): Promise<EncryptedPayload> {
 		const encrypted = await encryptE2EMessage(
 			JSON.stringify(payload),
 			recipient,

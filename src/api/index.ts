@@ -1555,68 +1555,35 @@ export class ApiModule {
 			return this.fail(400, "Invalid target peerId");
 		}
 
-		// Check if recipient has public key
-		const peerPublicKey = await this.yapyapNode.getPeerPublicKey(targetId);
-		if (!peerPublicKey) {
-			return this.fail(
-				400,
-				"Recipient public key not available. Encryption is required.",
-				{
-					peerId: targetId,
-					reason: "Recipient public key missing",
-				},
-			);
-		}
-
-		// Encrypt payload
-		const nodeKeyPair = this.yapyapNode.getNodeKeyPair();
-		if (!nodeKeyPair?.privateKey || !nodeKeyPair?.publicKey) {
-			return this.fail(500, "Node key pair not available");
-		}
+		const message: YapYapMessage = {
+			id: crypto.randomUUID(),
+			type: "data",
+			from: this.yapyapNode.getPeerId(),
+			to: targetId,
+			payload,
+			timestamp: Date.now(),
+		};
 
 		try {
-			const encryptedPayload = await this.yapyapNode.encryptMessage(
-				payload,
-				Buffer.from(peerPublicKey, "hex"),
-			);
-
-			const message: YapYapMessage = {
-				id: crypto.randomUUID(),
-				type: "data",
-				from: this.yapyapNode.getPeerId(),
-				to: targetId,
-				payload: encryptedPayload,
+			await this.yapyapNode.messageRouter.send(message);
+			return this.ok({
+				message: "Message sent successfully",
+				messageId: message.id,
+				targetId,
+				queued: false,
 				timestamp: Date.now(),
-			};
-
-			try {
-				await this.yapyapNode.messageRouter.send(message);
-				return this.ok({
-					message: "Message sent successfully",
+			});
+		} catch (error) {
+			return this.ok(
+				{
+					message: "Message queued for retry",
 					messageId: message.id,
 					targetId,
-					queued: false,
+					queued: true,
+					details: error instanceof Error ? error.message : String(error),
 					timestamp: Date.now(),
-				});
-			} catch (error) {
-				// Router persists first; transport failures should not look like request failures.
-				return this.ok(
-					{
-						message: "Message queued for retry",
-						messageId: message.id,
-						targetId,
-						queued: true,
-						details: error instanceof Error ? error.message : String(error),
-						timestamp: Date.now(),
-					},
-					202,
-				);
-			}
-		} catch (error) {
-			return this.fail(
-				500,
-				"Failed to encrypt message",
-				error instanceof Error ? error.message : String(error),
+				},
+				202,
 			);
 		}
 	}

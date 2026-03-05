@@ -687,52 +687,18 @@ program
 			const node = new YapYapNode(db);
 			await node.init(libp2p);
 
-			const peerKey = await db.getPeerMetadata(options.to, "public_key");
-
-			if (!peerKey || typeof peerKey !== "string") {
-				logger.error(
-					`Cannot send message: peer ${options.to} not found or missing public key.`,
-				);
-				logger.info("");
-				logger.info("Action required:");
-				logger.info(
-					`  1. Ask the recipient for their public key (run: yapyap get-peer-id)`,
-				);
-				logger.info(`  2. Add them as a contact with:`);
-				logger.info(
-					`     yapyap contact add --peer-id ${options.to} --public-key <hex>`,
-				);
-				logger.info("");
-				logger.info("The public key is needed to encrypt messages end-to-end.");
-				await node.shutdown();
-				process.exit(1);
-			}
-
 			const payload: Record<string, unknown> = {
 				content: options.payload,
 			};
 
-			const publicKey = Buffer.from(peerKey, "hex");
-			try {
-				const finalPayload = await node.encryptMessage(payload, publicKey);
-				const message: YapYapMessage = {
-					id: randomUUID(),
-					type: "data",
-					from: node.getPeerId(),
-					to: options.to,
-					payload: finalPayload,
-					timestamp: Date.now(),
-				};
-			} catch (encryptError) {
-				logger.error(
-					"Failed to encrypt message. Check that the public key is valid.",
-				);
-				logger.error(
-					`Encryption error: ${encryptError instanceof Error ? encryptError.message : String(encryptError)}`,
-				);
-				await node.shutdown();
-				process.exit(1);
-			}
+			const message: YapYapMessage = {
+				id: randomUUID(),
+				type: "data",
+				from: node.getPeerId(),
+				to: options.to,
+				payload,
+				timestamp: Date.now(),
+			};
 
 			try {
 				await node.messageRouter.send(message);
