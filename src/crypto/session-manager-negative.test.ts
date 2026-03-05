@@ -198,7 +198,7 @@ test("Multiple sessions for same peer - only one active allowed", async () => {
 	const peerId = "test-peer-id";
 
 	const session1 = await sessionManager.createSession(peerId);
-	const session2 = await sessionManager.createSession(peerId);
+	const _session2 = await sessionManager.createSession(peerId);
 
 	// Both should be created but only the latest should be returned by getActiveSessionsForPeer
 	const activeSessions = sessionManager.getActiveSessionsForPeer(peerId);
@@ -280,7 +280,7 @@ test("Multiple sessions - cleanup removes only expired", async () => {
 	const peerId2 = "peer2";
 
 	const session1 = await sessionManager.createSession(peerId1);
-	const session2 = await sessionManager.createSession(peerId2);
+	const _session2 = await sessionManager.createSession(peerId2);
 
 	// Expire session1
 	session1.expiresAt = Date.now() - 1000;
@@ -331,7 +331,7 @@ test("Session statistics after cleanup", async () => {
 
 	const peerId = "test-peer-id";
 	const session1 = await sessionManager.createSession(peerId);
-	const session2 = await sessionManager.createSession(peerId);
+	const _session2 = await sessionManager.createSession(peerId);
 
 	// Expire session1
 	session1.expiresAt = Date.now() - 1000;
