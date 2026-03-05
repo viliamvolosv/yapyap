@@ -1,11 +1,8 @@
 import assert from "node:assert";
 import { test } from "node:test";
 
-// Contract tests for MessageRouter
 test("Message router contract: valid message routing", () => {
-	// This is a placeholder for contract tests
-	// Actual implementation tests will be added based on MessageRouter API
-	assert.ok(true, "Message router contract test placeholder");
+	assert.ok(true, "Message routing contract test placeholder");
 });
 
 test("Message router contract: deduplication prevents duplicate processing", () => {
