@@ -55,6 +55,7 @@ interface NodeContext {
 		last_seen: number;
 	}>;
 	healthMonitor?: ConnectionHealthMonitor;
+	waitForPeerPublicKey?: (peerId: string, timeoutMs?: number) => Promise<void>;
 }
 
 export interface MessageRouterOptions {
@@ -184,9 +185,19 @@ export class MessageRouter {
 
 		// 2. Encrypt payload (mandatory)
 		if (message.payload && typeof message.payload === "object") {
-			const recipientPublicKey = await this.nodeContext.fetchRecipientPublicKey(
+			let recipientPublicKey = await this.nodeContext.fetchRecipientPublicKey(
 				message.to,
 			);
+			if (!recipientPublicKey && this.nodeContext.waitForPeerPublicKey) {
+				try {
+					await this.nodeContext.waitForPeerPublicKey(message.to, 5_000);
+					recipientPublicKey = await this.nodeContext.fetchRecipientPublicKey(
+						message.to,
+					);
+				} catch {
+					recipientPublicKey = null;
+				}
+			}
 			const nodeKeyPair = this.nodeContext.getNodeKeyPair();
 
 			if (
