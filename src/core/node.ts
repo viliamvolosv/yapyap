@@ -748,24 +748,15 @@ export class YapYapNode {
 			recipient,
 			this.identity.privateKey,
 		);
+		const toHex = (value?: Uint8Array): string =>
+			value ? Buffer.from(value).toString("hex") : "";
+
 		return {
 			encrypted: true,
-			ciphertext: Buffer.isBuffer(encrypted.ciphertext)
-				? encrypted.ciphertext.toString("hex")
-				: String(encrypted.ciphertext),
-			nonce: Buffer.isBuffer(encrypted.nonce)
-				? encrypted.nonce.toString("hex")
-				: String(encrypted.nonce),
-			ephemeralPublicKey: encrypted.ephemeralPublicKey
-				? Buffer.isBuffer(encrypted.ephemeralPublicKey)
-					? encrypted.ephemeralPublicKey.toString("hex")
-					: String(encrypted.ephemeralPublicKey)
-				: "",
-			signature: encrypted.signature
-				? Buffer.isBuffer(encrypted.signature)
-					? encrypted.signature.toString("hex")
-					: String(encrypted.signature)
-				: "",
+			ciphertext: toHex(encrypted.ciphertext),
+			nonce: toHex(encrypted.nonce),
+			ephemeralPublicKey: toHex(encrypted.ephemeralPublicKey),
+			signature: toHex(encrypted.signature),
 		};
 	}
 
@@ -776,16 +767,7 @@ export class YapYapNode {
 		const senderNodeKey = await this.db.getNodeKey(msg.from);
 		if (senderNodeKey?.public_key) {
 			senderPublicKey = Buffer.from(senderNodeKey.public_key, "hex");
-		} else {
-			const metadataKey = await this.db.getPeerMetadata(
-				msg.from,
-				"public_key",
-			);
-			if (typeof metadataKey === "string") {
-				senderPublicKey = Buffer.from(metadataKey, "hex");
-			}
 		}
-		if (!senderPublicKey) return null;
 		const decrypted = await decryptE2EMessage(
 			{
 				ciphertext: Buffer.from(msg.payload.ciphertext, "hex"),

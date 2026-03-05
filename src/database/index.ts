@@ -1064,7 +1064,7 @@ export class DatabaseManager {
 				now,
 				session.expires_at,
 				now,
-				session.is_active,
+				session.is_active ? 1 : 0,
 				session.noise_session_info
 					? JSON.stringify(session.noise_session_info)
 					: null,

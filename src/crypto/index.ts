@@ -338,7 +338,7 @@ export async function encryptE2EMessage(
  */
 export async function decryptE2EMessage(
 	encryptedMessage: EncryptedMessage,
-	senderPublicKey: Uint8Array,
+	senderPublicKey: Uint8Array | undefined | null,
 	recipientPrivateKey: Uint8Array,
 ): Promise<string> {
 	try {
@@ -379,8 +379,8 @@ export async function decryptE2EMessage(
 			);
 		}
 
-		// Verify signature if present
-		if (encryptedMessage.signature) {
+		// Verify signature if present and we have a sender key
+		if (senderPublicKey && encryptedMessage.signature) {
 			const isValid = await verifySignature(
 				plaintextBytes,
 				encryptedMessage.signature,
