@@ -1,0 +1,10 @@
+{
+  "dockerComposeFile": "docker-compose.yml",
+  "resultsDir": "results",
+  "artifactsDir": "artifacts",
+  "defaultTimeout": "60s",
+  "retryPolicy": {
+    "maxAttempts": 3,
+    "backoffMultiplier": 2
+  }
+}
