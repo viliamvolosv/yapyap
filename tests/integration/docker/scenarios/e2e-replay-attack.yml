@@ -1,0 +1,17 @@
+scenario:
+  name: e2e-replay-attack
+  description: Tests that E2E replayed encrypted envelopes are rejected or deduplicated
+  steps:
+    - start: [node1, node2]
+    - wait: discovery
+    - send: node1 -> node2 (replay-test-1)
+    - verify: node2 inbox contains replay-test-1
+    - send: node1 -> node2 (replay-test-1)  # Duplicate
+    - verify: node2 inbox count unchanged (no duplicate)
+    - verify: no duplicate message_id in processed_messages table
+    - verify: no duplicate sequence number increment
+    - verify: no duplicate event emitted for MESSAGE_RECEIVED
+    - send: node1 -> node2 (replay-test-2)
+    - verify: node2 inbox contains replay-test-2
+    - send: node1 -> node2 (replay-test-2)  # Duplicate
+    - verify: node2 inbox count unchanged (no duplicate)

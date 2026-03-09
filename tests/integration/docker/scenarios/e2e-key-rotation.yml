@@ -1,0 +1,17 @@
+scenario:
+  name: e2e-key-rotation
+  description: Tests E2E encryption key rotation behavior
+  steps:
+    - start: [node1, node2]
+    - wait: discovery
+    - send: node1 -> node2 (key-rotation-test-1)
+    - verify: node2 inbox contains key-rotation-test-1
+    - verify: node2 processed_messages has entry for key-rotation-test-1
+    - restart: node2  # Simulates node2 regenerating keys
+    - wait: discovery
+    - send: node1 -> node2 (key-rotation-test-2)
+    - verify: node2 inbox contains key-rotation-test-2
+    - verify: node2 processed_messages has entry for key-rotation-test-2
+    - verify: key-rotation-test-1 NOT in inbox (stale message ignored)
+    - verify: node2 has new key pair generated
+    - verify: node2 public key different from before restart

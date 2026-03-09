@@ -1,0 +1,24 @@
+scenario:
+  name: restart-during-retry
+  description: Tests that pending retry survives restart
+  steps:
+    - start: [node1, node2]
+    - wait: discovery
+    - disconnect: node1 <-> node2
+    - send: node1 -> node2 (retry-survival-test)
+    - verify: message queued with status = pending
+    - verify: attempts = 0
+    - verify: next_retry_at is set
+    - verify: message_queue table has entry
+    - verify: processed_messages does NOT have entry
+    - restart: node1
+    - wait: discovery
+    - verify: message_queue table still has entry for retry-survival-test
+    - verify: next_retry_at is updated (not stale)
+    - verify: attempts may have incremented (depends on timing)
+    - reconnect: node1 <-> node2
+    - wait: retry interval
+    - verify: message eventually delivered
+    - verify: final status = delivered
+    - verify: processed_messages has entry for retry-survival-test
+    - verify: message_queue entry removed after delivery

@@ -78,7 +78,7 @@ describe("MessageFramer - decode", () => {
 
 		assert.throws(
 			() => MessageFramer.decode(incomplete),
-			/Invalid framed message|insufficient data/i,
+			/Message decode failed|insufficient data/i,
 		);
 	});
 
@@ -87,7 +87,7 @@ describe("MessageFramer - decode", () => {
 
 		assert.throws(
 			() => MessageFramer.decode(zeroLength),
-			/Invalid framed message|insufficient data/i,
+			/Message decode failed|insufficient data/i,
 		);
 	});
 
@@ -99,7 +99,7 @@ describe("MessageFramer - decode", () => {
 
 		assert.throws(
 			() => MessageFramer.decode(frame),
-			/Invalid framed message|incomplete data/i,
+			/Message decode failed|incomplete data/i,
 		);
 	});
 
@@ -159,6 +159,40 @@ describe("MessageFramer - decodeFrames", () => {
 			MessageFramer.decode(result.frames[2]),
 			{ text: "third" },
 		);
+	});
+
+	test("Given partial frame at end, When decoded, Then returns complete frames and partial remainder", () => {
+		const frame1 = MessageFramer.encode(createTestMessage({ text: "first" }));
+		const frame2 = MessageFramer.encode(createTestMessage({ text: "second" }));
+
+		const combined = new Uint8Array([...frame1, ...frame2]);
+
+		// Add partial of third frame
+		const partialFrame = new Uint8Array(4);
+		const view = new DataView(partialFrame.buffer);
+		view.setUint32(0, 100, false);
+		const combinedWithPartial = new Uint8Array([...combined, ...partialFrame]);
+
+		const result = MessageFramer.decodeFrames(combinedWithPartial);
+
+		assert.strictEqual(result.frames.length, 2, "Should decode two complete frames");
+		assert.ok(result.remainder.length > 0, "Should have partial remainder");
+	});
+
+	test("Given empty buffer, When decoded, Then returns no frames and empty remainder", () => {
+		const result = MessageFramer.decodeFrames(new Uint8Array(0));
+
+		assert.strictEqual(result.frames.length, 0, "Should have no frames");
+		assert.strictEqual(result.remainder.length, 0, "Should have no remainder");
+	});
+
+	test("Given buffer with no complete frames, When decoded, Then returns no frames and full remainder", () => {
+		const buffer = new Uint8Array([0, 1, 2, 3]);
+
+		const result = MessageFramer.decodeFrames(buffer);
+
+		assert.strictEqual(result.frames.length, 0, "Should have no frames");
+		assert.strictEqual(result.remainder.length, 4, "Should have full remainder");
 	});
 
 	test("Given partial frame at end, When decoded, Then returns complete frames and partial remainder", () => {

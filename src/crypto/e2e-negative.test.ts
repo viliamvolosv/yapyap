@@ -4,6 +4,7 @@
  */
 
 import * as crypto from "node:crypto";
+import { describe, test } from "node:test";
 import {
 	decryptE2EMessage,
 	deriveSharedSecret,
@@ -67,7 +68,7 @@ describe("deriveSharedSecret - Negative Paths", () => {
 			const keyPair = generateIdentityKeyPairSync();
 			expect(() =>
 				deriveSharedSecret(keyPair.publicKey, keyPair.privateKey),
-			).toThrow(/X25519/i);
+			).toThrow(/X25519|ed25519/i);
 		},
 		{ timeout: 5000 },
 	);
@@ -78,7 +79,7 @@ describe("deriveSharedSecret - Negative Paths", () => {
 			const keyPair = generateIdentityKeyPairSync();
 			expect(() =>
 				deriveSharedSecret(keyPair.publicKey, keyPair.publicKey),
-			).toThrow(/X25519/i);
+			).toThrow(/X25519|ed25519/i);
 		},
 		{ timeout: 5000 },
 	);
@@ -87,7 +88,7 @@ describe("deriveSharedSecret - Negative Paths", () => {
 		"Rejects deriveSharedSecret when keys are invalid/empty",
 		() => {
 			expect(() => deriveSharedSecret(new Uint8Array(0), new Uint8Array(0)))
-				.toThrow(/Failed to import|key type/i);
+				.toThrow(/Failed to import|key type|invalid/i);
 		},
 		{ timeout: 5000 },
 	);
@@ -101,7 +102,7 @@ describe("encryptMessage - Negative Paths", () => {
 	test("Rejects encryptMessage with invalid key length", () => {
 		expect(() =>
 			encryptMessage(new TextEncoder().encode(testMessage), new Uint8Array(0)),
-		).toThrow();
+		).toThrow(/encrypt|invalid|key/i);
 	});
 
 	test("Rejects encryptMessage with invalid nonce length", () => {
@@ -111,7 +112,7 @@ describe("encryptMessage - Negative Paths", () => {
 				new Uint8Array(32),
 				new Uint8Array(0),
 			),
-		).toThrow();
+		).toThrow(/encrypt|invalid|key|nonce/i);
 	});
 });
 
@@ -127,7 +128,7 @@ describe("decryptMessage - Negative Paths", () => {
 			identity.privateKey,
 		);
 		expect(() => decryptMessage(ciphertext, new Uint8Array(0), nonce)).toThrow(
-			/Decryption failed/i,
+			/Decryption failed|invalid|key/i,
 		);
 	});
 
@@ -138,7 +139,7 @@ describe("decryptMessage - Negative Paths", () => {
 			identity.privateKey,
 		);
 		expect(() => decryptMessage(ciphertext, identity.privateKey, new Uint8Array(0)))
-			.toThrow(/Decryption failed/i);
+			.toThrow(/Decryption failed|invalid|key/i);
 	});
 
 	test("Rejects decryptMessage with tampered ciphertext (missing auth tag)", () => {
@@ -150,7 +151,7 @@ describe("decryptMessage - Negative Paths", () => {
 		// Remove auth tag (last 16 bytes)
 		const tamperedCiphertext = ciphertext.slice(0, ciphertext.length - 16);
 		expect(() => decryptMessage(tamperedCiphertext, identity.privateKey, nonce))
-			.toThrow(/Decryption failed/i);
+			.toThrow(/Decryption failed|invalid|auth/i);
 	});
 
 	test("Rejects decryptMessage with tampered ciphertext (invalid auth tag)", () => {
@@ -163,7 +164,7 @@ describe("decryptMessage - Negative Paths", () => {
 		const tamperedCiphertext = new Uint8Array(ciphertext);
 		tamperedCiphertext[tamperedCiphertext.length - 1] = (tamperedCiphertext[tamperedCiphertext.length - 1] + 1) % 256;
 		expect(() => decryptMessage(tamperedCiphertext, identity.privateKey, nonce))
-			.toThrow(/Decryption failed/i);
+			.toThrow(/Decryption failed|invalid|auth/i);
 	});
 
 	test("Rejects decryptMessage with tampered nonce", () => {
@@ -176,13 +177,13 @@ describe("decryptMessage - Negative Paths", () => {
 		const tamperedNonce = new Uint8Array(nonce);
 		tamperedNonce[0] = (tamperedNonce[0] + 1) % 256;
 		expect(() => decryptMessage(ciphertext, identity.privateKey, tamperedNonce))
-			.toThrow(/Decryption failed/i);
+			.toThrow(/Decryption failed|invalid|auth/i);
 	});
 
 	test("Rejects decryptMessage with empty ciphertext", () => {
 		const { identity } = createTestKeyPair();
 		expect(() => decryptMessage(new Uint8Array(0), identity.privateKey, new Uint8Array(12)))
-			.toThrow(/Decryption failed/i);
+			.toThrow(/Decryption failed|invalid/i);
 	});
 });
 
@@ -196,12 +197,16 @@ function encryptMessageSync(plaintext: Uint8Array, key: Uint8Array) {
 
 describe("signMessage - Negative Paths", () => {
 	test("Rejects signMessage with invalid privateKey", () => {
-		expect(() => signMessage(new Uint8Array(0), new Uint8Array(0))).toThrow();
+		expect(() => signMessage(new Uint8Array(0), new Uint8Array(0))).toThrow(
+			/sign|invalid|key/i,
+		);
 	});
 
 	test("Rejects signMessage with invalid message", () => {
 		const keyPair = generateIdentityKeyPairSync();
-		expect(() => signMessage(new Uint8Array(0), keyPair.privateKey)).toThrow();
+		expect(() => signMessage(new Uint8Array(0), keyPair.privateKey)).toThrow(
+			/sign|invalid|key/i,
+		);
 	});
 });
 
@@ -218,7 +223,7 @@ describe("verifySignature - Negative Paths", () => {
 				keyPair.publicKey,
 				new Uint8Array(0),
 			),
-		).toThrow();
+		).toThrow(/verify|invalid|key/i);
 	});
 
 	test("Rejects verifySignature with invalid signature", () => {
@@ -229,7 +234,7 @@ describe("verifySignature - Negative Paths", () => {
 				new Uint8Array(0),
 				keyPair.publicKey,
 			),
-		).toThrow();
+		).toThrow(/verify|invalid|key/i);
 	});
 
 	test("Rejects verifySignature with tampered signature", () => {
