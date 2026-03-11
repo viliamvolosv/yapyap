@@ -29,6 +29,7 @@ type DbMock = {
 	updateMessageStatusCalls: Array<{ id: string; status: string }>;
 	markProcessedCalls: string[];
 	processedIds: Set<string>;
+	processedMessagesCount: number;
 	lastSequences: Map<string, number>;
 	queueMessage: (
 		messageId: string,
@@ -45,6 +46,9 @@ type DbMock = {
 		fromPeerId: string,
 		sequenceNumber?: number,
 	) => void;
+	persistIncomingMessageAtomically: (
+		input: Record<string, unknown>,
+	) => { applied: boolean; duplicate: boolean };
 	getLastPeerSequence: (peerId: string) => number | null;
 	updatePeerSequence: (peerId: string, sequenceNumber: number) => void;
 	getPendingMessage: (messageId: string) => {
@@ -210,6 +214,7 @@ type DbMock = {
 // Create mock database manager
 function createMockDb(): DbMock {
 	const processedIds = new Set<string>();
+	const processedMessagesCount = 0;
 	const lastSequences = new Map<string, number>();
 	const updateMessageStatusCalls: Array<{ id: string; status: string }> = [];
 	const markProcessedCalls: string[] = [];
@@ -242,6 +247,7 @@ function createMockDb(): DbMock {
 		updateMessageStatusCalls,
 		markProcessedCalls,
 		processedIds,
+		processedMessagesCount,
 		lastSequences,
 		queueMessage: () => {},
 		getAllPendingMessages: () => [],
@@ -257,6 +263,42 @@ function createMockDb(): DbMock {
 		) => {
 			processedIds.add(messageId);
 			markProcessedCalls.push(messageId);
+		},
+		persistIncomingMessageAtomically: (input: Record<string, unknown>) => {
+			const messageId = input.message_id as string;
+			const fromPeerId = input.from_peer_id as string;
+			const toPeerId = input.to_peer_id as string;
+			const sequenceNumber = input.sequence_number as number | undefined;
+			const vectorClock = input.vector_clock as Record<string, number> | undefined;
+
+			// Check if message is already processed
+			if (processedIds.has(messageId)) {
+				return { applied: false, duplicate: true };
+			}
+
+			// Mark as processed
+			processedIds.add(messageId);
+			processedMessagesCount++;
+
+			// Update sequence if provided
+			if (typeof sequenceNumber === "number") {
+				lastSequences.set(fromPeerId, sequenceNumber);
+			}
+
+			// Update vector clock if provided
+			if (vectorClock) {
+				for (const [peerId, counter] of Object.entries(vectorClock)) {
+					if (typeof counter === "number" && counter >= 0) {
+						// Update the vector clock counter
+						// (simplified - just storing the counter for the peer)
+						if (!lastSequences.has(peerId)) {
+							lastSequences.set(peerId, counter);
+						}
+					}
+				}
+			}
+
+			return { applied: true, duplicate: false };
 		},
 		getLastPeerSequence: (peerId: string) => lastSequences.get(peerId) ?? null,
 		updatePeerSequence: (peerId: string, sequenceNumber: number) => {
