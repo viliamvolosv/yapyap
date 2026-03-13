@@ -128,8 +128,7 @@ export const yapyapSchema = {
     CREATE VIRTUAL TABLE IF NOT EXISTS search_index USING fts5(
       peer_id,
       alias,
-      metadata,
-      content='contacts'
+      metadata
     )
   `,
 	indexes: [

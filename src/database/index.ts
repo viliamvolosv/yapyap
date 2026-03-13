@@ -28,6 +28,10 @@ export interface RoutingCacheEntry {
 	ttl: number;
 }
 
+export type RoutingEntryInput = Omit<RoutingCacheEntry, "last_seen"> & {
+	last_seen?: number;
+};
+
 type RoutingCacheRow = {
 	peer_id: string;
 	multiaddrs: string | null;
@@ -275,8 +279,9 @@ export class DatabaseManager {
 	}
 
 	// Routing Cache Methods
-	saveRoutingEntry(entry: Omit<RoutingCacheEntry, "last_seen">): void {
+	saveRoutingEntry(entry: RoutingEntryInput): void {
 		const now = Date.now();
+		const lastSeen = entry.last_seen ?? now;
 		const stmt = this.db.prepare(`
       INSERT OR REPLACE INTO routing_cache
       (peer_id, multiaddrs, last_seen, is_available, ttl)
@@ -286,8 +291,8 @@ export class DatabaseManager {
 		stmt.run(
 			entry.peer_id,
 			JSON.stringify(entry.multiaddrs),
-			now,
-			entry.is_available,
+			lastSeen,
+			entry.is_available ? 1 : 0,
 			entry.ttl,
 		);
 	}
@@ -516,7 +521,7 @@ export class DatabaseManager {
 		this.db
 			.prepare(
 				`UPDATE pending_messages
-         SET next_retry_at = ?, updated_at = ?, last_error = ?
+         SET next_retry_at = ?, updated_at = ?, last_error = ?, attempts = attempts + 1
          WHERE message_id = ?`,
 			)
 			.run(nextRetryAt, Date.now(), reason ?? null, messageId);
@@ -621,17 +626,32 @@ export class DatabaseManager {
 			.run(messageId, originalTargetPeerId, sourcePeerId, now, now, deadlineAt);
 	}
 
+	private ensureReplicatedMessageRow(
+		messageId: string,
+		replicaPeerId: string,
+	): void {
+		const now = Date.now();
+		this.upsertReplicatedMessage(
+			messageId,
+			replicaPeerId,
+			replicaPeerId,
+			now + 3600000,
+		);
+	}
+
 	assignMessageReplica(messageId: string, replicaPeerId: string): void {
+		this.ensureReplicatedMessageRow(messageId, replicaPeerId);
 		const now = Date.now();
 		this.db
 			.prepare(
 				`INSERT INTO message_replicas
-         (message_id, replica_peer_id, status, assigned_at, updated_at)
-         VALUES (?, ?, 'assigned', ?, ?)
-         ON CONFLICT(message_id, replica_peer_id) DO UPDATE SET
-           status = 'assigned',
-           updated_at = excluded.updated_at,
-           last_error = NULL`,
+        (message_id, replica_peer_id, status, assigned_at, updated_at, ack_expected)
+        VALUES (?, ?, 'assigned', ?, ?, 1)
+        ON CONFLICT(message_id, replica_peer_id) DO UPDATE SET
+          status = 'assigned',
+          updated_at = excluded.updated_at,
+          ack_expected = 1,
+          last_error = NULL`,
 			)
 			.run(messageId, replicaPeerId, now, now);
 	}
@@ -912,37 +932,23 @@ export class DatabaseManager {
 						.run(payload.fromPeerId, payload.sequenceNumber, now);
 				}
 
+				const updatedVectorPeers = new Set<string>();
+
 				if (payload.vectorClock) {
 					for (const [peerId, counter] of Object.entries(payload.vectorClock)) {
 						if (typeof counter !== "number" || counter < 0) {
 							continue;
 						}
-						this.db
-							.prepare(
-								`INSERT INTO peer_vector_clocks (peer_id, counter, updated_at)
-                 VALUES (?, ?, ?)
-                 ON CONFLICT(peer_id) DO UPDATE SET
-                   counter = CASE
-                     WHEN excluded.counter > peer_vector_clocks.counter THEN excluded.counter
-                     ELSE peer_vector_clocks.counter
-                   END,
-                   updated_at = excluded.updated_at`,
-							)
-							.run(peerId, counter, now);
+						this.updateVectorClock(peerId, counter);
+						updatedVectorPeers.add(peerId);
 					}
-				} else if (typeof payload.sequenceNumber === "number") {
-					this.db
-						.prepare(
-							`INSERT INTO peer_vector_clocks (peer_id, counter, updated_at)
-               VALUES (?, ?, ?)
-               ON CONFLICT(peer_id) DO UPDATE SET
-                 counter = CASE
-                   WHEN excluded.counter > peer_vector_clocks.counter THEN excluded.counter
-                   ELSE peer_vector_clocks.counter
-                 END,
-                 updated_at = excluded.updated_at`,
-						)
-						.run(payload.fromPeerId, payload.sequenceNumber, now);
+				}
+
+				if (
+					typeof payload.sequenceNumber === "number" &&
+					!updatedVectorPeers.has(payload.fromPeerId)
+				) {
+					this.updateVectorClock(payload.fromPeerId, payload.sequenceNumber);
 				}
 
 				return {
@@ -965,6 +971,7 @@ export class DatabaseManager {
 	// Contacts Methods
 	saveContact(contact: Omit<Contact, "last_seen">): void {
 		const now = Date.now();
+		const normalizedMetadata = this.normalizeMetadata(contact.metadata);
 		this.db
 			.prepare(`
       INSERT OR REPLACE INTO contacts
@@ -972,15 +979,23 @@ export class DatabaseManager {
       VALUES (?, ?, ?, ?, ?)
     `)
 			.run(
-				contact.peer_id,
-				contact.alias,
-				now,
-				contact.metadata,
-				contact.is_trusted ? 1 : 0,
+			contact.peer_id,
+			contact.alias,
+			now,
+			normalizedMetadata,
+			contact.is_trusted ? 1 : 0,
 			);
+		this.upsertContactSearchIndex({
+			peer_id: contact.peer_id,
+			alias: contact.alias,
+			last_seen: now,
+			metadata: normalizedMetadata,
+			is_trusted: contact.is_trusted,
+		});
 	}
 
 	saveContactLww(contact: Contact): void {
+		const normalizedMetadata = this.normalizeMetadata(contact.metadata);
 		this.db
 			.prepare(
 				`INSERT INTO contacts (peer_id, alias, last_seen, metadata, is_trusted)
@@ -996,9 +1011,13 @@ export class DatabaseManager {
 				contact.peer_id,
 				contact.alias,
 				contact.last_seen,
-				contact.metadata,
+				normalizedMetadata,
 				contact.is_trusted ? 1 : 0,
 			);
+		this.upsertContactSearchIndex({
+			...contact,
+			metadata: normalizedMetadata,
+		});
 	}
 
 	getContact(peerId: string): Contact | null {
@@ -1036,8 +1055,13 @@ export class DatabaseManager {
 	}
 
 	deleteContact(peerId: string): number {
-		return this.db.prepare(`DELETE FROM contacts WHERE peer_id = ?`).run(peerId)
-			.changes;
+		const deleted = this.db
+			.prepare(`DELETE FROM contacts WHERE peer_id = ?`)
+			.run(peerId).changes;
+		this.db
+			.prepare(`DELETE FROM search_index WHERE peer_id = ?`)
+			.run(peerId);
+		return deleted;
 	}
 
 	// Peer Metadata Methods
@@ -1076,11 +1100,43 @@ export class DatabaseManager {
 		const results = this.db
 			.prepare(`
       SELECT * FROM contacts WHERE peer_id IN (
-        SELECT rowid FROM search_index WHERE search_index MATCH ?
+        SELECT peer_id FROM search_index WHERE search_index MATCH ?
       )
     `)
-			.all(query);
+			.all(this.buildSearchQuery(query));
 		return results as Contact[];
+	}
+
+	private upsertContactSearchIndex(contact: Contact): void {
+		this.db
+			.prepare(`DELETE FROM search_index WHERE peer_id = ?`)
+			.run(contact.peer_id);
+		this.db
+			.prepare(
+				`INSERT INTO search_index (peer_id, alias, metadata)
+         VALUES (?, ?, ?)`,
+			)
+			.run(contact.peer_id, contact.alias, contact.metadata);
+	}
+
+	private buildSearchQuery(query: string): string {
+		const tokens = query
+			.split(/\s+/)
+			.filter((token) => token.length > 0)
+			.map((token) => token.replace(/"/g, '""'));
+		if (tokens.length === 0) {
+			return '""';
+		}
+		return tokens.map((token) => `"${token}"`).join(" ");
+	}
+
+	private normalizeMetadata(metadata: string): string {
+		try {
+			const parsed = JSON.parse(metadata);
+			return JSON.stringify(parsed).replace(/":/g, '": ');
+		} catch {
+			return metadata;
+		}
 	}
 
 	// Session Methods

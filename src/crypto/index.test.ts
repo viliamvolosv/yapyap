@@ -162,6 +162,29 @@ test("encryptE2EMessage handles edge cases", async () => {
 	assert.strictEqual(decrypted, plaintext);
 });
 
+test("encryptE2EMessage works with Ed25519 identity keys", async () => {
+	const plaintext = "Identity aware test";
+	const recipientIdentityKeyPair = await generateIdentityKeyPair();
+	const senderIdentityKeyPair = await generateIdentityKeyPair();
+
+	const encrypted = await encryptE2EMessage(
+		plaintext,
+		recipientIdentityKeyPair.publicKey,
+		senderIdentityKeyPair.privateKey,
+	);
+
+	assert.ok(encrypted.ephemeralPublicKey instanceof Uint8Array);
+	assert.ok(encrypted.nonce instanceof Uint8Array);
+
+	const decrypted = await decryptE2EMessage(
+		encrypted,
+		senderIdentityKeyPair.publicKey,
+		recipientIdentityKeyPair.privateKey,
+	);
+
+	assert.strictEqual(decrypted, plaintext);
+});
+
 test("deriveMessageKey creates deterministic keys from message and peer identity", () => {
 	const message = "Hello, World!";
 	const peerIdentity = new Uint8Array([1, 2, 3, 4, 5]);

@@ -5,6 +5,7 @@
 
 import assert from "node:assert";
 import { describe, test } from "node:test";
+import { unlinkSync } from "node:fs";
 import type { YapYapNodeOptions } from "../core/node.js";
 import { DatabaseManager } from "./index.js";
 
@@ -23,9 +24,9 @@ function createTestDBManager() {
 		cleanup: () => {
 			dbManager.close();
 			try {
-				import("node:fs").then((fs) => fs.unlinkSync(dbPath));
-			} catch (_e) {
-				// Ignore if file doesn't exist
+				unlinkSync(dbPath);
+			} catch (_error) {
+				// Ignore if file doesn't exist or cannot be deleted
 			}
 		},
 	};

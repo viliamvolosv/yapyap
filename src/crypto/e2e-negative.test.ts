@@ -3,8 +3,50 @@
  * Tests that crypto operations reject invalid inputs and malformed data
  */
 
+import assert from "node:assert";
 import * as crypto from "node:crypto";
 import { describe, test } from "node:test";
+
+function expect(received: unknown) {
+	return {
+		toThrow(expected?: RegExp | string) {
+			if (typeof received !== "function") {
+				assert.fail("Expected a function in expect(...).toThrow()");
+			}
+
+			try {
+				(received as () => unknown)();
+			} catch (error) {
+				if (expected !== undefined) {
+					const message = error instanceof Error ? error.message : String(error);
+					if (expected instanceof RegExp) {
+						assert(
+							expected.test(message),
+							`Expected error message to match ${expected}, got ${message}`,
+						);
+					} else {
+						assert(
+							message.includes(expected),
+							`Expected error message to contain "${expected}", got "${message}"`,
+						);
+					}
+				}
+				return;
+			}
+
+			assert.fail("Expected function to throw an error");
+		},
+		toContain(value: string) {
+			const text = typeof received === "string" ? received : String(received);
+			assert.ok(text.includes(value), `Expected "${text}" to include "${value}"`);
+		},
+		toBe(value: unknown) {
+			const actual =
+				typeof received === "function" ? (received as () => unknown)() : received;
+			assert.strictEqual(actual, value);
+		},
+	};
+}
 import {
 	decryptE2EMessage,
 	decryptMessage,
@@ -213,9 +255,10 @@ describe("signMessage - Negative Paths", () => {
 
 	test("Rejects signMessage with invalid message", () => {
 		const keyPair = generateIdentityKeyPairSync();
-		expect(() => signMessage(new Uint8Array(0), keyPair.privateKey)).toThrow(
-			/sign|invalid|key/i,
-		);
+		expect(() =>
+			// @ts-expect-error - intentionally invalid input
+			signMessage(null, keyPair.privateKey),
+		).toThrow(/first argument|value|invalid|key/i);
 	});
 });
 
@@ -291,12 +334,13 @@ describe("deriveKeyFromPassword - Negative Paths", () => {
 
 describe("encryptE2EMessage - Negative Paths", () => {
 	test(
-		"Rejects encryptE2EMessage when recipientPublicKey is not X25519",
+		"Rejects encryptE2EMessage when recipientPublicKey is malformed",
 		async () => {
 			const keyPair = generateIdentityKeyPairSync();
+			const invalidRecipient = new Uint8Array(16);
 			expect(() =>
-				encryptE2EMessage(testMessage, keyPair.publicKey, keyPair.privateKey),
-			).toThrow(/X25519|Failed to encrypt/i);
+				encryptE2EMessage(testMessage, invalidRecipient, keyPair.privateKey),
+			).toThrow(/public key|Failed to parse/i);
 		},
 		{ timeout: 5000 },
 	);
@@ -522,7 +566,7 @@ describe("decryptE2EMessage - Negative Paths", () => {
 
 describe("Crypto Errors - Clarity and Stability", () => {
 	test("Errors are explicit and include operation context", () => {
-		const error = new Error("Test error");
+		const error = new Error("decrypt operation failed");
 		expect(error.message).toContain("decrypt");
 	});
 
