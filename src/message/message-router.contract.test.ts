@@ -227,14 +227,14 @@ function createMockDb(): DbMock {
 	}> = [
 		{
 			peer_id: RELAY_PEER_ID,
-			multiaddrs: ["/ip4/127.0.0.1/tcp/4001/p2p/" + RELAY_PEER_ID],
+			multiaddrs: [`/ip4/127.0.0.1/tcp/4001/p2p/${RELAY_PEER_ID}`],
 			last_seen: Date.now(),
 			is_available: true,
 			ttl: 3600000,
 		},
 		{
 			peer_id: PEER_A,
-			multiaddrs: ["/ip4/127.0.0.1/tcp/4002/p2p/" + PEER_A],
+			multiaddrs: [`/ip4/127.0.0.1/tcp/4002/p2p/${PEER_A}`],
 			last_seen: Date.now(),
 			is_available: true,
 			ttl: 3600000,

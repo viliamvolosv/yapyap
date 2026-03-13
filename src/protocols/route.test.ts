@@ -146,7 +146,6 @@ describe("RoutingTable - cleanupStaleEntries", () => {
 
 describe("createRouteAnnounce", () => {
 	test("Given parameters, When created, Then returns valid announce message", async () => {
-		const keyPair = createTestKeyPair();
 		const announce = await createRouteAnnounce("peer-1", ["peer-2", "peer-3"]);
 
 		assert.strictEqual(announce.type, "route_announce", "Type should be route_announce");
@@ -157,7 +156,6 @@ describe("createRouteAnnounce", () => {
 	});
 
 	test("Given reachablePeers, When created, Then includes in message", async () => {
-		const keyPair = createTestKeyPair();
 		const reachablePeers = ["peer-a", "peer-b", "peer-c"];
 
 		const announce = await createRouteAnnounce("peer-1", reachablePeers);
@@ -167,7 +165,6 @@ describe("createRouteAnnounce", () => {
 	});
 
 	test("Given routingHints, When created, Then includes in message", async () => {
-		const keyPair = createTestKeyPair();
 		const hints = [
 			{
 				peerId: "peer-2",
@@ -294,7 +291,6 @@ describe("handleRouteAnnounce", () => {
 	});
 
 	test("Given announce with wrong sender key, When handled, Then rejects", async () => {
-		const keyPair1 = createTestKeyPair();
 		const keyPair2 = createTestKeyPair();
 		const table = new RoutingTable();
 
