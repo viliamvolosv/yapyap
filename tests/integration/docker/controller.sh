@@ -885,6 +885,7 @@ run_e2e_replay_attack() {
 const body=await res.text();
 console.log(JSON.stringify({status:res.status,body}));" "$NODE2_PEER_ID")"
   REPLAY_STATUS="$(echo "$REPLAY_RAW" | node -e "const d=JSON.parse(await new Promise(r => { let d=\"\"; process.stdin.on(\"data\", c => d+=c); process.stdin.on(\"end\", () => r(d)); })); console.log(d.status)")"
+  REPLAY_MESSAGE_ID="$(echo "$REPLAY_RAW" | node -e "const d=JSON.parse(await new Promise(r => { let d=\"\"; process.stdin.on(\"data\", c => d+=c); process.stdin.on(\"end\", () => r(d)); })); const payload = JSON.parse(d.body || '{}'); console.log(payload?.data?.messageId ?? '');")"
   wait_inbox_delivery node2 replay-test-1
 
   echo "[controller] Verifying inbox count..."
@@ -896,9 +897,11 @@ console.log(inbox.length);" 2>/dev/null || echo "0")
   echo "[controller] Inbox count before replay: $INBOX_COUNT_BEFORE"
 
   echo "[controller] Sending replay-test-1 (duplicate)..."
-  REPLAY_RAW_2="$(node -e "const res=await fetch('http://node1:3000/api/messages/send',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({to:process.argv[1],payload:{kind:'replay-test-1',t:Date.now()}})});
+  REPLAY_RAW_2="$(node -e "const target=process.argv[1];
+const messageId=process.argv[2];
+const res=await fetch('http://node1:3000/api/messages/send',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({to:target,payload:{kind:'replay-test-1',t:Date.now()},messageId})});
 const body=await res.text();
-console.log(JSON.stringify({status:res.status,body}));" "$NODE2_PEER_ID")"
+console.log(JSON.stringify({status:res.status,body}));" "$NODE2_PEER_ID" "$REPLAY_MESSAGE_ID")"
   REPLAY_STATUS_2="$(echo "$REPLAY_RAW_2" | node -e "const d=JSON.parse(await new Promise(r => { let d=\"\"; process.stdin.on(\"data\", c => d+=c); process.stdin.on(\"end\", () => r(d)); })); console.log(d.status)")"
 
   echo "[controller] Verifying inbox count unchanged (no duplicate)..."

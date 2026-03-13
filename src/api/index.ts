@@ -1597,8 +1597,13 @@ export class ApiModule {
 			return this.fail(400, "Invalid target peerId");
 		}
 
+		const requestedMessageId =
+			typeof body.messageId === "string" && body.messageId.trim().length > 0
+				? body.messageId.trim()
+				: undefined;
+
 		const message: YapYapMessage = {
-			id: crypto.randomUUID(),
+			id: requestedMessageId ?? crypto.randomUUID(),
 			type: "data",
 			from: this.yapyapNode.getPeerId(),
 			to: targetId,
