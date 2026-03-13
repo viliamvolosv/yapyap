@@ -9,8 +9,10 @@ import {
 	generateEphemeralKeyPair,
 	generateIdentityKeyPair,
 } from "../crypto/index.js";
-import { Events } from "../events/event-types.js";
+import { Events, type YapYapEvent } from "../events/event-types.js";
+import type { YapYapMessage } from "../message/message.js";
 import { MessageRouter } from "./message-router.js";
+import type { Stream } from "@libp2p/interface";
 
 // Generate valid key pairs for tests
 const testIdentityKeyPair = await generateIdentityKeyPair();
@@ -222,6 +224,21 @@ function createMockDb(): DbMock {
 	const lastSequences = new Map<string, number>();
 	const updateMessageStatusCalls: Array<{ id: string; status: string }> = [];
 	const markProcessedCalls: string[] = [];
+	type PendingMessageEntry = {
+		message_id: string;
+		target_peer_id: string;
+		message_data: string;
+		status: "pending" | "processing" | "delivered" | "failed";
+		attempts: number;
+		next_retry_at: number;
+		created_at: number;
+		updated_at: number;
+		deadline_at: number;
+		last_error?: string;
+	};
+	const pendingMessages = new Map<string, PendingMessageEntry>();
+	const vectorClocks = new Map<string, number>();
+
 	const getAllRoutingEntriesMock: Array<{
 		peer_id: string;
 		multiaddrs: string[];
@@ -247,14 +264,48 @@ function createMockDb(): DbMock {
 
 	const getAllRoutingEntries = () => getAllRoutingEntriesMock;
 
+	const recordVectorClock = (peerId: string, counter: number) => {
+		const current = vectorClocks.get(peerId) ?? 0;
+		vectorClocks.set(peerId, Math.max(current, counter));
+	};
+
+	const applyVectorClockSnapshot = (clock?: Record<string, number>) => {
+		if (!clock) return;
+		for (const [peerId, counter] of Object.entries(clock)) {
+			if (typeof counter === "number" && counter >= 0) {
+				recordVectorClock(peerId, counter);
+			}
+		}
+	};
+
+	const queueMessage = (
+		messageId: string,
+		message: Record<string, unknown>,
+		targetPeerId: string,
+		deadlineAt: number,
+	) => {
+		const now = Date.now();
+		pendingMessages.set(messageId, {
+			message_id: messageId,
+			target_peer_id: targetPeerId,
+			message_data: JSON.stringify(message),
+			status: "pending",
+			attempts: 0,
+			next_retry_at: now,
+			created_at: now,
+			updated_at: now,
+			deadline_at: deadlineAt,
+		});
+	};
+
 	return {
 		updateMessageStatusCalls,
 		markProcessedCalls,
 		processedIds,
 		processedMessagesCount,
 		lastSequences,
-		queueMessage: () => {},
-		getAllPendingMessages: () => [],
+		queueMessage,
+		getAllPendingMessages: () => Array.from(pendingMessages.values()),
 		updateMessageStatus: (id: string, status: string) => {
 			updateMessageStatusCalls.push({ id, status });
 		},
@@ -269,40 +320,26 @@ function createMockDb(): DbMock {
 			markProcessedCalls.push(messageId);
 		},
 		persistIncomingMessageAtomically: (input: Record<string, unknown>) => {
-			const messageId = input.message_id as string;
-			const fromPeerId = input.from_peer_id as string;
-			const _toPeerId = input.to_peer_id as string;
-			const sequenceNumber = input.sequence_number as number | undefined;
-			const vectorClock = input.vector_clock as
-				| Record<string, number>
-				| undefined;
+		const messageId = (input.messageId ?? input.message_id) as string;
+		const fromPeerId = (input.fromPeerId ?? input.from_peer_id) as string;
+		const _toPeerId = input.toPeerId ?? input.to_peer_id;
+		const sequenceNumber = (input.sequenceNumber ??
+			input.sequence_number) as number | undefined;
+		const vectorClock = (input.vectorClock ??
+			input.vector_clock) as Record<string, number> | undefined;
 
-			// Check if message is already processed
 			if (processedIds.has(messageId)) {
 				return { applied: false, duplicate: true };
 			}
 
-			// Mark as processed
 			processedIds.add(messageId);
 			processedMessagesCount++;
 
-			// Update sequence if provided
 			if (typeof sequenceNumber === "number") {
 				lastSequences.set(fromPeerId, sequenceNumber);
 			}
 
-			// Update vector clock if provided
-			if (vectorClock) {
-				for (const [peerId, counter] of Object.entries(vectorClock)) {
-					if (typeof counter === "number" && counter >= 0) {
-						// Update the vector clock counter
-						// (simplified - just storing the counter for the peer)
-						if (!lastSequences.has(peerId)) {
-							lastSequences.set(peerId, counter);
-						}
-					}
-				}
-			}
+			applyVectorClockSnapshot(vectorClock);
 
 			return { applied: true, duplicate: false };
 		},
@@ -310,13 +347,46 @@ function createMockDb(): DbMock {
 		updatePeerSequence: (peerId: string, sequenceNumber: number) => {
 			lastSequences.set(peerId, sequenceNumber);
 		},
-		getPendingMessage: () => null,
-		incrementAttempts: () => {},
-		scheduleRetry: () => {},
-		getRetryablePendingMessages: () => [],
+		getPendingMessage: (messageId: string) => pendingMessages.get(messageId) ?? null,
+		incrementAttempts: (messageId: string) => {
+			const entry = pendingMessages.get(messageId);
+			if (entry) {
+				entry.attempts += 1;
+				entry.updated_at = Date.now();
+			}
+		},
+		scheduleRetry: (
+			messageId: string,
+			nextRetryAt: number,
+			reason?: string,
+		) => {
+			const entry = pendingMessages.get(messageId);
+			if (entry) {
+				entry.next_retry_at = nextRetryAt;
+				entry.last_error = reason;
+				entry.updated_at = Date.now();
+			}
+		},
+		getRetryablePendingMessages: () =>
+			Array.from(pendingMessages.values()).filter(
+				(entry) => entry.status === "pending",
+			),
 		getPendingMessagesForPeer: () => [],
-		markPendingMessageDelivered: () => {},
-		markPendingMessageFailed: () => {},
+		markPendingMessageDelivered: (messageId: string) => {
+			const entry = pendingMessages.get(messageId);
+			if (entry) {
+				entry.status = "delivered";
+				entry.updated_at = Date.now();
+			}
+		},
+		markPendingMessageFailed: (messageId: string, reason?: string) => {
+			const entry = pendingMessages.get(messageId);
+			if (entry) {
+				entry.status = "failed";
+				entry.last_error = reason;
+				entry.updated_at = Date.now();
+			}
+		},
 		schedulePendingRetry: () => {},
 		getAllRoutingEntries,
 		saveRoutingEntry: () => {},
@@ -341,9 +411,25 @@ function createMockDb(): DbMock {
 		markReplicatedMessageDelivered: () => {},
 		markReplicatedMessageFailed: () => {},
 		deleteExpiredReplicatedMessages: () => 0,
-		getAllVectorClocks: () => ({}),
-		updateVectorClock: () => {},
-		getVectorClock: () => 0,
+		deleteExpiredPendingMessages: (now = Date.now()) => {
+			const expired: string[] = [];
+			for (const [messageId, entry] of pendingMessages) {
+				if (
+					entry.status === "delivered" ||
+					entry.status === "failed" ||
+					entry.deadline_at <= now
+				) {
+					expired.push(messageId);
+				}
+			}
+			expired.forEach((messageId) => pendingMessages.delete(messageId));
+			return expired.length;
+		},
+		getAllVectorClocks: () => Object.fromEntries(vectorClocks),
+		updateVectorClock: (peerId: string, counter: number) => {
+			recordVectorClock(peerId, counter);
+		},
+		getVectorClock: (peerId: string) => vectorClocks.get(peerId) ?? 0,
 	};
 }
 
@@ -403,6 +489,63 @@ function _waitForEvent(
 	});
 }
 
+type RouterTestOptions = {
+	db?: DbMock;
+	fetchRecipientPublicKey?: Buffer | null;
+};
+
+function createRouterTestEnvironment(
+	options: RouterTestOptions = {},
+) {
+	const db = options.db ?? createMockDb();
+	const events = createEventEmitterMock();
+	const createDummyStream = (): Stream =>
+		({
+			send: async () => undefined,
+			close: async () => undefined,
+		}) as unknown as Stream;
+
+	const libp2pMock = {
+		dialProtocol: async () => createDummyStream(),
+		hangUp: async () => {},
+	};
+	const router = new MessageRouter({
+		db,
+		getLibp2p: () => libp2pMock,
+		getPeerId: () => VALID_PEER_ID,
+		fetchRecipientPublicKey: async () => {
+			if (options.fetchRecipientPublicKey !== undefined) {
+				return options.fetchRecipientPublicKey;
+			}
+			return Buffer.from(testIdentityKeyPair.publicKey);
+		},
+		getNodeKeyPair: () => ({
+			privateKey: Buffer.from(testIdentityKeyPair.privateKey),
+			publicKey: Buffer.from(testIdentityKeyPair.publicKey),
+		}),
+		encryptMessage: () => {},
+		encodeResponse: () => new Uint8Array(),
+		safeClose: async () => {},
+		emitEvent: async (event: YapYapEvent) => {
+			events.emit(event.type, event);
+		},
+	});
+	return { router, db, events };
+}
+
+function createDataMessage(overrides: Partial<YapYapMessage> = {}): YapYapMessage {
+	const base: YapYapMessage = {
+		id: overrides.id ?? `msg-${Math.random().toString(36).slice(2)}`,
+		type: "data",
+		from: overrides.from ?? PEER_A,
+		to: overrides.to ?? VALID_PEER_ID,
+		payload: overrides.payload ?? { text: "test message" },
+		timestamp: overrides.timestamp ?? Date.now(),
+	};
+
+	return { ...base, ...overrides };
+}
+
 // ============================================================================
 // Test Suite: Send Path - Missing Keys
 // ============================================================================
@@ -410,34 +553,20 @@ function _waitForEvent(
 describe("MessageRouter - Send Path - Missing Keys", () => {
 	test(
 		"Given messageRouter with non-existent recipient, When send attempted, Then throws error before transmit",
-		() => {
-			const db = createMockDb();
-			const events = createEventEmitterMock();
-			const router = new MessageRouter(
-				{
-					db,
-					getLibp2p: () => ({}),
-					getPeerId: () => VALID_PEER_ID,
-					fetchRecipientPublicKey: async () => null,
-					getNodeKeyPair: () => ({
-						privateKey: Buffer.from(testIdentityKeyPair.privateKey),
-						publicKey: Buffer.from(testIdentityKeyPair.publicKey),
-					}),
-					encryptMessage: () => {},
-					encodeResponse: () => new Uint8Array(),
-					safeClose: async () => {},
-				},
-				events,
-			);
+		async () => {
+			const { router } = createRouterTestEnvironment({
+				fetchRecipientPublicKey: null,
+			});
+			const message = createDataMessage({
+				id: "msg-missing-key",
+				to: "12D3KooNONEXISTENT1234567890ABCDEF",
+			});
 
-			assert.throws(
-				() =>
-					router.sendMessage(
-						"12D3KooNONEXISTENT1234567890ABCDEF",
-						{ text: "test message" },
-						10000,
-					),
-				/No recipient key found|recipient key/i,
+			await assert.rejects(
+				async () => {
+					await router.send(message);
+				},
+				/Encryption required/,
 			);
 		},
 		{ timeout: 5000 },
@@ -452,47 +581,33 @@ describe("MessageRouter - Receive - Idempotency", () => {
 	test(
 		"Given duplicate message received, When processed twice, Then no duplicate side effects/events",
 		async () => {
-			const db = createMockDb();
-			const events = createEventEmitterMock();
-			const router = new MessageRouter(
-				{
-					db,
-					getLibp2p: () => ({}),
-					getPeerId: () => VALID_PEER_ID,
-					fetchRecipientPublicKey: async () =>
-						Buffer.from(testIdentityKeyPair.publicKey),
-					getNodeKeyPair: () => ({
-						privateKey: Buffer.from(testIdentityKeyPair.privateKey),
-						publicKey: Buffer.from(testIdentityKeyPair.publicKey),
-					}),
-					encryptMessage: () => {},
-					encodeResponse: () => new Uint8Array(),
-					safeClose: async () => {},
-				},
-				events,
-			);
+			const { router, db, events } = createRouterTestEnvironment();
 
 			const messageId = "msg-duplicate-123";
-			const message = {
-				message_id: messageId,
-				from_peer_id: PEER_A,
-				to_peer_id: VALID_PEER_ID,
-				sequence_number: 1,
-				timestamp: Date.now(),
+			const message = createDataMessage({
+				id: messageId,
+				from: PEER_A,
+				to: VALID_PEER_ID,
+				sequenceNumber: 1,
 				payload: { text: "test message" },
-			};
+				vectorClock: { [PEER_A]: 1 },
+			});
 
 			// First receive
-			router.receiveMessage(message, PEER_A);
+			await router.receive(message);
 
-			// Count events before second receive
 			const _eventCountBefore = events.listenerCount(Events.MESSAGE_RECEIVED);
+			const vectorClockAfterFirst = db.getVectorClock(PEER_A);
+			assert.ok(
+				vectorClockAfterFirst >= 1,
+				"Vector clock should increment on first receive",
+			);
 
 			// Second receive (duplicate)
-			router.receiveMessage(message, PEER_A);
+			await router.receive(message);
 
-			// Count events after second receive
 			const _eventCountAfter = events.listenerCount(Events.MESSAGE_RECEIVED);
+			const vectorClockAfterSecond = db.getVectorClock(PEER_A);
 
 			// Sequence should not increase
 			const sequence = db.getLastPeerSequence(PEER_A);
@@ -503,10 +618,9 @@ describe("MessageRouter - Receive - Idempotency", () => {
 			);
 
 			// Vector clock should not increase
-			const vectorClock = db.getVectorClock(PEER_A);
 			assert.strictEqual(
-				vectorClock,
-				0,
+				vectorClockAfterSecond,
+				vectorClockAfterFirst,
 				"Vector clock should not increase on duplicate",
 			);
 		},
@@ -521,34 +635,19 @@ describe("MessageRouter - Receive - Idempotency", () => {
 describe("MessageRouter - ACK - Safe Ignorance", () => {
 	test(
 		"Given non-pending message, When ACK received, Then ignored safely with no side effects",
-		() => {
-			const db = createMockDb();
-			const events = createEventEmitterMock();
-			const router = new MessageRouter(
-				{
-					db,
-					getLibp2p: () => ({}),
-					getPeerId: () => VALID_PEER_ID,
-					fetchRecipientPublicKey: async () =>
-						Buffer.from(testIdentityKeyPair.publicKey),
-					getNodeKeyPair: () => ({
-						privateKey: Buffer.from(testIdentityKeyPair.privateKey),
-						publicKey: Buffer.from(testIdentityKeyPair.publicKey),
-					}),
-					encryptMessage: () => {},
-					encodeResponse: () => new Uint8Array(),
-					safeClose: async () => {},
-				},
-				events,
-			);
+		async () => {
+			const { router, db } = createRouterTestEnvironment();
 
-			// Try to ACK a message that was never sent
-			router.handleAck({
-				message_id: "non-existent-message",
+			await router.handleAck({
+				id: "ack-non-existent",
+				type: "ack",
+				from: PEER_A,
+				to: VALID_PEER_ID,
+				payload: {},
 				timestamp: Date.now(),
+				originalMessageId: "non-existent-message",
 			});
 
-			// Should not throw and should not modify database
 			const pendingMessages = db.getAllPendingMessages();
 			assert.strictEqual(
 				pendingMessages.length,
@@ -561,29 +660,15 @@ describe("MessageRouter - ACK - Safe Ignorance", () => {
 
 	test(
 		"Given delivered message, When ACK received, Then ignored safely",
-		() => {
-			const db = createMockDb();
-			const events = createEventEmitterMock();
-			const router = new MessageRouter(
-				{
-					db,
-					getLibp2p: () => ({}),
-					getPeerId: () => VALID_PEER_ID,
-					fetchRecipientPublicKey: async () =>
-						Buffer.from(testIdentityKeyPair.publicKey),
-					getNodeKeyPair: () => ({
-						privateKey: Buffer.from(testIdentityKeyPair.privateKey),
-						publicKey: Buffer.from(testIdentityKeyPair.publicKey),
-					}),
-					encryptMessage: () => {},
-					encodeResponse: () => new Uint8Array(),
-					safeClose: async () => {},
-				},
-				events,
-			);
+		async () => {
+			const { router, db } = createRouterTestEnvironment();
+			const message = createDataMessage({
+				id: "msg-ack-delivered",
+				from: VALID_PEER_ID,
+				to: PEER_A,
+			});
 
-			// Create and deliver a message
-			router.sendMessage(PEER_A, { text: "test" }, 10000);
+			await router.send(message);
 
 			const pendingMessages = db.getAllPendingMessages();
 			assert.strictEqual(
@@ -592,13 +677,16 @@ describe("MessageRouter - ACK - Safe Ignorance", () => {
 				"Message should be pending",
 			);
 
-			// ACK the delivered message
-			router.handleAck({
-				message_id: pendingMessages[0].message_id,
+			await router.handleAck({
+				id: "ack-delivered",
+				type: "ack",
+				from: PEER_A,
+				to: VALID_PEER_ID,
+				payload: {},
 				timestamp: Date.now(),
+				originalMessageId: pendingMessages[0].message_id,
 			});
 
-			// Should not throw and should not create new pending messages
 			const pendingMessagesAfter = db.getAllPendingMessages();
 			assert.strictEqual(
 				pendingMessagesAfter.length,
@@ -617,29 +705,15 @@ describe("MessageRouter - ACK - Safe Ignorance", () => {
 describe("MessageRouter - NAK - Retry with Backoff", () => {
 	test(
 		"Given pending message, When NAK received, Then schedules retry with bounded backoff and reason propagation",
-		() => {
-			const db = createMockDb();
-			const events = createEventEmitterMock();
-			const router = new MessageRouter(
-				{
-					db,
-					getLibp2p: () => ({}),
-					getPeerId: () => VALID_PEER_ID,
-					fetchRecipientPublicKey: async () =>
-						Buffer.from(testIdentityKeyPair.publicKey),
-					getNodeKeyPair: () => ({
-						privateKey: Buffer.from(testIdentityKeyPair.privateKey),
-						publicKey: Buffer.from(testIdentityKeyPair.publicKey),
-					}),
-					encryptMessage: () => {},
-					encodeResponse: () => new Uint8Array(),
-					safeClose: async () => {},
-				},
-				events,
-			);
+		async () => {
+			const { router, db } = createRouterTestEnvironment();
+			const message = createDataMessage({
+				id: "msg-nak-retry",
+				from: VALID_PEER_ID,
+				to: PEER_A,
+			});
 
-			// Send a message
-			router.sendMessage(PEER_A, { text: "test" }, 10000);
+			await router.send(message);
 
 			const pendingMessages = db.getAllPendingMessages();
 			assert.strictEqual(
@@ -650,14 +724,17 @@ describe("MessageRouter - NAK - Retry with Backoff", () => {
 
 			const messageId = pendingMessages[0].message_id;
 
-			// Send NAK with reason
-			router.handleNak({
-				message_id: messageId,
+			await router.handleNak({
+				id: "nak-retry",
+				type: "nak",
+				from: PEER_A,
+				to: VALID_PEER_ID,
+				payload: {},
 				timestamp: Date.now(),
 				reason: "timeout",
+				originalMessageId: messageId,
 			});
 
-			// Check that retry was scheduled
 			const retryableMessages = db.getRetryablePendingMessages();
 			assert.strictEqual(
 				retryableMessages.length,
@@ -685,48 +762,25 @@ describe("MessageRouter - NAK - Retry with Backoff", () => {
 describe("MessageRouter - Vector Clock - Replay Protection", () => {
 	test(
 		"Given old vector clock, When processed, Then does not regress local clock",
-		() => {
-			const db = createMockDb();
-			const events = createEventEmitterMock();
-			const router = new MessageRouter(
-				{
-					db,
-					getLibp2p: () => ({}),
-					getPeerId: () => VALID_PEER_ID,
-					fetchRecipientPublicKey: async () =>
-						Buffer.from(testIdentityKeyPair.publicKey),
-					getNodeKeyPair: () => ({
-						privateKey: Buffer.from(testIdentityKeyPair.privateKey),
-						publicKey: Buffer.from(testIdentityKeyPair.publicKey),
-					}),
-					encryptMessage: () => {},
-					encodeResponse: () => new Uint8Array(),
-					safeClose: async () => {},
-				},
-				events,
-			);
+		async () => {
+			const { router, db } = createRouterTestEnvironment();
 
-			// Process a message with current vector clock
-			const message1 = {
-				message_id: "msg-1",
-				from_peer_id: PEER_A,
-				to_peer_id: VALID_PEER_ID,
-				sequence_number: 1,
-				timestamp: Date.now(),
-				vector_clock: { [PEER_A]: 1 },
+			const message1 = createDataMessage({
+				id: "msg-1",
+				from: PEER_A,
+				to: VALID_PEER_ID,
+				sequenceNumber: 1,
+				vectorClock: { [PEER_A]: 1 },
 				payload: { text: "test message 1" },
-			};
+			});
 
-			router.receiveMessage(message1, PEER_A);
+			await router.receive(message1);
 
-			// Get current vector clock
 			const currentClock = db.getVectorClock(PEER_A);
 			assert.ok(currentClock >= 1, "Vector clock should be at least 1");
 
-			// Try to process same message again (old vector clock)
-			router.receiveMessage(message1, PEER_A);
+			await router.receive(message1);
 
-			// Vector clock should not decrease
 			const newClock = db.getVectorClock(PEER_A);
 			assert.strictEqual(
 				newClock,
@@ -747,24 +801,7 @@ describe("MessageRouter - Retry Cleanup", () => {
 		"Given expired terminal messages, When cleanup called, Then removes entries",
 		() => {
 			const db = createMockDb();
-			const events = createEventEmitterMock();
-			const _router = new MessageRouter(
-				{
-					db,
-					getLibp2p: () => ({}),
-					getPeerId: () => VALID_PEER_ID,
-					fetchRecipientPublicKey: async () =>
-						Buffer.from(testIdentityKeyPair.publicKey),
-					getNodeKeyPair: () => ({
-						privateKey: Buffer.from(testIdentityKeyPair.privateKey),
-						publicKey: Buffer.from(testIdentityKeyPair.publicKey),
-					}),
-					encryptMessage: () => {},
-					encodeResponse: () => new Uint8Array(),
-					safeClose: async () => {},
-				},
-				events,
-			);
+			createRouterTestEnvironment({ db });
 
 			// Add a delivered message
 			const messageId = "msg-expired";

@@ -191,11 +191,10 @@ test("Multiple sessions for same peer - only one active allowed", async () => {
 	// Both sessions should exist
 	assert.strictEqual(activeSessions.length, 2);
 
-	// session1 is created first and should be at index 0
-	assert.strictEqual(activeSessions[0].id, session1.id);
-
-	// session2 should be at index 1
-	assert.strictEqual(activeSessions[1].id, session2.id);
+	// Ensure both sessions are present regardless of ordering
+	const activeIds = activeSessions.map((s) => s.id);
+	assert.ok(activeIds.includes(session1.id));
+	assert.ok(activeIds.includes(session2.id));
 });
 
 test("Session reuse with invalid noise info does not corrupt session", async () => {

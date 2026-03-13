@@ -18,6 +18,10 @@ import {
 	processNoiseXXHandshake,
 	verifyHandshakeMessage,
 } from "./handshake.js";
+import {
+	clearLastProtocolError,
+	getLastProtocolError,
+} from "./error-handler.js";
 
 test("Noise XX handshake protocol - generate and process messages", async () => {
 	// Generate Ed25519 key pairs for signatures
@@ -267,18 +271,21 @@ test("Handshake protocol - rejects unsupported version", async () => {
 
 	assert.strictEqual(isSupportedHandshakeVersion(hello.version), false);
 	assert.strictEqual(await verifyHandshakeMessage(hello), false);
+
+	clearLastProtocolError();
 	const origConsoleErr = console.error;
 	console.error = () => {};
 	try {
-		await assert.rejects(
-			handleHandshakeMessage(
-				hello,
-				{ toString: () => "peer-remote" } as PeerId,
-				localKeys.privateKey,
-				localKeys.publicKey,
-			),
-			/Unsupported handshake protocol version/,
+		const response = await handleHandshakeMessage(
+			hello,
+			{ toString: () => "peer-remote" } as PeerId,
+			localKeys.privateKey,
+			localKeys.publicKey,
 		);
+		assert.strictEqual(response, null, "Handler should return null when version unsupported");
+		const err = getLastProtocolError();
+		assert.ok(err, "Protocol error should be set");
+		assert.match(err!.message, /\[handshake\] Unsupported handshake protocol version/);
 	} finally {
 		console.error = origConsoleErr;
 	}
