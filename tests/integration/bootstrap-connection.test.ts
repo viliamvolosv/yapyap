@@ -16,6 +16,13 @@ import { join } from "node:path";
 import { after, before, describe, it } from "node:test";
 import { DEFAULT_BOOTSTRAP_ADDRS } from "../../src/config/index.js";
 
+const skipBootstrapIntegration = Boolean(process.env.SKIP_BOOTSTRAP_INTEGRATION);
+const describeBootstrapIntegration = skipBootstrapIntegration ? describe.skip : describe;
+
+if (skipBootstrapIntegration) {
+  console.info("Bootstrap Connection Integration Tests are skipped (SKIP_BOOTSTRAP_INTEGRATION=true).");
+}
+
 interface NodeProcess {
 	process: ChildProcess;
 	apiPort: number;
@@ -133,7 +140,7 @@ async function stopNode(node: NodeProcess): Promise<void> {
 	await cleanupDir(node.dataDir);
 }
 
-describe("Bootstrap Connection Integration Tests", () => {
+describeBootstrapIntegration("Bootstrap Connection Integration Tests", () => {
 	let bootstrapNode: NodeProcess | undefined;
 	let clientNode: NodeProcess | undefined;
 

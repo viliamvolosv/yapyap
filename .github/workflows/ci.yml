@@ -71,6 +71,8 @@ jobs:
 
   test:
     name: Test Suite
+    env:
+      SKIP_BOOTSTRAP_INTEGRATION: "1"
     runs-on: ubuntu-latest
 
     steps:
