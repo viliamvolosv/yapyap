@@ -25,15 +25,15 @@ export interface DecryptedMessage {
 /**
  * Generate a key pair using Ed25519 for identity
  */
-export async function generateIdentityKeyPair(): Promise<EncryptionKeyPair> {
+export function generateIdentityKeyPair(): EncryptionKeyPair {
 	// Use Node's crypto for Ed25519 key generation
 	const keyPair = crypto.generateKeyPairSync("ed25519");
 
-	const publicKey = await keyPair.publicKey.export({
+	const publicKey = keyPair.publicKey.export({
 		type: "spki",
 		format: "der",
 	});
-	const privateKey = await keyPair.privateKey.export({
+	const privateKey = keyPair.privateKey.export({
 		type: "pkcs8",
 		format: "der",
 	});
@@ -47,15 +47,15 @@ export async function generateIdentityKeyPair(): Promise<EncryptionKeyPair> {
 /**
  * Generate an ephemeral key pair using X25519 for ECDH
  */
-export async function generateEphemeralKeyPair(): Promise<EncryptionKeyPair> {
+export function generateEphemeralKeyPair(): EncryptionKeyPair {
 	// Use Node's crypto for X25519 key generation
 	const keyPair = crypto.generateKeyPairSync("x25519");
 
-	const publicKey = await keyPair.publicKey.export({
+	const publicKey = keyPair.publicKey.export({
 		type: "spki",
 		format: "der",
 	});
-	const privateKey = await keyPair.privateKey.export({
+	const privateKey = keyPair.privateKey.export({
 		type: "pkcs8",
 		format: "der",
 	});
@@ -69,10 +69,10 @@ export async function generateEphemeralKeyPair(): Promise<EncryptionKeyPair> {
 /**
  * Derive a shared secret using ECDH with X25519
  */
-export async function deriveSharedSecret(
+export function deriveSharedSecret(
 	publicKey: Uint8Array,
 	privateKey: Uint8Array,
-): Promise<Uint8Array> {
+): Uint8Array {
 	// Use Node's crypto for X25519 Diffie-Hellman
 	let importedPublicKey: crypto.KeyObject;
 	let importedPrivateKey: crypto.KeyObject;
@@ -105,20 +105,21 @@ export async function deriveSharedSecret(
 	}
 
 	// Use Node's crypto.diffieHellman for X25519
-	return crypto.diffieHellman({
+	const secret = crypto.diffieHellman({
 		privateKey: importedPrivateKey,
 		publicKey: importedPublicKey,
 	});
+	return new Uint8Array(secret);
 }
 
 /**
  * Encrypt a message using AES-GCM
  */
-export async function encryptMessage(
+export function encryptMessage(
 	plaintext: Uint8Array,
 	key: Uint8Array,
 	nonce?: Uint8Array,
-): Promise<EncryptedMessage> {
+): EncryptedMessage {
 	if (!nonce) {
 		nonce = crypto.randomBytes(12); // 96-bit nonce for AES-GCM
 	}
@@ -145,11 +146,11 @@ export async function encryptMessage(
 /**
  * Decrypt a message using AES-GCM
  */
-export async function decryptMessage(
+export function decryptMessage(
 	ciphertext: Uint8Array,
 	key: Uint8Array,
 	nonce: Uint8Array,
-): Promise<Uint8Array> {
+): Uint8Array {
 	// Use Node's crypto for AES-GCM decryption
 	const decipher = crypto.createDecipheriv(
 		"aes-256-gcm",
@@ -197,10 +198,10 @@ export async function decryptMessage(
 /**
  * Sign a message using Ed25519
  */
-export async function signMessage(
+export function signMessage(
 	message: Uint8Array,
 	privateKey: Uint8Array,
-): Promise<Uint8Array> {
+): Uint8Array {
 	// Use Node's crypto for Ed25519 signing
 	const importedPrivateKey = crypto.createPrivateKey({
 		key: Buffer.from(privateKey),
@@ -214,11 +215,11 @@ export async function signMessage(
 /**
  * Verify a signature using Ed25519
  */
-export async function verifySignature(
+export function verifySignature(
 	message: Uint8Array,
 	signature: Uint8Array,
 	publicKey: Uint8Array,
-): Promise<boolean> {
+): boolean {
 	// Use Node's crypto for Ed25519 signature verification
 	const importedPublicKey = crypto.createPublicKey({
 		key: Buffer.from(publicKey),
@@ -236,11 +237,11 @@ export async function verifySignature(
 /**
  * Generate a key from a password using PBKDF2
  */
-export async function deriveKeyFromPassword(
+export function deriveKeyFromPassword(
 	password: string,
 	salt: Uint8Array,
 	iterations: number = 100000,
-): Promise<Uint8Array> {
+): Uint8Array {
 	// Use Node's crypto for PBKDF2 key derivation
 	const keyMaterial = crypto.pbkdf2Sync(
 		password,
@@ -281,17 +282,17 @@ export function deriveMessageKey(
 /**
  * Encrypt a message using E2EE with X25519 + AES-GCM + Ed25519 signature
  */
-export async function encryptE2EMessage(
+export function encryptE2EMessage(
 	plaintext: string,
 	recipientPublicKey: Uint8Array,
 	senderPrivateKey: Uint8Array,
-): Promise<EncryptedMessage> {
+): EncryptedMessage {
 	try {
 		// Generate ephemeral key pair for this message
-		const ephemeralKeyPair = await generateEphemeralKeyPair();
+		const ephemeralKeyPair = generateEphemeralKeyPair();
 
 		// Derive shared secret using ECDH
-		const sharedSecret = await deriveSharedSecret(
+		const sharedSecret = deriveSharedSecret(
 			recipientPublicKey,
 			ephemeralKeyPair.privateKey,
 		);
@@ -313,11 +314,11 @@ export async function encryptE2EMessage(
 				nonce: crypto.randomBytes(12),
 			};
 		} else {
-			encryptedResult = await encryptMessage(plaintextBytes, messageKey);
+			encryptedResult = encryptMessage(plaintextBytes, messageKey);
 		}
 
 		// Sign the message with sender's private key for authenticity
-		const signature = await signMessage(plaintextBytes, senderPrivateKey);
+		const signature = signMessage(plaintextBytes, senderPrivateKey);
 
 		return {
 			ciphertext: encryptedResult.ciphertext,
@@ -336,28 +337,21 @@ export async function encryptE2EMessage(
 /**
  * Decrypt a message using E2EE with X25519 + AES-GCM + Ed25519 signature verification
  */
-export async function decryptE2EMessage(
+export function decryptE2EMessage(
 	encryptedMessage: EncryptedMessage,
 	senderPublicKey: Uint8Array | undefined | null,
 	recipientPrivateKey: Uint8Array,
-): Promise<string> {
+): string {
 	try {
 		if (!encryptedMessage.ephemeralPublicKey) {
 			throw new Error("Missing ephemeral public key in encrypted message");
 		}
 
 		// Derive shared secret using ECDH with ephemeral public key from message
-		const sharedSecret = await deriveSharedSecret(
+		const sharedSecret = deriveSharedSecret(
 			encryptedMessage.ephemeralPublicKey,
 			recipientPrivateKey,
 		);
-
-		// FIXED: We need to decrypt first to get the plaintext, then derive the key
-		// However, we need the key to decrypt. This is a chicken-and-egg problem.
-		// The issue is that deriveMessageKey uses the plaintext, but we need the key to get the plaintext.
-
-		// Solution: We need a different approach. Let's derive the key from the ciphertext metadata
-		// For now, we'll use a simpler approach: derive key from shared secret only
 
 		// Create a key from shared secret (simplified approach)
 		const hash = crypto.createHash("sha256");
@@ -372,7 +366,7 @@ export async function decryptE2EMessage(
 		) {
 			plaintextBytes = new Uint8Array(0);
 		} else {
-			plaintextBytes = await decryptMessage(
+			plaintextBytes = decryptMessage(
 				encryptedMessage.ciphertext,
 				messageKey,
 				encryptedMessage.nonce,
@@ -381,7 +375,7 @@ export async function decryptE2EMessage(
 
 		// Verify signature if present and we have a sender key
 		if (senderPublicKey && encryptedMessage.signature) {
-			const isValid = await verifySignature(
+			const isValid = verifySignature(
 				plaintextBytes,
 				encryptedMessage.signature,
 				senderPublicKey,

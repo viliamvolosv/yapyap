@@ -8,6 +8,8 @@ import { describe, test } from "node:test";
 import {
 	handleProtocolError,
 	handleProtocolErrorSync,
+	getLastProtocolError,
+	clearLastProtocolError,
 } from "./error-handler.js";
 
 // ============================================================================
@@ -70,17 +72,14 @@ describe("handleProtocolError - Async", () => {
 			throw new Error("Original error");
 		};
 
-		let caughtError: Error | undefined;
+		clearLastProtocolError();
+		const result = await handleProtocolError("test-operation", handler);
 
-		try {
-			await handleProtocolError("test-operation", handler);
-		} catch (error) {
-			caughtError = error as Error;
-		}
-
-		assert.ok(caughtError, "Should throw wrapped error");
+		assert.strictEqual(result, null, "Should return null on error");
+		const wrappedError = getLastProtocolError();
+		assert.ok(wrappedError, "Should have a wrapped error");
 		assert.ok(
-			caughtError?.message.includes("test-operation"),
+			wrappedError?.message.includes("test-operation"),
 			"Error message should include operation name",
 		);
 	});
@@ -90,17 +89,12 @@ describe("handleProtocolError - Async", () => {
 			throw new Error("Original error");
 		};
 
-		let caughtError: Error | undefined;
-
-		try {
-			await handleProtocolError("test-operation", handler);
-		} catch (error) {
-			caughtError = error as Error;
-		}
-
-		assert.ok(caughtError?.stack, "Should preserve stack trace");
+		clearLastProtocolError();
+		await handleProtocolError("test-operation", handler);
+		const wrappedError = getLastProtocolError();
+		assert.ok(wrappedError?.stack, "Should preserve stack trace");
 		assert.ok(
-			caughtError?.stack.includes("Original error"),
+			wrappedError?.stack.includes("Original error"),
 			"Stack trace should include original error message",
 		);
 	});
@@ -166,17 +160,14 @@ describe("handleProtocolErrorSync - Synchronous", () => {
 			throw new Error("Original error");
 		};
 
-		let caughtError: Error | undefined;
+		clearLastProtocolError();
+		const result = handleProtocolErrorSync("test-operation", handler);
 
-		try {
-			handleProtocolErrorSync("test-operation", handler);
-		} catch (error) {
-			caughtError = error as Error;
-		}
-
-		assert.ok(caughtError, "Should throw wrapped error");
+		assert.strictEqual(result, null, "Should return null on error");
+		const wrappedError = getLastProtocolError();
+		assert.ok(wrappedError, "Should have a wrapped error");
 		assert.ok(
-			caughtError?.message.includes("test-operation"),
+			wrappedError?.message.includes("test-operation"),
 			"Error message should include operation name",
 		);
 	});
@@ -197,85 +188,82 @@ describe("handleProtocolErrorSync - Synchronous", () => {
 // ============================================================================
 
 describe("handleProtocolError - Error Wrapping", () => {
-	test("Given error with custom message, When wrapped, Then includes operation name prefix", async () => {
-		const handler = async () => {
-			throw new Error("Custom error message");
-		};
+	test(
+		"Given error with custom message, When wrapped, Then includes operation name prefix",
+		async () => {
+			const handler = async () => {
+				throw new Error("Custom error message");
+			};
 
-		let caughtError: Error | undefined;
+			clearLastProtocolError();
+			const result = await handleProtocolError("custom-operation", handler);
+			assert.strictEqual(result, null, "Should return null on error");
 
-		try {
-			await handleProtocolError("custom-operation", handler);
-		} catch (error) {
-			caughtError = error as Error;
-		}
-
-		assert.ok(caughtError, "Should throw wrapped error");
-		assert.ok(
-			caughtError?.message.startsWith("[custom-operation]"),
-			"Error should start with operation name in brackets",
-		);
-	});
+			const wrappedError = getLastProtocolError();
+			assert.ok(wrappedError, "Should capture wrapped error");
+			assert.ok(
+				wrappedError?.message.startsWith("[custom-operation]"),
+				"Error should start with operation name in brackets",
+			);
+		},
+	);
 
 	test("Given error with no message, When wrapped, Then includes operation name", async () => {
 		const handler = async () => {
 			throw new Error();
 		};
 
-		let caughtError: Error | undefined;
+		clearLastProtocolError();
+		const result = await handleProtocolError("custom-operation", handler);
+		assert.strictEqual(result, null, "Should return null on error");
 
-		try {
-			await handleProtocolError("custom-operation", handler);
-		} catch (error) {
-			caughtError = error as Error;
-		}
-
-		assert.ok(caughtError, "Should throw wrapped error");
+		const wrappedError = getLastProtocolError();
+		assert.ok(wrappedError, "Should capture wrapped error");
 		assert.ok(
-			caughtError?.message.includes("[custom-operation]"),
+			wrappedError?.message.includes("[custom-operation]"),
 			"Error should include operation name",
 		);
 	});
 
-	test("Given error with special characters, When wrapped, Then includes them correctly", async () => {
-		const handler = async () => {
-			throw new Error("Error with special chars: < > & \" '");
-		};
+	test(
+		"Given error with special characters, When wrapped, Then includes them correctly",
+		async () => {
+			const handler = async () => {
+				throw new Error("Error with special chars: < > & \" '");
+			};
 
-		let caughtError: Error | undefined;
+			clearLastProtocolError();
+			const result = await handleProtocolError("custom-operation", handler);
+			assert.strictEqual(result, null, "Should return null on error");
 
-		try {
-			await handleProtocolError("custom-operation", handler);
-		} catch (error) {
-			caughtError = error as Error;
-		}
+			const wrappedError = getLastProtocolError();
+			assert.ok(wrappedError, "Should capture wrapped error");
+			assert.ok(
+				wrappedError?.message.includes("special chars"),
+				"Should preserve special characters",
+			);
+		},
+	);
 
-		assert.ok(caughtError, "Should throw wrapped error");
-		assert.ok(
-			caughtError?.message.includes("special chars"),
-			"Should preserve special characters",
-		);
-	});
+	test(
+		"Given error with unicode, When wrapped, Then includes it correctly",
+		async () => {
+			const handler = async () => {
+				throw new Error("Error with unicode: 你好 世界 🌍");
+			};
 
-	test("Given error with unicode, When wrapped, Then includes it correctly", async () => {
-		const handler = async () => {
-			throw new Error("Error with unicode: 你好 世界 🌍");
-		};
+			clearLastProtocolError();
+			const result = await handleProtocolError("custom-operation", handler);
+			assert.strictEqual(result, null, "Should return null on error");
 
-		let caughtError: Error | undefined;
-
-		try {
-			await handleProtocolError("custom-operation", handler);
-		} catch (error) {
-			caughtError = error as Error;
-		}
-
-		assert.ok(caughtError, "Should throw wrapped error");
-		assert.ok(
-			caughtError?.message.includes("unicode"),
-			"Should preserve unicode characters",
-		);
-	});
+			const wrappedError = getLastProtocolError();
+			assert.ok(wrappedError, "Should capture wrapped error");
+			assert.ok(
+				wrappedError?.message.includes("unicode"),
+				"Should preserve unicode characters",
+			);
+		},
+	);
 
 	test("Given handler throws multiple times, When called, Then consistently returns null", async () => {
 		const handler = async () => {
@@ -318,17 +306,14 @@ describe("handleProtocolError - Debugging Support", () => {
 			throw new Error("Error details here");
 		};
 
-		let caughtError: Error | undefined;
+		clearLastProtocolError();
+		const result = await handleProtocolError("debug-test", handler);
+		assert.strictEqual(result, null, "Should return null on error");
 
-		try {
-			await handleProtocolError("debug-test", handler);
-		} catch (error) {
-			caughtError = error as Error;
-		}
-
-		assert.ok(caughtError, "Should throw wrapped error");
+		const wrappedError = getLastProtocolError();
+		assert.ok(wrappedError, "Should capture wrapped error");
 		assert.ok(
-			caughtError?.message.includes("[debug-test]"),
+			wrappedError?.message.includes("[debug-test]"),
 			"Error should include operation name for debugging",
 		);
 	});
@@ -338,17 +323,14 @@ describe("handleProtocolError - Debugging Support", () => {
 			throw new Error("Context: user not found");
 		};
 
-		let caughtError: Error | undefined;
+		clearLastProtocolError();
+		const result = await handleProtocolError("user-operation", handler);
+		assert.strictEqual(result, null, "Should return null on error");
 
-		try {
-			await handleProtocolError("user-operation", handler);
-		} catch (error) {
-			caughtError = error as Error;
-		}
-
-		assert.ok(caughtError, "Should throw wrapped error");
+		const wrappedError = getLastProtocolError();
+		assert.ok(wrappedError, "Should capture wrapped error");
 		assert.ok(
-			caughtError?.message.includes("user not found"),
+			wrappedError?.message.includes("user not found"),
 			"Error should include context information",
 		);
 	});

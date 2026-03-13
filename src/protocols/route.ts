@@ -64,8 +64,13 @@ export class RoutingTable {
 			hints?: RoutingHint[];
 		},
 	): void {
+		const now = Date.now();
+		const previous = this.table.get(peerId);
+		const lastSeen =
+			previous && previous.lastSeen >= now ? previous.lastSeen + 1 : now;
+
 		this.table.set(peerId, {
-			lastSeen: Date.now(),
+			lastSeen,
 			...(info.reachablePeers !== undefined
 				? { reachablePeers: info.reachablePeers }
 				: {}),
@@ -128,7 +133,7 @@ export async function handleRouteMessage(
 /*                          ROUTE ANNOUNCE HANDLER                            */
 /* -------------------------------------------------------------------------- */
 
-async function handleRouteAnnounce(
+export async function handleRouteAnnounce(
 	message: RouteAnnounceMessage,
 	remotePeerId: PeerId,
 	routingTable: RoutingTable,
@@ -208,7 +213,7 @@ async function handleRouteAnnounce(
 /*                            ROUTE QUERY HANDLER                             */
 /* -------------------------------------------------------------------------- */
 
-async function handleRouteQuery(
+export async function handleRouteQuery(
 	message: RouteQueryMessage,
 	remotePeerId: PeerId,
 	routingTable: RoutingTable,
@@ -246,7 +251,7 @@ async function handleRouteQuery(
 /*                           ROUTE RESULT HANDLER                             */
 /* -------------------------------------------------------------------------- */
 
-async function handleRouteResult(
+export async function handleRouteResult(
 	message: RouteResultMessage,
 	remotePeerId: PeerId,
 	routingTable: RoutingTable,
@@ -255,14 +260,16 @@ async function handleRouteResult(
 		`Received route result for query ${message.queryId} from ${message.originPeerId}`,
 	);
 
-	if (message.peerIds.length > 0) {
-		routingTable.updatePeer(message.originPeerId, {
-			reachablePeers: message.peerIds,
-			...(message.routingHints !== undefined
-				? { hints: message.routingHints }
-				: {}),
-		});
+	const peerIds = Array.isArray(message.peerIds) ? message.peerIds : [];
 
+	routingTable.updatePeer(message.originPeerId, {
+		reachablePeers: peerIds,
+		...(message.routingHints !== undefined
+			? { hints: message.routingHints }
+			: {}),
+	});
+
+	if (peerIds.length > 0) {
 		try {
 			const { RoutingModule } = await import("../routing/index.js");
 			const routingModule = new RoutingModule(remotePeerId.toString());

@@ -129,7 +129,13 @@ export const MessageFramer = {
 		}
 
 		const messageBytes = data.slice(4, 4 + messageLength);
-		return MessageCodec.decode<T>(messageBytes);
+		try {
+			return MessageCodec.decode<T>(messageBytes);
+		} catch (err) {
+			const message =
+				err instanceof Error ? err.message : String(err ?? "unknown");
+			throw new Error(`Message decode failed: ${message}`);
+		}
 	},
 
 	/**

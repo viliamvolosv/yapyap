@@ -9,6 +9,7 @@ import {
 	createRouteAnnounce,
 	createRouteQuery,
 	createRouteResult,
+	handleRouteAnnounce,
 	handleRouteMessage,
 	handleRouteQuery,
 	handleRouteResult,

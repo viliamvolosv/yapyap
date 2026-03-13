@@ -5,7 +5,7 @@
 
 import assert from "node:assert";
 import { describe, test } from "node:test";
-import { MessageFramer } from "../core/protocols.js";
+import { MAX_FRAME_SIZE_BYTES, MessageFramer } from "../core/protocols.js";
 
 // Test utilities
 function createTestMessage<T>(payload: T): T {
@@ -38,7 +38,7 @@ describe("MessageFramer - encode", () => {
 
 	test("Given large message, When encoded, Then throws error if too large", () => {
 		// Create a message larger than MAX_FRAME_SIZE_BYTES (256KB)
-		const largePayload = new Array(260000).fill("a").join("");
+		const largePayload = new Array(300000).fill("a").join("");
 		const message = createTestMessage({ large: largePayload });
 
 		assert.throws(() => MessageFramer.encode(message), /Frame too large/);
@@ -46,7 +46,7 @@ describe("MessageFramer - encode", () => {
 
 	test("Given message with large field, When encoded, Then throws error if exceeds limit", () => {
 		const message = createTestMessage({
-			largeArray: new Array(270000).fill("test"),
+			largeArray: new Array(350000).fill("test"),
 		});
 
 		assert.throws(() => MessageFramer.encode(message), /Frame too large/);
@@ -96,10 +96,10 @@ describe("MessageFramer - decode", () => {
 	});
 
 	test("Given oversized payload (size > MAX_FRAME_SIZE_BYTES), When decoded, Then throws error", () => {
-		// Create a simple valid msgpack message with large data
-		const largePayload = new Uint8Array(260000).fill(65); // Fill with 'A'
-		const encoded = MessageCodec.encode({ data: largePayload });
-		const frame = new Uint8Array([...encoded]);
+		const oversizedLength = MAX_FRAME_SIZE_BYTES + 1;
+		const frame = new Uint8Array(4 + oversizedLength);
+		const view = new DataView(frame.buffer);
+		view.setUint32(0, oversizedLength, false);
 
 		assert.throws(() => MessageFramer.decode(frame), /Frame too large/);
 	});
