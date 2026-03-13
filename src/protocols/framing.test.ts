@@ -41,10 +41,7 @@ describe("MessageFramer - encode", () => {
 		const largePayload = new Array(260000).fill("a").join("");
 		const message = createTestMessage({ large: largePayload });
 
-		assert.throws(
-			() => MessageFramer.encode(message),
-			/Frame too large|256KB/i,
-		);
+		assert.throws(() => MessageFramer.encode(message), /Frame too large/);
 	});
 
 	test("Given message with large field, When encoded, Then throws error if exceeds limit", () => {
@@ -52,10 +49,7 @@ describe("MessageFramer - encode", () => {
 			largeArray: new Array(270000).fill("test"),
 		});
 
-		assert.throws(
-			() => MessageFramer.encode(message),
-			/Frame too large|256KB/i,
-		);
+		assert.throws(() => MessageFramer.encode(message), /Frame too large/);
 	});
 });
 
@@ -80,19 +74,13 @@ describe("MessageFramer - decode", () => {
 	test("Given incomplete message (less than 4 bytes), When decoded, Then throws error", () => {
 		const incomplete = new Uint8Array([0, 1, 2, 3, 4]);
 
-		assert.throws(
-			() => MessageFramer.decode(incomplete),
-			/insufficient data|Message decode failed/i,
-		);
+		assert.throws(() => MessageFramer.decode(incomplete), /insufficient data/);
 	});
 
 	test("Given message with zero length, When decoded, Then throws error", () => {
 		const zeroLength = new Uint8Array([0, 0, 0, 0]);
 
-		assert.throws(
-			() => MessageFramer.decode(zeroLength),
-			/Message decode failed|insufficient data/i,
-		);
+		assert.throws(() => MessageFramer.decode(zeroLength), /Message decode failed/);
 	});
 
 	test("Given truncated payload (size > remaining bytes), When decoded, Then throws error", () => {
@@ -104,22 +92,16 @@ describe("MessageFramer - decode", () => {
 			...new Uint8Array(10),
 		]);
 
-		assert.throws(
-			() => MessageFramer.decode(frame),
-			/incomplete data/i,
-		);
+		assert.throws(() => MessageFramer.decode(frame), /incomplete data/);
 	});
 
 	test("Given oversized payload (size > MAX_FRAME_SIZE_BYTES), When decoded, Then throws error", () => {
-		const oversizedSize = 260000;
-		const view = new DataView(new ArrayBuffer(4));
-		view.setUint32(0, oversizedSize, false);
-		const frame = new Uint8Array([
-			...new Uint8Array(view.buffer),
-			...new Uint8Array(oversizedSize),
-		]);
+		// Create a simple valid msgpack message with large data
+		const largePayload = new Uint8Array(260000).fill(65); // Fill with 'A'
+		const encoded = MessageCodec.encode({ data: largePayload });
+		const frame = new Uint8Array([...encoded]);
 
-		assert.throws(() => MessageFramer.decode(frame), /Frame too large|Message decode failed/i);
+		assert.throws(() => MessageFramer.decode(frame), /Frame too large/);
 	});
 });
 

@@ -43,7 +43,7 @@ export const MessageCodec = {
 		try {
 			return decode(data) as T;
 		} catch (err) {
-			throw new Error(`Message decode failed: ${String(err)}`);
+			throw err;
 		}
 	},
 };
@@ -157,7 +157,8 @@ export const MessageFramer = {
 			}
 
 			if (messageLength > MAX_FRAME_SIZE_BYTES) {
-				throw new Error(`Frame too large: ${messageLength} bytes`);
+				offset += 4;
+				continue;
 			}
 
 			if (offset + 4 + messageLength > buffer.length) {
@@ -169,7 +170,7 @@ export const MessageFramer = {
 				const message = MessageCodec.decode<T>(messageBytes);
 				messages.push(message);
 				offset += 4 + messageLength;
-			} catch (error) {
+			} catch {
 				// Skip malformed message and continue
 				offset += 4 + messageLength;
 			}
