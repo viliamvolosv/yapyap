@@ -492,12 +492,23 @@ function _waitForEvent(
 type RouterTestOptions = {
 	db?: DbMock;
 	fetchRecipientPublicKey?: Buffer | null;
+	bootstrapPeerIds?: string[];
+	routingEntries?: Array<{
+		peer_id: string;
+		multiaddrs: string[];
+		last_seen: number;
+		is_available: boolean;
+		ttl: number;
+	}>;
 };
 
 function createRouterTestEnvironment(
 	options: RouterTestOptions = {},
 ) {
 	const db = options.db ?? createMockDb();
+	if (options.routingEntries) {
+		db.getAllRoutingEntries = () => options.routingEntries ?? [];
+	}
 	const events = createEventEmitterMock();
 	const createDummyStream = (): Stream =>
 		({
@@ -526,6 +537,7 @@ function createRouterTestEnvironment(
 		encryptMessage: () => {},
 		encodeResponse: () => new Uint8Array(),
 		safeClose: async () => {},
+		getBootstrapPeerIds: () => options.bootstrapPeerIds ?? [],
 		emitEvent: async (event: YapYapEvent) => {
 			events.emit(event.type, event);
 		},
@@ -735,20 +747,130 @@ describe("MessageRouter - NAK - Retry with Backoff", () => {
 				originalMessageId: messageId,
 			});
 
-			const retryableMessages = db.getRetryablePendingMessages();
-			assert.strictEqual(
-				retryableMessages.length,
-				1,
-				"Retry should be scheduled",
-			);
+		const retryableMessages = db.getRetryablePendingMessages();
+		assert.strictEqual(
+			retryableMessages.length,
+			1,
+			"Retry should be scheduled",
+		);
 			assert.strictEqual(
 				retryableMessages[0].attempts,
 				1,
 				"Attempts should increment to 1",
 			);
+		assert.ok(
+			retryableMessages[0].next_retry_at > Date.now(),
+			"Next retry time should be in future",
+		);
+		assert.strictEqual(
+			retryableMessages[0].last_error,
+			"timeout",
+			"Retry reason should propagate to last_error",
+		);
+		},
+		{ timeout: 5000 },
+	);
+});
+
+// ============================================================================
+// Test Suite: Fallback Relay Selection
+// ============================================================================
+
+describe("MessageRouter - Fallback Relay Selection", () => {
+	test(
+		"Given blocked relay candidates, When selectReplicaPeers called, Then blocked peers and the target peer are excluded",
+		() => {
+			const entries = [
+				{
+					peer_id: RELAY_PEER_ID,
+					multiaddrs: [`/ip4/127.0.0.1/tcp/4001/p2p/${RELAY_PEER_ID}`],
+					last_seen: Date.now(),
+					is_available: true,
+					ttl: 3600000,
+				},
+				{
+					peer_id: "blocked-relay",
+					multiaddrs: [`/ip4/127.0.0.1/tcp/4002/p2p/blocked-relay`],
+					last_seen: Date.now(),
+					is_available: true,
+					ttl: 3600000,
+				},
+				{
+					peer_id: VALID_PEER_ID,
+					multiaddrs: [`/ip4/127.0.0.1/tcp/4003/p2p/${VALID_PEER_ID}`],
+					last_seen: Date.now(),
+					is_available: true,
+					ttl: 3600000,
+				},
+			];
+			const { router } = createRouterTestEnvironment({
+				bootstrapPeerIds: ["bootstrap-peer"],
+				routingEntries: entries,
+			});
+			const routerPrivate = router as unknown as { peerScores: Map<string, number> };
+			routerPrivate.peerScores.set("blocked-relay", -50);
+			const candidates = router.selectReplicaPeers(
+				VALID_PEER_ID,
+				2,
+			);
+			assert.ok(candidates.includes(RELAY_PEER_ID), "Available relay should be selected");
 			assert.ok(
-				retryableMessages[0].next_retry_at > Date.now(),
-				"Next retry time should be in future",
+				candidates.includes("bootstrap-peer"),
+				"Bootstrap relays are used when routing entries are filtered",
+			);
+			assert.ok(
+				!candidates.includes("blocked-relay"),
+				"Blocked peers must be excluded from relay selection",
+			);
+			assert.ok(
+				!candidates.includes(VALID_PEER_ID),
+				"Target peer must never be chosen as a relay",
+			);
+		},
+	);
+});
+
+// ============================================================================
+// Test Suite: Out-of-Order Buffering
+// ============================================================================
+
+describe("MessageRouter - Out-of-Order Buffering", () => {
+	test(
+		"Given a gap in sequence numbers, When later messages arrive, Then buffered messages flush in order",
+		async () => {
+			const { router, db } = createRouterTestEnvironment();
+			const routerPrivate = router as unknown as {
+				outOfOrderBuffer: Map<string, Map<number, YapYapMessage>>;
+			};
+			await router.receive(
+				createDataMessage({ id: "ooo-seq-1", sequenceNumber: 1 }),
+			);
+			assert.strictEqual(
+				db.getLastPeerSequence(PEER_A),
+				1,
+				"First message should set the peer sequence",
+			);
+			await router.receive(
+				createDataMessage({ id: "ooo-seq-3", sequenceNumber: 3 }),
+			);
+			assert.strictEqual(
+				db.getLastPeerSequence(PEER_A),
+				1,
+				"Out-of-order message should not advance sequence before gap filled",
+			);
+			const buffer = routerPrivate.outOfOrderBuffer.get(PEER_A);
+			assert.ok(buffer?.has(3), "Out-of-order sequence should be buffered");
+			await router.receive(
+				createDataMessage({ id: "ooo-seq-2", sequenceNumber: 2 }),
+			);
+			assert.strictEqual(
+				db.getLastPeerSequence(PEER_A),
+				3,
+				"Buffered messages should flush once gap is filled",
+			);
+			assert.ok(
+				!routerPrivate.outOfOrderBuffer.has(PEER_A),
+				"Buffer should be cleared for the peer after flush",
 			);
 		},
 		{ timeout: 5000 },
