@@ -526,8 +526,18 @@ describe("decryptE2EMessage - Negative Paths", () => {
 				keyPair.publicKey,
 				keyPair.privateKey,
 			);
+			// Tamper with ciphertext while keeping auth tag length to simulate invalid payload
+			const tamperedCiphertext = new Uint8Array(encrypted.ciphertext.length);
+			const tamperedEncrypted = {
+				...encrypted,
+				ciphertext: tamperedCiphertext,
+			};
 			expect(() =>
-				decryptE2EMessage(encrypted, keyPair.publicKey, keyPair.privateKey),
+				decryptE2EMessage(
+					tamperedEncrypted,
+					keyPair.publicKey,
+					keyPair.privateKey,
+				),
 			).toThrow(/Failed to decrypt/i);
 		},
 		{ timeout: 5000 },

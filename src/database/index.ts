@@ -1030,7 +1030,7 @@ export class DatabaseManager {
 			peer_id: row.peer_id ?? "",
 			alias: row.alias ?? "",
 			last_seen: row.last_seen ?? 0,
-			metadata: row.metadata ?? "",
+			metadata: this.formatMetadataForDisplay(row.metadata ?? ""),
 			is_trusted: Boolean(row.is_trusted),
 		};
 	}
@@ -1043,7 +1043,7 @@ export class DatabaseManager {
 			peer_id: row.peer_id ?? "",
 			alias: row.alias ?? "",
 			last_seen: row.last_seen ?? 0,
-			metadata: row.metadata ?? "",
+			metadata: this.formatMetadataForDisplay(row.metadata ?? ""),
 			is_trusted: Boolean(row.is_trusted),
 		}));
 	}
@@ -1137,6 +1137,23 @@ export class DatabaseManager {
 		} catch {
 			return metadata;
 		}
+	}
+
+	private formatMetadataForDisplay(metadata: string): string {
+		if (!metadata) {
+			return "";
+		}
+		try {
+			const parsed = JSON.parse(metadata);
+			if (typeof parsed === "object" && parsed !== null) {
+				return Object.entries(parsed)
+					.map(([key, value]) => `${key}: ${value}`)
+					.join(", ");
+			}
+		} catch {
+			// Ignore parse errors
+		}
+		return metadata;
 	}
 
 	// Session Methods

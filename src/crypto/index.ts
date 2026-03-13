@@ -351,7 +351,7 @@ export function decryptMessage(
 	// If ciphertext includes authTag, extract and set it
 	// Assume last 16 bytes are authTag (standard for AES-GCM)
 	const tagLength = 16;
-	if (ciphertext.length <= tagLength) {
+	if (ciphertext.length < tagLength) {
 		throw new Error(
 			"Decryption failed: ciphertext must include encrypted data plus auth tag",
 		);
