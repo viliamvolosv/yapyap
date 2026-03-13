@@ -4,7 +4,7 @@ import { createTemporaryDatabase, CONTRACT_TTL_MS } from "./utils.js";
 
 describe("Contract - Public API", () => {
 	test("Given duplicate message IDs, When persisted, Then only the first insert applies", () => {
-	const { manager, cleanup } = createTemporaryDatabase();
+		const { manager, cleanup } = createTemporaryDatabase();
 		try {
 			const input = {
 				messageId: "public-contract-msg",
@@ -17,7 +17,11 @@ describe("Contract - Public API", () => {
 
 			const first = manager.persistIncomingMessageAtomically(input);
 			assert.strictEqual(first.applied, true, "First insert should apply");
-			assert.strictEqual(first.duplicate, false, "First insert is not duplicate");
+			assert.strictEqual(
+				first.duplicate,
+				false,
+				"First insert is not duplicate",
+			);
 
 			const second = manager.persistIncomingMessageAtomically(input);
 			assert.strictEqual(second.applied, false, "Duplicate should not apply");
@@ -29,7 +33,11 @@ describe("Contract - Public API", () => {
 					"SELECT COUNT(*) as count FROM processed_messages WHERE message_id = ?",
 				)
 				.get(input.messageId) as { count: number };
-			assert.strictEqual(countRow.count, 1, "Only one processed row should exist");
+			assert.strictEqual(
+				countRow.count,
+				1,
+				"Only one processed row should exist",
+			);
 		} finally {
 			cleanup();
 		}
@@ -50,7 +58,11 @@ describe("Contract - Public API", () => {
 			);
 			manager.markPendingMessageDelivered(baseMessage.messageId);
 			const delivered = manager.getPendingMessage(baseMessage.messageId);
-			assert.strictEqual(delivered?.status, "delivered", "ACK transitions to delivered");
+			assert.strictEqual(
+				delivered?.status,
+				"delivered",
+				"ACK transitions to delivered",
+			);
 			assert.strictEqual(
 				manager.getRetryablePendingMessages().length,
 				0,

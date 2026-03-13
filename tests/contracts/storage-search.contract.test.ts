@@ -2,7 +2,10 @@ import assert from "node:assert";
 import { describe, test } from "node:test";
 import { createTemporaryStorage } from "./utils.js";
 
-function safeSearch(storage: ReturnType<typeof createTemporaryStorage>["storage"], query: string) {
+function safeSearch(
+	storage: ReturnType<typeof createTemporaryStorage>["storage"],
+	query: string,
+) {
 	try {
 		return storage.search.searchContacts(query);
 	} catch (error) {

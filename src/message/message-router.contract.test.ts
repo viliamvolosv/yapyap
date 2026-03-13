@@ -320,13 +320,15 @@ function createMockDb(): DbMock {
 			markProcessedCalls.push(messageId);
 		},
 		persistIncomingMessageAtomically: (input: Record<string, unknown>) => {
-		const messageId = (input.messageId ?? input.message_id) as string;
-		const fromPeerId = (input.fromPeerId ?? input.from_peer_id) as string;
-		const _toPeerId = input.toPeerId ?? input.to_peer_id;
-		const sequenceNumber = (input.sequenceNumber ??
-			input.sequence_number) as number | undefined;
-		const vectorClock = (input.vectorClock ??
-			input.vector_clock) as Record<string, number> | undefined;
+			const messageId = (input.messageId ?? input.message_id) as string;
+			const fromPeerId = (input.fromPeerId ?? input.from_peer_id) as string;
+			const _toPeerId = input.toPeerId ?? input.to_peer_id;
+			const sequenceNumber = (input.sequenceNumber ?? input.sequence_number) as
+				| number
+				| undefined;
+			const vectorClock = (input.vectorClock ?? input.vector_clock) as
+				| Record<string, number>
+				| undefined;
 
 			if (processedIds.has(messageId)) {
 				return { applied: false, duplicate: true };
@@ -347,7 +349,8 @@ function createMockDb(): DbMock {
 		updatePeerSequence: (peerId: string, sequenceNumber: number) => {
 			lastSequences.set(peerId, sequenceNumber);
 		},
-		getPendingMessage: (messageId: string) => pendingMessages.get(messageId) ?? null,
+		getPendingMessage: (messageId: string) =>
+			pendingMessages.get(messageId) ?? null,
 		incrementAttempts: (messageId: string) => {
 			const entry = pendingMessages.get(messageId);
 			if (entry) {
@@ -502,9 +505,7 @@ type RouterTestOptions = {
 	}>;
 };
 
-function createRouterTestEnvironment(
-	options: RouterTestOptions = {},
-) {
+function createRouterTestEnvironment(options: RouterTestOptions = {}) {
 	const db = options.db ?? createMockDb();
 	if (options.routingEntries) {
 		db.getAllRoutingEntries = () => options.routingEntries ?? [];
@@ -545,7 +546,9 @@ function createRouterTestEnvironment(
 	return { router, db, events };
 }
 
-function createDataMessage(overrides: Partial<YapYapMessage> = {}): YapYapMessage {
+function createDataMessage(
+	overrides: Partial<YapYapMessage> = {},
+): YapYapMessage {
 	const base: YapYapMessage = {
 		id: overrides.id ?? `msg-${Math.random().toString(36).slice(2)}`,
 		type: "data",
@@ -574,12 +577,9 @@ describe("MessageRouter - Send Path - Missing Keys", () => {
 				to: "12D3KooNONEXISTENT1234567890ABCDEF",
 			});
 
-			await assert.rejects(
-				async () => {
-					await router.send(message);
-				},
-				/Encryption required/,
-			);
+			await assert.rejects(async () => {
+				await router.send(message);
+			}, /Encryption required/);
 		},
 		{ timeout: 5000 },
 	);
@@ -747,26 +747,26 @@ describe("MessageRouter - NAK - Retry with Backoff", () => {
 				originalMessageId: messageId,
 			});
 
-		const retryableMessages = db.getRetryablePendingMessages();
-		assert.strictEqual(
-			retryableMessages.length,
-			1,
-			"Retry should be scheduled",
-		);
+			const retryableMessages = db.getRetryablePendingMessages();
+			assert.strictEqual(
+				retryableMessages.length,
+				1,
+				"Retry should be scheduled",
+			);
 			assert.strictEqual(
 				retryableMessages[0].attempts,
 				1,
 				"Attempts should increment to 1",
 			);
-		assert.ok(
-			retryableMessages[0].next_retry_at > Date.now(),
-			"Next retry time should be in future",
-		);
-		assert.strictEqual(
-			retryableMessages[0].last_error,
-			"timeout",
-			"Retry reason should propagate to last_error",
-		);
+			assert.ok(
+				retryableMessages[0].next_retry_at > Date.now(),
+				"Next retry time should be in future",
+			);
+			assert.strictEqual(
+				retryableMessages[0].last_error,
+				"timeout",
+				"Retry reason should propagate to last_error",
+			);
 		},
 		{ timeout: 5000 },
 	);
@@ -777,57 +777,56 @@ describe("MessageRouter - NAK - Retry with Backoff", () => {
 // ============================================================================
 
 describe("MessageRouter - Fallback Relay Selection", () => {
-	test(
-		"Given blocked relay candidates, When selectReplicaPeers called, Then blocked peers and the target peer are excluded",
-		() => {
-			const entries = [
-				{
-					peer_id: RELAY_PEER_ID,
-					multiaddrs: [`/ip4/127.0.0.1/tcp/4001/p2p/${RELAY_PEER_ID}`],
-					last_seen: Date.now(),
-					is_available: true,
-					ttl: 3600000,
-				},
-				{
-					peer_id: "blocked-relay",
-					multiaddrs: [`/ip4/127.0.0.1/tcp/4002/p2p/blocked-relay`],
-					last_seen: Date.now(),
-					is_available: true,
-					ttl: 3600000,
-				},
-				{
-					peer_id: VALID_PEER_ID,
-					multiaddrs: [`/ip4/127.0.0.1/tcp/4003/p2p/${VALID_PEER_ID}`],
-					last_seen: Date.now(),
-					is_available: true,
-					ttl: 3600000,
-				},
-			];
-			const { router } = createRouterTestEnvironment({
-				bootstrapPeerIds: ["bootstrap-peer"],
-				routingEntries: entries,
-			});
-			const routerPrivate = router as unknown as { peerScores: Map<string, number> };
-			routerPrivate.peerScores.set("blocked-relay", -50);
-			const candidates = router.selectReplicaPeers(
-				VALID_PEER_ID,
-				2,
-			);
-			assert.ok(candidates.includes(RELAY_PEER_ID), "Available relay should be selected");
-			assert.ok(
-				candidates.includes("bootstrap-peer"),
-				"Bootstrap relays are used when routing entries are filtered",
-			);
-			assert.ok(
-				!candidates.includes("blocked-relay"),
-				"Blocked peers must be excluded from relay selection",
-			);
-			assert.ok(
-				!candidates.includes(VALID_PEER_ID),
-				"Target peer must never be chosen as a relay",
-			);
-		},
-	);
+	test("Given blocked relay candidates, When selectReplicaPeers called, Then blocked peers and the target peer are excluded", () => {
+		const entries = [
+			{
+				peer_id: RELAY_PEER_ID,
+				multiaddrs: [`/ip4/127.0.0.1/tcp/4001/p2p/${RELAY_PEER_ID}`],
+				last_seen: Date.now(),
+				is_available: true,
+				ttl: 3600000,
+			},
+			{
+				peer_id: "blocked-relay",
+				multiaddrs: [`/ip4/127.0.0.1/tcp/4002/p2p/blocked-relay`],
+				last_seen: Date.now(),
+				is_available: true,
+				ttl: 3600000,
+			},
+			{
+				peer_id: VALID_PEER_ID,
+				multiaddrs: [`/ip4/127.0.0.1/tcp/4003/p2p/${VALID_PEER_ID}`],
+				last_seen: Date.now(),
+				is_available: true,
+				ttl: 3600000,
+			},
+		];
+		const { router } = createRouterTestEnvironment({
+			bootstrapPeerIds: ["bootstrap-peer"],
+			routingEntries: entries,
+		});
+		const routerPrivate = router as unknown as {
+			peerScores: Map<string, number>;
+		};
+		routerPrivate.peerScores.set("blocked-relay", -50);
+		const candidates = router.selectReplicaPeers(VALID_PEER_ID, 2);
+		assert.ok(
+			candidates.includes(RELAY_PEER_ID),
+			"Available relay should be selected",
+		);
+		assert.ok(
+			candidates.includes("bootstrap-peer"),
+			"Bootstrap relays are used when routing entries are filtered",
+		);
+		assert.ok(
+			!candidates.includes("blocked-relay"),
+			"Blocked peers must be excluded from relay selection",
+		);
+		assert.ok(
+			!candidates.includes(VALID_PEER_ID),
+			"Target peer must never be chosen as a relay",
+		);
+	});
 });
 
 // ============================================================================
