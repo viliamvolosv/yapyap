@@ -9,6 +9,10 @@ import {
 	verifySignature,
 } from "../crypto/index.js";
 import {
+	clearLastProtocolError,
+	getLastProtocolError,
+} from "./error-handler.js";
+import {
 	deriveSessionKeys,
 	generateHandshakeMessage,
 	generateNoiseXXInitiatorMessage,
@@ -18,10 +22,6 @@ import {
 	processNoiseXXHandshake,
 	verifyHandshakeMessage,
 } from "./handshake.js";
-import {
-	clearLastProtocolError,
-	getLastProtocolError,
-} from "./error-handler.js";
 
 test("Noise XX handshake protocol - generate and process messages", async () => {
 	// Generate Ed25519 key pairs for signatures

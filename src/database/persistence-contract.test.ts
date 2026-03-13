@@ -4,8 +4,8 @@
  */
 
 import assert from "node:assert";
-import { describe, test } from "node:test";
 import { unlinkSync } from "node:fs";
+import { describe, test } from "node:test";
 import type { YapYapNodeOptions } from "../core/node.js";
 import { DatabaseManager } from "./index.js";
 

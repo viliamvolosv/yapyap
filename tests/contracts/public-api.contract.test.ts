@@ -1,6 +1,6 @@
 import assert from "node:assert";
 import { describe, test } from "node:test";
-import { createTemporaryDatabase, CONTRACT_TTL_MS } from "./utils.js";
+import { CONTRACT_TTL_MS, createTemporaryDatabase } from "./utils.js";
 
 describe("Contract - Public API", () => {
 	test("Given duplicate message IDs, When persisted, Then only the first insert applies", () => {

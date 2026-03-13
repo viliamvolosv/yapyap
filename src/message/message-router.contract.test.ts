@@ -5,6 +5,7 @@
 
 import assert from "node:assert";
 import { describe, test } from "node:test";
+import type { Stream } from "@libp2p/interface";
 import {
 	generateEphemeralKeyPair,
 	generateIdentityKeyPair,
@@ -12,7 +13,6 @@ import {
 import { Events, type YapYapEvent } from "../events/event-types.js";
 import type { YapYapMessage } from "../message/message.js";
 import { MessageRouter } from "./message-router.js";
-import type { Stream } from "@libp2p/interface";
 
 // Generate valid key pairs for tests
 const testIdentityKeyPair = await generateIdentityKeyPair();

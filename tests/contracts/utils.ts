@@ -1,6 +1,6 @@
 import { mkdirSync, rmSync } from "node:fs";
-import { join } from "node:path";
 import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { DatabaseManager } from "../../src/database/index.js";
 import { StorageModule } from "../../src/storage/StorageModule.js";
 

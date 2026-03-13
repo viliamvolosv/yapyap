@@ -6,10 +6,10 @@
 import assert from "node:assert";
 import { describe, test } from "node:test";
 import {
+	clearLastProtocolError,
+	getLastProtocolError,
 	handleProtocolError,
 	handleProtocolErrorSync,
-	getLastProtocolError,
-	clearLastProtocolError,
 } from "./error-handler.js";
 
 // ============================================================================

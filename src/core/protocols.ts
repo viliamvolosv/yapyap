@@ -203,10 +203,8 @@ export function decodeMessage<T>(data: Uint8Array): T {
 /*                           Protocol Handlers                                */
 /* -------------------------------------------------------------------------- */
 
+export type { RoutingHint };
 /**
  * Export protocol handlers for use in node.ts
  */
-export { handleRouteMessage, handleSyncMessage };
-export { RoutingTable };
-export { NodeState };
-export type { RoutingHint };
+export { handleRouteMessage, handleSyncMessage, NodeState, RoutingTable };
