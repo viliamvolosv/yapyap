@@ -27,6 +27,7 @@ import {
 	PROTOCOL_SYNC,
 	RoutingTable,
 } from "../core/protocols.js";
+import type { SessionManager } from "../crypto/session-manager.js";
 import type { YapYapMessage } from "../message/message.js";
 import type { HandshakeMessage } from "../protocols/handshake.js";
 import { handleHandshakeMessage } from "../protocols/handshake.js";
@@ -41,7 +42,6 @@ import type {
 	SyncResponseMessage,
 } from "../protocols/sync.js";
 import { handleSyncMessage } from "../protocols/sync.js";
-import type { SessionManager } from "../crypto/session-manager.js";
 
 const MAX_RECEIVE_BUFFER_BYTES = MAX_FRAME_SIZE_BYTES * 2;
 const BUFFER_THRESHOLD_BYTES = Math.floor(MAX_RECEIVE_BUFFER_BYTES * 0.75);

@@ -5,19 +5,16 @@
 
 import assert from "node:assert";
 import { describe, test } from "node:test";
-import { peerIdFromString } from "@libp2p/peer-id";
-import type { YapYapEvent } from "../events/event-types.js";
+import {
+	generateEphemeralKeyPair,
+	generateIdentityKeyPair,
+} from "../crypto/index.js";
 import { Events } from "../events/event-types.js";
 import { MessageRouter } from "./message-router.js";
-import {
-	encryptE2EMessage,
-	generateIdentityKeyPair,
-	generateEphemeralKeyPair,
-} from "../crypto/index.js";
 
 // Generate valid key pairs for tests
 const testIdentityKeyPair = await generateIdentityKeyPair();
-const testEphemeralKeyPair = await generateEphemeralKeyPair();
+const _testEphemeralKeyPair = await generateEphemeralKeyPair();
 
 const VALID_PEER_ID = "12D3KooWCJDjHYFsC3TJzDE6rtmyL6wRonuY9qEKnBH1r5y1jRWx";
 const RELAY_PEER_ID = "12D3KooWQv6UQhEMaXbYJHseY4R4vkc7x4S76QfW8D2V6Q3cQJjX";
@@ -265,8 +262,8 @@ function createMockDb(): DbMock {
 		isMessageProcessed: (messageId: string) => processedIds.has(messageId),
 		markMessageProcessed: (
 			messageId: string,
-			fromPeerId: string,
-			sequenceNumber?: number,
+			_fromPeerId: string,
+			_sequenceNumber?: number,
 		) => {
 			processedIds.add(messageId);
 			markProcessedCalls.push(messageId);
@@ -274,7 +271,7 @@ function createMockDb(): DbMock {
 		persistIncomingMessageAtomically: (input: Record<string, unknown>) => {
 			const messageId = input.message_id as string;
 			const fromPeerId = input.from_peer_id as string;
-			const toPeerId = input.to_peer_id as string;
+			const _toPeerId = input.to_peer_id as string;
 			const sequenceNumber = input.sequence_number as number | undefined;
 			const vectorClock = input.vector_clock as
 				| Record<string, number>
@@ -352,16 +349,16 @@ function createMockDb(): DbMock {
 
 // Create event emitter mock
 function createEventEmitterMock() {
-	const listeners = new Map<string, Set<Function>>();
+	const listeners = new Map<string, Set<(...args: unknown[]) => unknown>>();
 
 	return {
-		on: (event: string, callback: Function) => {
+		on: (event: string, callback: (...args: unknown[]) => void) => {
 			if (!listeners.has(event)) {
 				listeners.set(event, new Set());
 			}
 			listeners.get(event)?.add(callback);
 		},
-		off: (event: string, callback: Function) => {
+		off: (event: string, callback: (...args: unknown[]) => void) => {
 			const eventListeners = listeners.get(event);
 			if (eventListeners) {
 				eventListeners.delete(callback);
@@ -370,7 +367,9 @@ function createEventEmitterMock() {
 		emit: (event: string, data?: unknown) => {
 			const eventListeners = listeners.get(event);
 			if (eventListeners) {
-				eventListeners.forEach((callback) => callback(data));
+				eventListeners.forEach((callback) => {
+					void callback(data);
+				});
 			}
 		},
 		listenerCount: (event: string) => {
@@ -380,8 +379,10 @@ function createEventEmitterMock() {
 }
 
 // Test utilities
-function waitForEvent(
-	emitter: any,
+function _waitForEvent(
+	emitter: {
+		on: (event: string, callback: (...args: unknown[]) => unknown) => void;
+	},
 	event: string,
 	timeout = 100,
 ): Promise<unknown> {
@@ -485,13 +486,13 @@ describe("MessageRouter - Receive - Idempotency", () => {
 			router.receiveMessage(message, PEER_A);
 
 			// Count events before second receive
-			const eventCountBefore = events.listenerCount(Events.MESSAGE_RECEIVED);
+			const _eventCountBefore = events.listenerCount(Events.MESSAGE_RECEIVED);
 
 			// Second receive (duplicate)
 			router.receiveMessage(message, PEER_A);
 
 			// Count events after second receive
-			const eventCountAfter = events.listenerCount(Events.MESSAGE_RECEIVED);
+			const _eventCountAfter = events.listenerCount(Events.MESSAGE_RECEIVED);
 
 			// Sequence should not increase
 			const sequence = db.getLastPeerSequence(PEER_A);
@@ -747,7 +748,7 @@ describe("MessageRouter - Retry Cleanup", () => {
 		() => {
 			const db = createMockDb();
 			const events = createEventEmitterMock();
-			const router = new MessageRouter(
+			const _router = new MessageRouter(
 				{
 					db,
 					getLibp2p: () => ({}),

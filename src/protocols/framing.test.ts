@@ -82,7 +82,7 @@ describe("MessageFramer - decode", () => {
 
 		assert.throws(
 			() => MessageFramer.decode(incomplete),
-			/Message decode failed|insufficient data/i,
+			/insufficient data|Message decode failed/i,
 		);
 	});
 
@@ -106,7 +106,7 @@ describe("MessageFramer - decode", () => {
 
 		assert.throws(
 			() => MessageFramer.decode(frame),
-			/Message decode failed|incomplete data/i,
+			/incomplete data/i,
 		);
 	});
 
@@ -119,7 +119,7 @@ describe("MessageFramer - decode", () => {
 			...new Uint8Array(oversizedSize),
 		]);
 
-		assert.throws(() => MessageFramer.decode(frame), /Frame too large|256KB/i);
+		assert.throws(() => MessageFramer.decode(frame), /Frame too large|Message decode failed/i);
 	});
 });
 

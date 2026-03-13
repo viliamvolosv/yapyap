@@ -2,11 +2,11 @@ import assert from "node:assert";
 import { describe, test } from "node:test";
 import type { Libp2p, PeerId } from "@libp2p/interface";
 import { MessageCodec, MessageFramer } from "../../../src/core/protocols.js";
-import type { YapYapMessage } from "../../../src/message/message.js";
-import type { HandshakeMessage } from "../../../src/protocols/handshake.js";
-import { NetworkModule } from "../../../src/network/NetworkModule.js";
-import type { DatabaseManager } from "../../../src/database/index.js";
 import type { SessionManager } from "../../../src/crypto/session-manager.js";
+import type { DatabaseManager } from "../../../src/database/index.js";
+import type { YapYapMessage } from "../../../src/message/message.js";
+import { NetworkModule } from "../../../src/network/NetworkModule.js";
+import type { HandshakeMessage } from "../../../src/protocols/handshake.js";
 
 class TestNetworkModule extends NetworkModule {
 	public triggerInitBootstrap(addrs?: string[]) {

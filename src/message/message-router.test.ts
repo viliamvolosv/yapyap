@@ -2,15 +2,15 @@ import assert from "node:assert";
 import { createHash } from "node:crypto";
 import { describe, test } from "node:test";
 import { peerIdFromString } from "@libp2p/peer-id";
-import type { YapYapEvent } from "../events/event-types.js";
-import { Events } from "../events/event-types.js";
-import type { AckMessage, YapYapMessage } from "./message.js";
-import { MessageRouter } from "./message-router.js";
 import {
 	encryptE2EMessage,
 	generateEphemeralKeyPair,
 	generateIdentityKeyPair,
 } from "../crypto/index.js";
+import type { YapYapEvent } from "../events/event-types.js";
+import { Events } from "../events/event-types.js";
+import type { AckMessage, YapYapMessage } from "./message.js";
+import { MessageRouter } from "./message-router.js";
 
 // Generate valid key pairs for tests
 const testIdentityKeyPair = await generateIdentityKeyPair();

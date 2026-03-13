@@ -7,13 +7,13 @@ import * as crypto from "node:crypto";
 import { describe, test } from "node:test";
 import {
 	decryptE2EMessage,
+	decryptMessage,
+	deriveKeyFromPassword,
 	deriveSharedSecret,
 	encryptE2EMessage,
 	encryptMessage,
-	decryptMessage,
 	signMessage,
 	verifySignature,
-	deriveKeyFromPassword,
 } from "./index.js";
 
 // Test utilities for deterministic testing
@@ -339,10 +339,9 @@ describe("decryptE2EMessage - Negative Paths", () => {
 				keyPair.privateKey,
 			);
 			// Remove ephemeralPublicKey
-			const invalidEncrypted = {
-				...encrypted,
-				ephemeralPublicKey: undefined as any,
-			};
+			const invalidEncrypted = { ...encrypted };
+			// @ts-expect-error - intentionally testing error path
+			invalidEncrypted.ephemeralPublicKey = undefined;
 			expect(() =>
 				decryptE2EMessage(
 					invalidEncrypted,

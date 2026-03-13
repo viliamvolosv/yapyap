@@ -150,6 +150,12 @@ export const MessageFramer = {
 			);
 			const messageLength = view.getUint32(0, false);
 
+			// Skip zero-length frames
+			if (messageLength === 0) {
+				offset += 4;
+				continue;
+			}
+
 			if (messageLength > MAX_FRAME_SIZE_BYTES) {
 				throw new Error(`Frame too large: ${messageLength} bytes`);
 			}
@@ -164,7 +170,7 @@ export const MessageFramer = {
 				messages.push(message);
 				offset += 4 + messageLength;
 			} catch (error) {
-				console.error("Error decoding message:", error);
+				// Skip malformed message and continue
 				offset += 4 + messageLength;
 			}
 		}

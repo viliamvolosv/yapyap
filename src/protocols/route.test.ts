@@ -5,7 +5,6 @@
 
 import assert from "node:assert";
 import { describe, test } from "node:test";
-import { RoutingTable } from "./route.js";
 import {
 	createRouteAnnounce,
 	createRouteQuery,
@@ -13,6 +12,7 @@ import {
 	handleRouteAnnounce,
 	handleRouteQuery,
 	handleRouteResult,
+	RoutingTable,
 } from "./route.js";
 
 // Test utilities
@@ -345,7 +345,8 @@ describe("handleRouteAnnounce", () => {
 
 		const announce = await createRouteAnnounce("peer-1", ["peer-2", "peer-3"]);
 		// Remove signature
-		delete (announce as any).signature;
+		// @ts-expect-error - intentionally testing error path
+		delete announce.signature;
 
 		const result = await handleRouteAnnounce(
 			announce,
@@ -467,12 +468,12 @@ describe("handleRouteQuery", () => {
 		const table = new RoutingTable();
 
 		const query = {
-			type: "route_query",
+			type: "route_query" as const,
 			targetPeerId: "peer-target",
 			queryId: "query-id-123",
 			timestamp: Date.now(),
 			originPeerId: "peer-origin",
-		} as any;
+		};
 
 		const result = await handleRouteQuery(query, "peer-origin", table);
 
@@ -528,7 +529,8 @@ describe("handleRouteResult", () => {
 	test("Given result with missing peerIds, When handled, Then updates routing", async () => {
 		const table = new RoutingTable();
 
-		const result = createRouteResult("query-id-123", "peer-origin", []) as any;
+		const result = createRouteResult("query-id-123", "peer-origin", []);
+		// @ts-expect-error - intentionally testing error path
 		delete result.peerIds;
 
 		const handled = await handleRouteResult(result, "peer-origin", table);

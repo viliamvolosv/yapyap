@@ -2,13 +2,15 @@ import assert from "node:assert";
 import { afterEach, beforeEach, describe, test } from "node:test";
 import { ApiModule } from "../../../src/api/index.js";
 import type { YapYapNode } from "../../../src/core/node.js";
-import type { YapYapMessage } from "../../../src/message/message.js";
-import type { EncryptedPayload } from "../../../src/message/message.js";
 import {
 	encryptE2EMessage,
 	generateEphemeralKeyPair,
 	generateIdentityKeyPair,
 } from "../../../src/crypto/index.js";
+import type {
+	EncryptedPayload,
+	YapYapMessage,
+} from "../../../src/message/message.js";
 
 // Generate valid key pairs for tests
 const testIdentityKeyPair = await generateIdentityKeyPair();
