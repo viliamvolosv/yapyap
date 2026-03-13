@@ -22,8 +22,6 @@ const testEphemeralKeyPair = await generateEphemeralKeyPair();
 const VALID_PEER_ID = "12D3KooWCJDjHYFsC3TJzDE6rtmyL6wRonuY9qEKnBH1r5y1jRWx";
 const RELAY_PEER_ID = "12D3KooWQv6UQhEMaXbYJHseY4R4vkc7x4S76QfW8D2V6Q3cQJjX";
 const PEER_A = "12D3KooWSBUjBmLvcdnTmNLf6ozPZeBUmXiE3wrRA9RBTjcjqNFm";
-const PEER_B = "12D3KooWB6urPZfyGZYtbGxVRhgGFbgsSFVjjEpuQgPd4X8S3LZE";
-const BOOTSTRAP_PEER_ID = PEER_B;
 
 type DbMock = {
 	updateMessageStatusCalls: Array<{ id: string; status: string }>;
@@ -214,7 +212,7 @@ type DbMock = {
 // Create mock database manager
 function createMockDb(): DbMock {
 	const processedIds = new Set<string>();
-	const processedMessagesCount = 0;
+	let processedMessagesCount = 0;
 	const lastSequences = new Map<string, number>();
 	const updateMessageStatusCalls: Array<{ id: string; status: string }> = [];
 	const markProcessedCalls: string[] = [];
@@ -350,7 +348,7 @@ function createEventEmitterMock() {
 			if (!listeners.has(event)) {
 				listeners.set(event, new Set());
 			}
-			listeners.get(event)!.add(callback);
+			listeners.get(event)?.add(callback);
 		},
 		off: (event: string, callback: Function) => {
 			const eventListeners = listeners.get(event);

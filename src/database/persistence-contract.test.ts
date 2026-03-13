@@ -5,8 +5,6 @@
 
 import assert from "node:assert";
 import { describe, test } from "node:test";
-import Database from "better-sqlite3";
-import { yapyapSchema } from "./schema.js";
 import { DatabaseManager } from "./index.js";
 import type { YapYapNodeOptions } from "../core/node.js";
 

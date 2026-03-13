@@ -9,8 +9,6 @@ import {
 	decryptE2EMessage,
 	deriveSharedSecret,
 	encryptE2EMessage,
-	generateIdentityKeyPair,
-	generateEphemeralKeyPair,
 	encryptMessage,
 	decryptMessage,
 	signMessage,
@@ -134,7 +132,7 @@ describe("decryptMessage - Negative Paths", () => {
 
 	test("Rejects decryptMessage with invalid nonce length", () => {
 		const { identity } = createTestKeyPair();
-		const { ciphertext, nonce } = encryptMessageSync(
+		const { ciphertext } = encryptMessageSync(
 			new TextEncoder().encode(testMessage),
 			identity.privateKey,
 		);
@@ -443,13 +441,11 @@ describe("decryptE2EMessage - Negative Paths", () => {
 
 describe("Crypto Errors - Clarity and Stability", () => {
 	test("Errors are explicit and include operation context", () => {
-		const { identity } = createTestKeyPair();
 		const error = new Error("Test error");
 		expect(error.message).toContain("decrypt");
 	});
 
 	test("Errors from crypto operations are stable across calls", () => {
-		const { identity } = createTestKeyPair();
 		const error1 = new Error("Test error");
 		const error2 = new Error("Test error");
 		expect(error1.message).toBe(error2.message);
