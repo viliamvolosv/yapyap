@@ -251,7 +251,10 @@ describe("handleProtocolError - Error Wrapping", () => {
 		}
 
 		assert.ok(caughtError, "Should throw wrapped error");
-		assert.ok(caughtError?.message.includes("special chars"), "Should preserve special characters");
+		assert.ok(
+			caughtError?.message.includes("special chars"),
+			"Should preserve special characters",
+		);
 	});
 
 	test("Given error with unicode, When wrapped, Then includes it correctly", async () => {
@@ -268,7 +271,10 @@ describe("handleProtocolError - Error Wrapping", () => {
 		}
 
 		assert.ok(caughtError, "Should throw wrapped error");
-		assert.ok(caughtError?.message.includes("unicode"), "Should preserve unicode characters");
+		assert.ok(
+			caughtError?.message.includes("unicode"),
+			"Should preserve unicode characters",
+		);
 	});
 
 	test("Given handler throws multiple times, When called, Then consistently returns null", async () => {
@@ -361,7 +367,9 @@ describe("handleProtocolError - Debugging Support", () => {
 		];
 
 		const results = await Promise.all(
-			errorHandlers.map((handler) => handleProtocolError("test-operation", handler)),
+			errorHandlers.map((handler) =>
+				handleProtocolError("test-operation", handler),
+			),
 		);
 
 		results.forEach((result) => {

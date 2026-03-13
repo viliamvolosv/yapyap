@@ -70,7 +70,11 @@ describe("MessageFramer - decode", () => {
 		const framed = MessageFramer.encode(original);
 		const decoded = MessageFramer.decode(framed);
 
-		assert.deepStrictEqual(decoded, original, "Decoded message should match original");
+		assert.deepStrictEqual(
+			decoded,
+			original,
+			"Decoded message should match original",
+		);
 	});
 
 	test("Given incomplete message (less than 4 bytes), When decoded, Then throws error", () => {
@@ -95,7 +99,10 @@ describe("MessageFramer - decode", () => {
 		// Create a frame claiming size 100, but only provide 10 bytes
 		const view = new DataView(new ArrayBuffer(4));
 		view.setUint32(0, 100, false);
-		const frame = new Uint8Array([...new Uint8Array(view.buffer), ...new Uint8Array(10)]);
+		const frame = new Uint8Array([
+			...new Uint8Array(view.buffer),
+			...new Uint8Array(10),
+		]);
 
 		assert.throws(
 			() => MessageFramer.decode(frame),
@@ -112,10 +119,7 @@ describe("MessageFramer - decode", () => {
 			...new Uint8Array(oversizedSize),
 		]);
 
-		assert.throws(
-			() => MessageFramer.decode(frame),
-			/Frame too large|256KB/i,
-		);
+		assert.throws(() => MessageFramer.decode(frame), /Frame too large|256KB/i);
 	});
 });
 
@@ -147,18 +151,15 @@ describe("MessageFramer - decodeFrames", () => {
 		assert.strictEqual(result.remainder.length, 0, "Should have no remainder");
 
 		// Verify content
-		assert.deepStrictEqual(
-			MessageFramer.decode(result.frames[0]),
-			{ text: "first" },
-		);
-		assert.deepStrictEqual(
-			MessageFramer.decode(result.frames[1]),
-			{ text: "second" },
-		);
-		assert.deepStrictEqual(
-			MessageFramer.decode(result.frames[2]),
-			{ text: "third" },
-		);
+		assert.deepStrictEqual(MessageFramer.decode(result.frames[0]), {
+			text: "first",
+		});
+		assert.deepStrictEqual(MessageFramer.decode(result.frames[1]), {
+			text: "second",
+		});
+		assert.deepStrictEqual(MessageFramer.decode(result.frames[2]), {
+			text: "third",
+		});
 	});
 
 	test("Given partial frame at end, When decoded, Then returns complete frames and partial remainder", () => {
@@ -175,7 +176,11 @@ describe("MessageFramer - decodeFrames", () => {
 
 		const result = MessageFramer.decodeFrames(combinedWithPartial);
 
-		assert.strictEqual(result.frames.length, 2, "Should decode two complete frames");
+		assert.strictEqual(
+			result.frames.length,
+			2,
+			"Should decode two complete frames",
+		);
 		assert.ok(result.remainder.length > 0, "Should have partial remainder");
 	});
 
@@ -192,7 +197,11 @@ describe("MessageFramer - decodeFrames", () => {
 		const result = MessageFramer.decodeFrames(buffer);
 
 		assert.strictEqual(result.frames.length, 0, "Should have no frames");
-		assert.strictEqual(result.remainder.length, 4, "Should have full remainder");
+		assert.strictEqual(
+			result.remainder.length,
+			4,
+			"Should have full remainder",
+		);
 	});
 
 	test("Given partial frame at end, When decoded, Then returns complete frames and partial remainder", () => {
@@ -209,7 +218,11 @@ describe("MessageFramer - decodeFrames", () => {
 
 		const result = MessageFramer.decodeFrames(combinedWithPartial);
 
-		assert.strictEqual(result.frames.length, 2, "Should decode two complete frames");
+		assert.strictEqual(
+			result.frames.length,
+			2,
+			"Should decode two complete frames",
+		);
 		assert.ok(result.remainder.length > 0, "Should have partial remainder");
 	});
 
@@ -227,7 +240,11 @@ describe("MessageFramer - decodeFrames", () => {
 		const result = MessageFramer.decodeFrames(buffer);
 
 		assert.strictEqual(result.frames.length, 0, "Should have no frames");
-		assert.strictEqual(result.remainder.length, 4, "Should have full remainder");
+		assert.strictEqual(
+			result.remainder.length,
+			4,
+			"Should have full remainder",
+		);
 	});
 });
 
@@ -243,7 +260,11 @@ describe("MessageFramer - splitMessages", () => {
 		const result = MessageFramer.splitMessages(encoded);
 
 		assert.strictEqual(result.messages.length, 1, "Should have one message");
-		assert.strictEqual(result.remaining.length, 0, "Should have no remaining data");
+		assert.strictEqual(
+			result.remaining.length,
+			0,
+			"Should have no remaining data",
+		);
 	});
 
 	test("Given multiple complete messages, When split, Then returns all messages and empty remaining", () => {
@@ -260,7 +281,11 @@ describe("MessageFramer - splitMessages", () => {
 		const result = MessageFramer.splitMessages(combined);
 
 		assert.strictEqual(result.messages.length, 3, "Should have three messages");
-		assert.strictEqual(result.remaining.length, 0, "Should have no remaining data");
+		assert.strictEqual(
+			result.remaining.length,
+			0,
+			"Should have no remaining data",
+		);
 
 		// Verify messages
 		assert.deepStrictEqual(result.messages[0], msg1);
@@ -285,7 +310,11 @@ describe("MessageFramer - splitMessages", () => {
 
 		const result = MessageFramer.splitMessages(combinedWithPartial);
 
-		assert.strictEqual(result.messages.length, 2, "Should have two complete messages");
+		assert.strictEqual(
+			result.messages.length,
+			2,
+			"Should have two complete messages",
+		);
 		assert.ok(result.remaining.length > 0, "Should have partial remaining");
 	});
 
@@ -304,7 +333,11 @@ describe("MessageFramer - splitMessages", () => {
 		const result = MessageFramer.splitMessages(combined);
 
 		// Should skip malformed and return valid messages
-		assert.strictEqual(result.messages.length, 2, "Should have two valid messages");
+		assert.strictEqual(
+			result.messages.length,
+			2,
+			"Should have two valid messages",
+		);
 		assert.ok(result.remaining.length > 0, "Should have remaining data");
 	});
 
@@ -314,7 +347,11 @@ describe("MessageFramer - splitMessages", () => {
 		const result = MessageFramer.splitMessages(buffer);
 
 		assert.strictEqual(result.messages.length, 0, "Should have no messages");
-		assert.strictEqual(result.remaining.length, 4, "Should have full remaining");
+		assert.strictEqual(
+			result.remaining.length,
+			4,
+			"Should have full remaining",
+		);
 	});
 });
 
@@ -332,7 +369,10 @@ describe("MessageFramer - Error Handling", () => {
 			},
 		});
 
-		assert.doesNotThrow(() => MessageFramer.encode(message), "Should encode complex objects");
+		assert.doesNotThrow(
+			() => MessageFramer.encode(message),
+			"Should encode complex objects",
+		);
 	});
 
 	test("Given binary data, When encoded, Then handles correctly", () => {
@@ -340,6 +380,9 @@ describe("MessageFramer - Error Handling", () => {
 
 		const message = createTestMessage({ data: binaryData });
 
-		assert.doesNotThrow(() => MessageFramer.encode(message), "Should encode binary data");
+		assert.doesNotThrow(
+			() => MessageFramer.encode(message),
+			"Should encode binary data",
+		);
 	});
 });

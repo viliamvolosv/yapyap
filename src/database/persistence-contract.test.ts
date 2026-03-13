@@ -99,11 +99,19 @@ describe("DatabaseManager - persistIncomingMessageAtomically - Atomicity", () =>
 				const result = dbManager.persistIncomingMessageAtomically(input);
 
 				assert.strictEqual(result.applied, false, "Should not apply duplicate");
-				assert.strictEqual(result.duplicate, true, "Should be marked as duplicate");
+				assert.strictEqual(
+					result.duplicate,
+					true,
+					"Should be marked as duplicate",
+				);
 
 				// Verify no side effects
 				const vectorClockAfter = dbManager.getVectorClock("peer-1");
-				assert.strictEqual(vectorClockAfter, vectorClockBefore, "Vector clock should not change");
+				assert.strictEqual(
+					vectorClockAfter,
+					vectorClockBefore,
+					"Vector clock should not change",
+				);
 
 				const sequence = dbManager.getLastPeerSequence("peer-1");
 				assert.strictEqual(sequence, 1, "Sequence should remain 1");
@@ -141,7 +149,11 @@ describe("DatabaseManager - persistIncomingMessageAtomically - Atomicity", () =>
 				assert.strictEqual(sequence, 1, "peer_sequences should be updated");
 
 				const vectorClock = dbManager.getVectorClock("peer-1");
-				assert.strictEqual(vectorClock, 1, "peer_vector_clocks should be updated");
+				assert.strictEqual(
+					vectorClock,
+					1,
+					"peer_vector_clocks should be updated",
+				);
 			} finally {
 				cleanup();
 			}
@@ -190,10 +202,26 @@ describe("DatabaseManager - Duplicate Handling", () => {
 				const vectorClock3 = dbManager.getVectorClock("peer-1");
 
 				// All should be equal
-				assert.strictEqual(sequence1, sequence2, "Sequence should not change on duplicate");
-				assert.strictEqual(sequence2, sequence3, "Sequence should not change on duplicate");
-				assert.strictEqual(vectorClock1, vectorClock2, "Vector clock should not change on duplicate");
-				assert.strictEqual(vectorClock2, vectorClock3, "Vector clock should not change on duplicate");
+				assert.strictEqual(
+					sequence1,
+					sequence2,
+					"Sequence should not change on duplicate",
+				);
+				assert.strictEqual(
+					sequence2,
+					sequence3,
+					"Sequence should not change on duplicate",
+				);
+				assert.strictEqual(
+					vectorClock1,
+					vectorClock2,
+					"Vector clock should not change on duplicate",
+				);
+				assert.strictEqual(
+					vectorClock2,
+					vectorClock3,
+					"Vector clock should not change on duplicate",
+				);
 			} finally {
 				cleanup();
 			}
@@ -263,19 +291,32 @@ describe("DatabaseManager - Retry Scheduling", () => {
 				const messageId = "msg-retry-1";
 
 				// Initial insert
-				dbManager.queueMessage(messageId, { text: "test" }, "peer-1", Date.now() + 3600000);
+				dbManager.queueMessage(
+					messageId,
+					{ text: "test" },
+					"peer-1",
+					Date.now() + 3600000,
+				);
 
 				// Schedule retry (attempts should increment)
 				dbManager.scheduleRetry(messageId, Date.now() + 7200000, "timeout");
 
 				const msg1 = dbManager.getPendingMessage(messageId);
-				assert.strictEqual(msg1?.attempts, 1, "Attempts should be 1 after first schedule");
+				assert.strictEqual(
+					msg1?.attempts,
+					1,
+					"Attempts should be 1 after first schedule",
+				);
 
 				// Schedule retry again (attempts should increment again)
 				dbManager.scheduleRetry(messageId, Date.now() + 10800000, "error");
 
 				const msg2 = dbManager.getPendingMessage(messageId);
-				assert.strictEqual(msg2?.attempts, 2, "Attempts should be 2 after second schedule");
+				assert.strictEqual(
+					msg2?.attempts,
+					2,
+					"Attempts should be 2 after second schedule",
+				);
 			} finally {
 				cleanup();
 			}
@@ -291,7 +332,12 @@ describe("DatabaseManager - Retry Scheduling", () => {
 				const messageId = "msg-schedule-1";
 
 				// Initial insert
-				dbManager.queueMessage(messageId, { text: "test" }, "peer-1", Date.now() + 3600000);
+				dbManager.queueMessage(
+					messageId,
+					{ text: "test" },
+					"peer-1",
+					Date.now() + 3600000,
+				);
 
 				// Use schedulePendingRetry (attempts should increment)
 				dbManager.schedulePendingRetry(
@@ -301,7 +347,11 @@ describe("DatabaseManager - Retry Scheduling", () => {
 				);
 
 				const msg1 = dbManager.getPendingMessage(messageId);
-				assert.strictEqual(msg1?.attempts, 1, "Attempts should be 1 after schedulePendingRetry");
+				assert.strictEqual(
+					msg1?.attempts,
+					1,
+					"Attempts should be 1 after schedulePendingRetry",
+				);
 			} finally {
 				cleanup();
 			}
@@ -328,22 +378,45 @@ describe("DatabaseManager - Replica ACK Lifecycle", () => {
 
 				const replicas1 = dbManager.getMessageReplicas(messageId);
 				assert.strictEqual(replicas1.length, 1, "Should have one replica");
-				assert.strictEqual(replicas1[0].status, "assigned", "Status should be assigned");
-				assert.strictEqual(replicas1[0].ack_expected, 1, "ack_expected should be 1");
+				assert.strictEqual(
+					replicas1[0].status,
+					"assigned",
+					"Status should be assigned",
+				);
+				assert.strictEqual(
+					replicas1[0].ack_expected,
+					1,
+					"ack_expected should be 1",
+				);
 
 				// Step 2: Mark replica stored
 				dbManager.markReplicaStored(messageId, replicaPeerId);
 
 				const replicas2 = dbManager.getMessageReplicas(messageId);
-				assert.strictEqual(replicas2[0].status, "stored", "Status should be stored");
-				assert.strictEqual(replicas2[0].ack_expected, 1, "ack_expected should still be 1");
+				assert.strictEqual(
+					replicas2[0].status,
+					"stored",
+					"Status should be stored",
+				);
+				assert.strictEqual(
+					replicas2[0].ack_expected,
+					1,
+					"ack_expected should still be 1",
+				);
 
 				// Step 3: Mark ack received
 				dbManager.markReplicaAckReceived(messageId, replicaPeerId);
 
 				const replicas3 = dbManager.getMessageReplicas(messageId);
-				assert.strictEqual(replicas3[0].status, "stored", "Status should remain stored");
-				assert.ok(replicas3[0].ack_received_at, "ack_received_at should be set");
+				assert.strictEqual(
+					replicas3[0].status,
+					"stored",
+					"Status should remain stored",
+				);
+				assert.ok(
+					replicas3[0].ack_received_at,
+					"ack_received_at should be set",
+				);
 				assert.strictEqual(
 					typeof replicas3[0].ack_received_at,
 					"number",
@@ -380,11 +453,26 @@ describe("DatabaseManager - Replica ACK Lifecycle", () => {
 				// Check state of each replica
 				allReplicas.forEach((replica) => {
 					if (replica.replica_peer_id === "peer-1") {
-						assert.ok(replica.ack_received_at, "peer-1 should have ack_received_at");
-						assert.strictEqual(replica.status, "stored", "peer-1 should be stored");
+						assert.ok(
+							replica.ack_received_at,
+							"peer-1 should have ack_received_at",
+						);
+						assert.strictEqual(
+							replica.status,
+							"stored",
+							"peer-1 should be stored",
+						);
 					} else {
-						assert.strictEqual(replica.status, "assigned", "Other replicas should be assigned");
-						assert.strictEqual(replica.ack_expected, 1, "Other replicas should have ack_expected");
+						assert.strictEqual(
+							replica.status,
+							"assigned",
+							"Other replicas should be assigned",
+						);
+						assert.strictEqual(
+							replica.ack_expected,
+							1,
+							"Other replicas should have ack_expected",
+						);
 					}
 				});
 			} finally {
@@ -408,18 +496,38 @@ describe("DatabaseManager - Cleanup", () => {
 				const now = Date.now();
 
 				// Add expired pending message
-				dbManager.queueMessage("msg-expired", { text: "test" }, "peer-1", now - 10000);
+				dbManager.queueMessage(
+					"msg-expired",
+					{ text: "test" },
+					"peer-1",
+					now - 10000,
+				);
 
 				// Add delivered message (should be deleted)
-				dbManager.queueMessage("msg-delivered", { text: "test" }, "peer-1", now - 10000);
+				dbManager.queueMessage(
+					"msg-delivered",
+					{ text: "test" },
+					"peer-1",
+					now - 10000,
+				);
 				dbManager.markPendingMessageDelivered("msg-delivered");
 
 				// Add failed message (should be deleted)
-				dbManager.queueMessage("msg-failed", { text: "test" }, "peer-1", now - 10000);
+				dbManager.queueMessage(
+					"msg-failed",
+					{ text: "test" },
+					"peer-1",
+					now - 10000,
+				);
 				dbManager.markPendingMessageFailed("msg-failed", "error");
 
 				// Add valid pending message (should NOT be deleted)
-				dbManager.queueMessage("msg-valid", { text: "test" }, "peer-1", now + 3600000);
+				dbManager.queueMessage(
+					"msg-valid",
+					{ text: "test" },
+					"peer-1",
+					now + 3600000,
+				);
 
 				// Add expired replica message
 				dbManager.assignMessageReplica("msg-replica-expired", "peer-1");
@@ -430,11 +538,20 @@ describe("DatabaseManager - Cleanup", () => {
 				const deleted = dbManager.deleteExpiredPendingMessages(now + 1000);
 
 				// Should delete expired/terminal messages
-				assert.ok(deleted >= 3, `Should delete at least 3 messages, got ${deleted}`);
+				assert.ok(
+					deleted >= 3,
+					`Should delete at least 3 messages, got ${deleted}`,
+				);
 
 				// Valid message should still exist
-				const pendingMessages = dbManager.getPendingMessagesByIds(["msg-valid"]);
-				assert.strictEqual(pendingMessages.length, 1, "Valid pending message should still exist");
+				const pendingMessages = dbManager.getPendingMessagesByIds([
+					"msg-valid",
+				]);
+				assert.strictEqual(
+					pendingMessages.length,
+					1,
+					"Valid pending message should still exist",
+				);
 			} finally {
 				cleanup();
 			}
@@ -471,14 +588,21 @@ describe("DatabaseManager - Cleanup", () => {
 				const deleted = dbManager.deleteStaleRoutingEntries();
 
 				// Should delete stale entry
-				assert.ok(deleted >= 1, `Should delete at least 1 stale entry, got ${deleted}`);
+				assert.ok(
+					deleted >= 1,
+					`Should delete at least 1 stale entry, got ${deleted}`,
+				);
 
 				// Valid entry should still exist
 				const validEntry = dbManager.getRoutingEntry("peer-valid");
 				assert.ok(validEntry, "Valid routing entry should still exist");
 
 				const staleEntry = dbManager.getRoutingEntry("peer-stale");
-				assert.strictEqual(staleEntry, null, "Stale routing entry should be deleted");
+				assert.strictEqual(
+					staleEntry,
+					null,
+					"Stale routing entry should be deleted",
+				);
 			} finally {
 				cleanup();
 			}
@@ -573,7 +697,11 @@ describe("DatabaseManager - Search Index Consistency", () => {
 
 				// Old alias should not find contact
 				const results3 = dbManager.searchContacts("test-contact");
-				assert.strictEqual(results3.length, 0, "Old alias should not find contact");
+				assert.strictEqual(
+					results3.length,
+					0,
+					"Old alias should not find contact",
+				);
 			} finally {
 				cleanup();
 			}

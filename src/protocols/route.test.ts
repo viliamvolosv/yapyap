@@ -122,8 +122,16 @@ describe("RoutingTable - cleanupStaleEntries", () => {
 		// Cleanup with maxAge of 3000000 (3 seconds)
 		table.cleanupStaleEntries(3000000);
 
-		assert.strictEqual(table.getPeer("peer-1"), undefined, "Old entry should be deleted");
-		assert.strictEqual(table.getPeer("peer-2"), undefined, "Old entry should be deleted");
+		assert.strictEqual(
+			table.getPeer("peer-1"),
+			undefined,
+			"Old entry should be deleted",
+		);
+		assert.strictEqual(
+			table.getPeer("peer-2"),
+			undefined,
+			"Old entry should be deleted",
+		);
 	});
 
 	test("Given entries within maxAge, When cleanup called, Then preserves them", () => {
@@ -148,8 +156,16 @@ describe("createRouteAnnounce", () => {
 	test("Given parameters, When created, Then returns valid announce message", async () => {
 		const announce = await createRouteAnnounce("peer-1", ["peer-2", "peer-3"]);
 
-		assert.strictEqual(announce.type, "route_announce", "Type should be route_announce");
-		assert.strictEqual(announce.originPeerId, "peer-1", "Origin peer ID should match");
+		assert.strictEqual(
+			announce.type,
+			"route_announce",
+			"Type should be route_announce",
+		);
+		assert.strictEqual(
+			announce.originPeerId,
+			"peer-1",
+			"Origin peer ID should match",
+		);
 		assert.ok(announce.timestamp > 0, "Timestamp should be set");
 		assert.ok(announce.publicKey.length > 0, "Public key should be set");
 		assert.ok(announce.signature?.length > 0, "Signature should be set");
@@ -161,7 +177,11 @@ describe("createRouteAnnounce", () => {
 		const announce = await createRouteAnnounce("peer-1", reachablePeers);
 
 		assert.ok(announce.reachablePeers, "Reachable peers should be set");
-		assert.strictEqual(announce.reachablePeers?.length, 3, "Should include all reachable peers");
+		assert.strictEqual(
+			announce.reachablePeers?.length,
+			3,
+			"Should include all reachable peers",
+		);
 	});
 
 	test("Given routingHints, When created, Then includes in message", async () => {
@@ -177,7 +197,11 @@ describe("createRouteAnnounce", () => {
 		const announce = await createRouteAnnounce("peer-1", undefined, hints);
 
 		assert.ok(announce.routingHints, "Routing hints should be set");
-		assert.strictEqual(announce.routingHints?.length, 1, "Should include one hint");
+		assert.strictEqual(
+			announce.routingHints?.length,
+			1,
+			"Should include one hint",
+		);
 	});
 });
 
@@ -187,17 +211,33 @@ describe("createRouteAnnounce", () => {
 
 describe("createRouteQuery", () => {
 	test("Given parameters, When created, Then returns valid query message", () => {
-		const query = createRouteQuery("peer-target", "query-id-123", "peer-origin");
+		const query = createRouteQuery(
+			"peer-target",
+			"query-id-123",
+			"peer-origin",
+		);
 
 		assert.strictEqual(query.type, "route_query", "Type should be route_query");
-		assert.strictEqual(query.targetPeerId, "peer-target", "Target peer ID should match");
+		assert.strictEqual(
+			query.targetPeerId,
+			"peer-target",
+			"Target peer ID should match",
+		);
 		assert.strictEqual(query.queryId, "query-id-123", "Query ID should match");
-		assert.strictEqual(query.originPeerId, "peer-origin", "Origin peer ID should match");
+		assert.strictEqual(
+			query.originPeerId,
+			"peer-origin",
+			"Origin peer ID should match",
+		);
 		assert.ok(query.timestamp > 0, "Timestamp should be set");
 	});
 
 	test("Given all parameters, When created, Then includes all fields", () => {
-		const query = createRouteQuery("peer-target", "query-id-123", "peer-origin");
+		const query = createRouteQuery(
+			"peer-target",
+			"query-id-123",
+			"peer-origin",
+		);
 
 		// Verify all required fields
 		assert.ok(query.type);
@@ -214,11 +254,22 @@ describe("createRouteQuery", () => {
 
 describe("createRouteResult", () => {
 	test("Given parameters, When created, Then returns valid result message", () => {
-		const result = createRouteResult("query-id-123", "peer-origin", ["peer-1", "peer-2"]);
+		const result = createRouteResult("query-id-123", "peer-origin", [
+			"peer-1",
+			"peer-2",
+		]);
 
-		assert.strictEqual(result.type, "route_result", "Type should be route_result");
+		assert.strictEqual(
+			result.type,
+			"route_result",
+			"Type should be route_result",
+		);
 		assert.strictEqual(result.queryId, "query-id-123", "Query ID should match");
-		assert.strictEqual(result.originPeerId, "peer-origin", "Origin peer ID should match");
+		assert.strictEqual(
+			result.originPeerId,
+			"peer-origin",
+			"Origin peer ID should match",
+		);
 		assert.ok(result.timestamp > 0, "Timestamp should be set");
 		assert.ok(result.peerIds.length > 0, "Peer IDs should be set");
 	});
@@ -233,17 +284,33 @@ describe("createRouteResult", () => {
 			},
 		];
 
-		const result = createRouteResult("query-id-123", "peer-origin", ["peer-1"], hints);
+		const result = createRouteResult(
+			"query-id-123",
+			"peer-origin",
+			["peer-1"],
+			hints,
+		);
 
 		assert.ok(result.routingHints, "Routing hints should be set");
-		assert.strictEqual(result.routingHints?.length, 1, "Should include one hint");
+		assert.strictEqual(
+			result.routingHints?.length,
+			1,
+			"Should include one hint",
+		);
 	});
 
 	test("Given empty peerIds, When created, Then returns valid result", () => {
 		const result = createRouteResult("query-id-123", "peer-origin", []);
 
-		assert.strictEqual(result.type, "route_result", "Type should be route_result");
-		assert.ok(result.peerIds.length === 0, "Empty peer IDs array should be allowed");
+		assert.strictEqual(
+			result.type,
+			"route_result",
+			"Type should be route_result",
+		);
+		assert.ok(
+			result.peerIds.length === 0,
+			"Empty peer IDs array should be allowed",
+		);
 	});
 });
 
@@ -287,7 +354,11 @@ describe("handleRouteAnnounce", () => {
 		);
 
 		assert.strictEqual(result, null, "Should return null");
-		assert.strictEqual(table.getPeer("peer-1"), undefined, "Routing should not be updated");
+		assert.strictEqual(
+			table.getPeer("peer-1"),
+			undefined,
+			"Routing should not be updated",
+		);
 	});
 
 	test("Given announce with wrong sender key, When handled, Then rejects", async () => {
@@ -303,7 +374,11 @@ describe("handleRouteAnnounce", () => {
 			table,
 		);
 
-		assert.strictEqual(result, null, "Should return null when signature invalid");
+		assert.strictEqual(
+			result,
+			null,
+			"Should return null when signature invalid",
+		);
 	});
 
 	test("Given announce with tampered signature, When handled, Then rejects", async () => {
@@ -324,8 +399,16 @@ describe("handleRouteAnnounce", () => {
 			table,
 		);
 
-		assert.strictEqual(result, null, "Should return null when signature tampered");
-		assert.strictEqual(table.getPeer("peer-1"), undefined, "Routing should not be updated");
+		assert.strictEqual(
+			result,
+			null,
+			"Should return null when signature tampered",
+		);
+		assert.strictEqual(
+			table.getPeer("peer-1"),
+			undefined,
+			"Routing should not be updated",
+		);
 	});
 });
 
@@ -338,25 +421,45 @@ describe("handleRouteQuery", () => {
 		const table = new RoutingTable();
 		table.updatePeer("peer-target", {});
 
-		const query = createRouteQuery("peer-target", "query-id-123", "peer-origin");
+		const query = createRouteQuery(
+			"peer-target",
+			"query-id-123",
+			"peer-origin",
+		);
 
 		const result = await handleRouteQuery(query, "peer-origin", table);
 
 		assert.ok(result, "Should return result");
-		assert.strictEqual(result?.type, "route_result", "Type should be route_result");
-		assert.strictEqual(result?.queryId, "query-id-123", "Query ID should match");
+		assert.strictEqual(
+			result?.type,
+			"route_result",
+			"Type should be route_result",
+		);
+		assert.strictEqual(
+			result?.queryId,
+			"query-id-123",
+			"Query ID should match",
+		);
 		assert.ok(result?.peerIds.length > 0, "Should return peer IDs");
 	});
 
 	test("Given query for non-existent peer, When handled, Then returns fallback", async () => {
 		const table = new RoutingTable();
 
-		const query = createRouteQuery("non-existent-peer", "query-id-123", "peer-origin");
+		const query = createRouteQuery(
+			"non-existent-peer",
+			"query-id-123",
+			"peer-origin",
+		);
 
 		const result = await handleRouteQuery(query, "peer-origin", table);
 
 		assert.ok(result, "Should return result");
-		assert.strictEqual(result?.type, "route_result", "Type should be route_result");
+		assert.strictEqual(
+			result?.type,
+			"route_result",
+			"Type should be route_result",
+		);
 		assert.ok(result?.peerIds.length > 0, "Should return fallback peer IDs");
 	});
 
@@ -415,7 +518,11 @@ describe("handleRouteResult", () => {
 		const entry = table.getPeer("peer-origin");
 		assert.ok(entry, "Routing entry should be created");
 		assert.ok(entry?.reachablePeers, "Reachable peers should be set");
-		assert.strictEqual(entry?.reachablePeers?.length, 0, "Should have empty reachable peers list");
+		assert.strictEqual(
+			entry?.reachablePeers?.length,
+			0,
+			"Should have empty reachable peers list",
+		);
 	});
 
 	test("Given result with missing peerIds, When handled, Then updates routing", async () => {

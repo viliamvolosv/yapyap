@@ -85,8 +85,9 @@ describe("deriveSharedSecret - Negative Paths", () => {
 	test(
 		"Rejects deriveSharedSecret when keys are invalid/empty",
 		() => {
-			expect(() => deriveSharedSecret(new Uint8Array(0), new Uint8Array(0)))
-				.toThrow(/Failed to import|key type|invalid/i);
+			expect(() =>
+				deriveSharedSecret(new Uint8Array(0), new Uint8Array(0)),
+			).toThrow(/Failed to import|key type|invalid/i);
 		},
 		{ timeout: 5000 },
 	);
@@ -136,8 +137,9 @@ describe("decryptMessage - Negative Paths", () => {
 			new TextEncoder().encode(testMessage),
 			identity.privateKey,
 		);
-		expect(() => decryptMessage(ciphertext, identity.privateKey, new Uint8Array(0)))
-			.toThrow(/Decryption failed|invalid|key/i);
+		expect(() =>
+			decryptMessage(ciphertext, identity.privateKey, new Uint8Array(0)),
+		).toThrow(/Decryption failed|invalid|key/i);
 	});
 
 	test("Rejects decryptMessage with tampered ciphertext (missing auth tag)", () => {
@@ -148,8 +150,9 @@ describe("decryptMessage - Negative Paths", () => {
 		);
 		// Remove auth tag (last 16 bytes)
 		const tamperedCiphertext = ciphertext.slice(0, ciphertext.length - 16);
-		expect(() => decryptMessage(tamperedCiphertext, identity.privateKey, nonce))
-			.toThrow(/Decryption failed|invalid|auth/i);
+		expect(() =>
+			decryptMessage(tamperedCiphertext, identity.privateKey, nonce),
+		).toThrow(/Decryption failed|invalid|auth/i);
 	});
 
 	test("Rejects decryptMessage with tampered ciphertext (invalid auth tag)", () => {
@@ -160,9 +163,11 @@ describe("decryptMessage - Negative Paths", () => {
 		);
 		// Tamper with auth tag
 		const tamperedCiphertext = new Uint8Array(ciphertext);
-		tamperedCiphertext[tamperedCiphertext.length - 1] = (tamperedCiphertext[tamperedCiphertext.length - 1] + 1) % 256;
-		expect(() => decryptMessage(tamperedCiphertext, identity.privateKey, nonce))
-			.toThrow(/Decryption failed|invalid|auth/i);
+		tamperedCiphertext[tamperedCiphertext.length - 1] =
+			(tamperedCiphertext[tamperedCiphertext.length - 1] + 1) % 256;
+		expect(() =>
+			decryptMessage(tamperedCiphertext, identity.privateKey, nonce),
+		).toThrow(/Decryption failed|invalid|auth/i);
 	});
 
 	test("Rejects decryptMessage with tampered nonce", () => {
@@ -174,14 +179,20 @@ describe("decryptMessage - Negative Paths", () => {
 		// Tamper with nonce
 		const tamperedNonce = new Uint8Array(nonce);
 		tamperedNonce[0] = (tamperedNonce[0] + 1) % 256;
-		expect(() => decryptMessage(ciphertext, identity.privateKey, tamperedNonce))
-			.toThrow(/Decryption failed|invalid|auth/i);
+		expect(() =>
+			decryptMessage(ciphertext, identity.privateKey, tamperedNonce),
+		).toThrow(/Decryption failed|invalid|auth/i);
 	});
 
 	test("Rejects decryptMessage with empty ciphertext", () => {
 		const { identity } = createTestKeyPair();
-		expect(() => decryptMessage(new Uint8Array(0), identity.privateKey, new Uint8Array(12)))
-			.toThrow(/Decryption failed|invalid/i);
+		expect(() =>
+			decryptMessage(
+				new Uint8Array(0),
+				identity.privateKey,
+				new Uint8Array(12),
+			),
+		).toThrow(/Decryption failed|invalid/i);
 	});
 });
 
@@ -264,8 +275,9 @@ function signMessageSync(message: Uint8Array, privateKey: Uint8Array) {
 
 describe("deriveKeyFromPassword - Negative Paths", () => {
 	test("Rejects deriveKeyFromPassword with empty password", () => {
-		expect(() => deriveKeyFromPassword("", new Uint8Array(16)))
-			.toThrow(/Failed to import|key derivation/i);
+		expect(() => deriveKeyFromPassword("", new Uint8Array(16))).toThrow(
+			/Failed to import|key derivation/i,
+		);
 	});
 
 	test("Rejects deriveKeyFromPassword with invalid salt length", () => {
@@ -278,26 +290,38 @@ describe("deriveKeyFromPassword - Negative Paths", () => {
 // ============================================================================
 
 describe("encryptE2EMessage - Negative Paths", () => {
-	test("Rejects encryptE2EMessage when recipientPublicKey is not X25519", async () => {
-		const keyPair = generateIdentityKeyPairSync();
-		expect(() =>
-			encryptE2EMessage(testMessage, keyPair.publicKey, keyPair.privateKey),
-		).toThrow(/X25519|Failed to encrypt/i);
-	}, { timeout: 5000 });
+	test(
+		"Rejects encryptE2EMessage when recipientPublicKey is not X25519",
+		async () => {
+			const keyPair = generateIdentityKeyPairSync();
+			expect(() =>
+				encryptE2EMessage(testMessage, keyPair.publicKey, keyPair.privateKey),
+			).toThrow(/X25519|Failed to encrypt/i);
+		},
+		{ timeout: 5000 },
+	);
 
-	test("Rejects encryptE2EMessage when senderPrivateKey is not Ed25519", async () => {
-		const keyPair = generateIdentityKeyPairSync();
-		expect(() =>
-			encryptE2EMessage(testMessage, keyPair.publicKey, keyPair.publicKey),
-		).toThrow(/Ed25519|Failed to encrypt/i);
-	}, { timeout: 5000 });
+	test(
+		"Rejects encryptE2EMessage when senderPrivateKey is not Ed25519",
+		async () => {
+			const keyPair = generateIdentityKeyPairSync();
+			expect(() =>
+				encryptE2EMessage(testMessage, keyPair.publicKey, keyPair.publicKey),
+			).toThrow(/Ed25519|Failed to encrypt/i);
+		},
+		{ timeout: 5000 },
+	);
 
-	test("Rejects encryptE2EMessage with empty plaintext", async () => {
-		const keyPair = generateEphemeralKeyPairSync();
-		expect(() =>
-			encryptE2EMessage("", keyPair.publicKey, keyPair.privateKey),
-		).toThrow(/Failed to encrypt/i);
-	}, { timeout: 5000 });
+	test(
+		"Rejects encryptE2EMessage with empty plaintext",
+		async () => {
+			const keyPair = generateEphemeralKeyPairSync();
+			expect(() =>
+				encryptE2EMessage("", keyPair.publicKey, keyPair.privateKey),
+			).toThrow(/Failed to encrypt/i);
+		},
+		{ timeout: 5000 },
+	);
 });
 
 // ============================================================================
@@ -305,134 +329,192 @@ describe("encryptE2EMessage - Negative Paths", () => {
 // ============================================================================
 
 describe("decryptE2EMessage - Negative Paths", () => {
-	test("Rejects decryptE2EMessage when ephemeralPublicKey is missing", async () => {
-		const keyPair = generateIdentityKeyPairSync();
-		const encrypted = await encryptE2EMessage(
-			testMessage,
-			keyPair.publicKey,
-			keyPair.privateKey,
-		);
-		// Remove ephemeralPublicKey
-		const invalidEncrypted = {
-			...encrypted,
-			ephemeralPublicKey: undefined as any,
-		};
-		expect(() =>
-			decryptE2EMessage(invalidEncrypted, keyPair.publicKey, keyPair.privateKey),
-		).toThrow(/ephemeral public key/i);
-	}, { timeout: 5000 });
+	test(
+		"Rejects decryptE2EMessage when ephemeralPublicKey is missing",
+		async () => {
+			const keyPair = generateIdentityKeyPairSync();
+			const encrypted = await encryptE2EMessage(
+				testMessage,
+				keyPair.publicKey,
+				keyPair.privateKey,
+			);
+			// Remove ephemeralPublicKey
+			const invalidEncrypted = {
+				...encrypted,
+				ephemeralPublicKey: undefined as any,
+			};
+			expect(() =>
+				decryptE2EMessage(
+					invalidEncrypted,
+					keyPair.publicKey,
+					keyPair.privateKey,
+				),
+			).toThrow(/ephemeral public key/i);
+		},
+		{ timeout: 5000 },
+	);
 
-	test("Rejects decryptE2EMessage when ciphertext is truncated", async () => {
-		const keyPair = generateIdentityKeyPairSync();
-		const encrypted = await encryptE2EMessage(
-			testMessage,
-			keyPair.publicKey,
-			keyPair.privateKey,
-		);
-		// Truncate ciphertext
-		const truncated = {
-			...encrypted,
-			ciphertext: encrypted.ciphertext.slice(0, encrypted.ciphertext.length - 1),
-		};
-		expect(() =>
-			decryptE2EMessage(truncated, keyPair.publicKey, keyPair.privateKey),
-		).toThrow(/Failed to decrypt/i);
-	}, { timeout: 5000 });
+	test(
+		"Rejects decryptE2EMessage when ciphertext is truncated",
+		async () => {
+			const keyPair = generateIdentityKeyPairSync();
+			const encrypted = await encryptE2EMessage(
+				testMessage,
+				keyPair.publicKey,
+				keyPair.privateKey,
+			);
+			// Truncate ciphertext
+			const truncated = {
+				...encrypted,
+				ciphertext: encrypted.ciphertext.slice(
+					0,
+					encrypted.ciphertext.length - 1,
+				),
+			};
+			expect(() =>
+				decryptE2EMessage(truncated, keyPair.publicKey, keyPair.privateKey),
+			).toThrow(/Failed to decrypt/i);
+		},
+		{ timeout: 5000 },
+	);
 
-	test("Rejects decryptE2EMessage when nonce is tampered", async () => {
-		const keyPair = generateIdentityKeyPairSync();
-		const encrypted = await encryptE2EMessage(
-			testMessage,
-			keyPair.publicKey,
-			keyPair.privateKey,
-		);
-		// Tamper with nonce
-		const tamperedNonce = new Uint8Array(encrypted.nonce);
-		tamperedNonce[0] = (tamperedNonce[0] + 1) % 256;
-		const tamperedEncrypted = {
-			...encrypted,
-			nonce: tamperedNonce,
-		};
-		expect(() =>
-			decryptE2EMessage(tamperedEncrypted, keyPair.publicKey, keyPair.privateKey),
-		).toThrow(/Failed to decrypt/i);
-	}, { timeout: 5000 });
+	test(
+		"Rejects decryptE2EMessage when nonce is tampered",
+		async () => {
+			const keyPair = generateIdentityKeyPairSync();
+			const encrypted = await encryptE2EMessage(
+				testMessage,
+				keyPair.publicKey,
+				keyPair.privateKey,
+			);
+			// Tamper with nonce
+			const tamperedNonce = new Uint8Array(encrypted.nonce);
+			tamperedNonce[0] = (tamperedNonce[0] + 1) % 256;
+			const tamperedEncrypted = {
+				...encrypted,
+				nonce: tamperedNonce,
+			};
+			expect(() =>
+				decryptE2EMessage(
+					tamperedEncrypted,
+					keyPair.publicKey,
+					keyPair.privateKey,
+				),
+			).toThrow(/Failed to decrypt/i);
+		},
+		{ timeout: 5000 },
+	);
 
-	test("Rejects decryptE2EMessage when signature is tampered", async () => {
-		const keyPair = generateIdentityKeyPairSync();
-		const encrypted = await encryptE2EMessage(
-			testMessage,
-			keyPair.publicKey,
-			keyPair.privateKey,
-		);
-		// Tamper with signature
-		const tamperedSignature = new Uint8Array(encrypted.signature);
-		tamperedSignature[0] = (tamperedSignature[0] + 1) % 256;
-		const tamperedEncrypted = {
-			...encrypted,
-			signature: tamperedSignature,
-		};
-		expect(() =>
-			decryptE2EMessage(tamperedEncrypted, keyPair.publicKey, keyPair.privateKey),
-		).toThrow(/signature verification failed/i);
-	}, { timeout: 5000 });
+	test(
+		"Rejects decryptE2EMessage when signature is tampered",
+		async () => {
+			const keyPair = generateIdentityKeyPairSync();
+			const encrypted = await encryptE2EMessage(
+				testMessage,
+				keyPair.publicKey,
+				keyPair.privateKey,
+			);
+			// Tamper with signature
+			const tamperedSignature = new Uint8Array(encrypted.signature);
+			tamperedSignature[0] = (tamperedSignature[0] + 1) % 256;
+			const tamperedEncrypted = {
+				...encrypted,
+				signature: tamperedSignature,
+			};
+			expect(() =>
+				decryptE2EMessage(
+					tamperedEncrypted,
+					keyPair.publicKey,
+					keyPair.privateKey,
+				),
+			).toThrow(/signature verification failed/i);
+		},
+		{ timeout: 5000 },
+	);
 
-	test("Rejects decryptE2EMessage when senderPublicKey is wrong", async () => {
-		const keyPair = generateIdentityKeyPairSync();
-		const otherKeyPair = generateIdentityKeyPairSync();
-		const encrypted = await encryptE2EMessage(
-			testMessage,
-			keyPair.publicKey,
-			keyPair.privateKey,
-		);
-		expect(() =>
-			decryptE2EMessage(encrypted, otherKeyPair.publicKey, keyPair.privateKey),
-		).toThrow(/signature verification failed/i);
-	}, { timeout: 5000 });
+	test(
+		"Rejects decryptE2EMessage when senderPublicKey is wrong",
+		async () => {
+			const keyPair = generateIdentityKeyPairSync();
+			const otherKeyPair = generateIdentityKeyPairSync();
+			const encrypted = await encryptE2EMessage(
+				testMessage,
+				keyPair.publicKey,
+				keyPair.privateKey,
+			);
+			expect(() =>
+				decryptE2EMessage(
+					encrypted,
+					otherKeyPair.publicKey,
+					keyPair.privateKey,
+				),
+			).toThrow(/signature verification failed/i);
+		},
+		{ timeout: 5000 },
+	);
 
-	test("Rejects decryptE2EMessage when recipientPrivateKey is wrong", async () => {
-		const keyPair = generateIdentityKeyPairSync();
-		const otherKeyPair = generateIdentityKeyPairSync();
-		const encrypted = await encryptE2EMessage(
-			testMessage,
-			keyPair.publicKey,
-			keyPair.privateKey,
-		);
-		expect(() =>
-			decryptE2EMessage(encrypted, keyPair.publicKey, otherKeyPair.privateKey),
-		).toThrow(/Failed to decrypt/i);
-	}, { timeout: 5000 });
+	test(
+		"Rejects decryptE2EMessage when recipientPrivateKey is wrong",
+		async () => {
+			const keyPair = generateIdentityKeyPairSync();
+			const otherKeyPair = generateIdentityKeyPairSync();
+			const encrypted = await encryptE2EMessage(
+				testMessage,
+				keyPair.publicKey,
+				keyPair.privateKey,
+			);
+			expect(() =>
+				decryptE2EMessage(
+					encrypted,
+					keyPair.publicKey,
+					otherKeyPair.privateKey,
+				),
+			).toThrow(/Failed to decrypt/i);
+		},
+		{ timeout: 5000 },
+	);
 
-	test("Rejects decryptE2EMessage when plaintext is empty but auth tag present", async () => {
-		const keyPair = generateIdentityKeyPairSync();
-		const encrypted = await encryptE2EMessage(
-			"",
-			keyPair.publicKey,
-			keyPair.privateKey,
-		);
-		expect(() =>
-			decryptE2EMessage(encrypted, keyPair.publicKey, keyPair.privateKey),
-		).toThrow(/Failed to decrypt/i);
-	}, { timeout: 5000 });
+	test(
+		"Rejects decryptE2EMessage when plaintext is empty but auth tag present",
+		async () => {
+			const keyPair = generateIdentityKeyPairSync();
+			const encrypted = await encryptE2EMessage(
+				"",
+				keyPair.publicKey,
+				keyPair.privateKey,
+			);
+			expect(() =>
+				decryptE2EMessage(encrypted, keyPair.publicKey, keyPair.privateKey),
+			).toThrow(/Failed to decrypt/i);
+		},
+		{ timeout: 5000 },
+	);
 
-	test("Rejects decryptE2EMessage when ciphertext is malformed (no auth tag)", async () => {
-		const keyPair = generateIdentityKeyPairSync();
-		const encrypted = await encryptE2EMessage(
-			testMessage,
-			keyPair.publicKey,
-			keyPair.privateKey,
-		);
-		// Remove auth tag and nonce
-		const malformed = {
-			ciphertext: encrypted.ciphertext.slice(0, encrypted.ciphertext.length - 16),
-			nonce: encrypted.nonce.slice(0, 10),
-			ephemeralPublicKey: encrypted.ephemeralPublicKey,
-			signature: encrypted.signature,
-		};
-		expect(() =>
-			decryptE2EMessage(malformed, keyPair.publicKey, keyPair.privateKey),
-		).toThrow(/Failed to decrypt/i);
-	}, { timeout: 5000 });
+	test(
+		"Rejects decryptE2EMessage when ciphertext is malformed (no auth tag)",
+		async () => {
+			const keyPair = generateIdentityKeyPairSync();
+			const encrypted = await encryptE2EMessage(
+				testMessage,
+				keyPair.publicKey,
+				keyPair.privateKey,
+			);
+			// Remove auth tag and nonce
+			const malformed = {
+				ciphertext: encrypted.ciphertext.slice(
+					0,
+					encrypted.ciphertext.length - 16,
+				),
+				nonce: encrypted.nonce.slice(0, 10),
+				ephemeralPublicKey: encrypted.ephemeralPublicKey,
+				signature: encrypted.signature,
+			};
+			expect(() =>
+				decryptE2EMessage(malformed, keyPair.publicKey, keyPair.privateKey),
+			).toThrow(/Failed to decrypt/i);
+		},
+		{ timeout: 5000 },
+	);
 });
 
 // ============================================================================

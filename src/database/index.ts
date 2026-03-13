@@ -891,6 +891,12 @@ export class DatabaseManager {
 				}
 
 				// Message was inserted - continue with sequence and vector clock updates
+				// First, get the current sequence number for the peer
+				const currentSequence = this.db
+					.prepare(`SELECT last_sequence FROM peer_sequences WHERE peer_id = ?`)
+					.get(payload.fromPeerId) as { last_sequence: number } | undefined;
+
+				// Continue with sequence and vector clock updates only if primary insert succeeded
 				if (typeof payload.sequenceNumber === "number") {
 					this.db
 						.prepare(

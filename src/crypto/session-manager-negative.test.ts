@@ -217,7 +217,10 @@ test("Session reuse with invalid noise info does not corrupt session", async () 
 		},
 	};
 
-	const session = await sessionManager.getOrCreateSession(peerId, noiseSessionInfo);
+	const session = await sessionManager.getOrCreateSession(
+		peerId,
+		noiseSessionInfo,
+	);
 
 	assert.strictEqual(session.peerId, peerId);
 	assert.strictEqual(session.noiseSessionInfo?.peerId, "different-peer");
@@ -232,7 +235,9 @@ test("Session keys derived with invalid public key throw error", async () => {
 	const peerId = "test-peer-id";
 	const session = await sessionManager.createSession(peerId);
 
-	const invalidPublicKey = Buffer.from([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+	const invalidPublicKey = Buffer.from([
+		0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+	]);
 
 	try {
 		const sharedSecret = sessionManager.deriveSharedSecret(

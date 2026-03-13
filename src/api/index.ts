@@ -1811,7 +1811,8 @@ export class ApiModule {
 				from_peer_id: (entry as { from_peer_id: string }).from_peer_id,
 				to_peer_id: (entry as { to_peer_id: string }).to_peer_id,
 				message_data: (entry as { message_data: string }).message_data,
-				sequence_number: (entry as { sequence_number: number | null }).sequence_number,
+				sequence_number: (entry as { sequence_number: number | null })
+					.sequence_number,
 				processed_at: (entry as { processed_at: number }).processed_at,
 			})),
 		});

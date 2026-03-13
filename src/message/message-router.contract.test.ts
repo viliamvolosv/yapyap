@@ -44,9 +44,10 @@ type DbMock = {
 		fromPeerId: string,
 		sequenceNumber?: number,
 	) => void;
-	persistIncomingMessageAtomically: (
-		input: Record<string, unknown>,
-	) => { applied: boolean; duplicate: boolean };
+	persistIncomingMessageAtomically: (input: Record<string, unknown>) => {
+		applied: boolean;
+		duplicate: boolean;
+	};
 	getLastPeerSequence: (peerId: string) => number | null;
 	updatePeerSequence: (peerId: string, sequenceNumber: number) => void;
 	getPendingMessage: (messageId: string) => {
@@ -166,7 +167,11 @@ type DbMock = {
 		last_error?: string;
 		original_target_peer_id?: string;
 	}>;
-	updateReplicaAckExpected: (messageId: string, replicaPeerId: string, expected: boolean) => void;
+	updateReplicaAckExpected: (
+		messageId: string,
+		replicaPeerId: string,
+		expected: boolean,
+	) => void;
 	markReplicaAckReceived: (messageId: string, replicaPeerId: string) => void;
 	getMessagesWaitingForReplicaAck: () => Array<{
 		id: number;
@@ -189,7 +194,11 @@ type DbMock = {
 	markReplicatedMessageDelivered: (messageId: string) => void;
 	markReplicatedMessageFailed: (messageId: string) => void;
 	deleteExpiredReplicatedMessages: (now?: number) => number;
-	updateReplicaAckExpected: (messageId: string, replicaPeerId: string, expected: boolean) => void;
+	updateReplicaAckExpected: (
+		messageId: string,
+		replicaPeerId: string,
+		expected: boolean,
+	) => void;
 	markReplicaAckReceived: (messageId: string, replicaPeerId: string) => void;
 	getReplicaAckStatus: (messageId: string) => Array<{
 		id: number;
@@ -267,7 +276,9 @@ function createMockDb(): DbMock {
 			const fromPeerId = input.from_peer_id as string;
 			const toPeerId = input.to_peer_id as string;
 			const sequenceNumber = input.sequence_number as number | undefined;
-			const vectorClock = input.vector_clock as Record<string, number> | undefined;
+			const vectorClock = input.vector_clock as
+				| Record<string, number>
+				| undefined;
 
 			// Check if message is already processed
 			if (processedIds.has(messageId)) {
@@ -369,7 +380,11 @@ function createEventEmitterMock() {
 }
 
 // Test utilities
-function waitForEvent(emitter: any, event: string, timeout = 100): Promise<unknown> {
+function waitForEvent(
+	emitter: any,
+	event: string,
+	timeout = 100,
+): Promise<unknown> {
 	return new Promise((resolve, reject) => {
 		const timeoutId = setTimeout(() => {
 			reject(new Error(`Event ${event} not received within ${timeout}ms`));
@@ -443,7 +458,8 @@ describe("MessageRouter - Receive - Idempotency", () => {
 					db,
 					getLibp2p: () => ({}),
 					getPeerId: () => VALID_PEER_ID,
-					fetchRecipientPublicKey: async () => Buffer.from(testIdentityKeyPair.publicKey),
+					fetchRecipientPublicKey: async () =>
+						Buffer.from(testIdentityKeyPair.publicKey),
 					getNodeKeyPair: () => ({
 						privateKey: Buffer.from(testIdentityKeyPair.privateKey),
 						publicKey: Buffer.from(testIdentityKeyPair.publicKey),
@@ -479,11 +495,19 @@ describe("MessageRouter - Receive - Idempotency", () => {
 
 			// Sequence should not increase
 			const sequence = db.getLastPeerSequence(PEER_A);
-			assert.strictEqual(sequence, 1, "Sequence should not increase on duplicate");
+			assert.strictEqual(
+				sequence,
+				1,
+				"Sequence should not increase on duplicate",
+			);
 
 			// Vector clock should not increase
 			const vectorClock = db.getVectorClock(PEER_A);
-			assert.strictEqual(vectorClock, 0, "Vector clock should not increase on duplicate");
+			assert.strictEqual(
+				vectorClock,
+				0,
+				"Vector clock should not increase on duplicate",
+			);
 		},
 		{ timeout: 5000 },
 	);
@@ -504,7 +528,8 @@ describe("MessageRouter - ACK - Safe Ignorance", () => {
 					db,
 					getLibp2p: () => ({}),
 					getPeerId: () => VALID_PEER_ID,
-					fetchRecipientPublicKey: async () => Buffer.from(testIdentityKeyPair.publicKey),
+					fetchRecipientPublicKey: async () =>
+						Buffer.from(testIdentityKeyPair.publicKey),
 					getNodeKeyPair: () => ({
 						privateKey: Buffer.from(testIdentityKeyPair.privateKey),
 						publicKey: Buffer.from(testIdentityKeyPair.publicKey),
@@ -524,7 +549,11 @@ describe("MessageRouter - ACK - Safe Ignorance", () => {
 
 			// Should not throw and should not modify database
 			const pendingMessages = db.getAllPendingMessages();
-			assert.strictEqual(pendingMessages.length, 0, "No messages should be created");
+			assert.strictEqual(
+				pendingMessages.length,
+				0,
+				"No messages should be created",
+			);
 		},
 		{ timeout: 5000 },
 	);
@@ -539,7 +568,8 @@ describe("MessageRouter - ACK - Safe Ignorance", () => {
 					db,
 					getLibp2p: () => ({}),
 					getPeerId: () => VALID_PEER_ID,
-					fetchRecipientPublicKey: async () => Buffer.from(testIdentityKeyPair.publicKey),
+					fetchRecipientPublicKey: async () =>
+						Buffer.from(testIdentityKeyPair.publicKey),
 					getNodeKeyPair: () => ({
 						privateKey: Buffer.from(testIdentityKeyPair.privateKey),
 						publicKey: Buffer.from(testIdentityKeyPair.publicKey),
@@ -555,7 +585,11 @@ describe("MessageRouter - ACK - Safe Ignorance", () => {
 			router.sendMessage(PEER_A, { text: "test" }, 10000);
 
 			const pendingMessages = db.getAllPendingMessages();
-			assert.strictEqual(pendingMessages.length, 1, "Message should be pending");
+			assert.strictEqual(
+				pendingMessages.length,
+				1,
+				"Message should be pending",
+			);
 
 			// ACK the delivered message
 			router.handleAck({
@@ -565,7 +599,11 @@ describe("MessageRouter - ACK - Safe Ignorance", () => {
 
 			// Should not throw and should not create new pending messages
 			const pendingMessagesAfter = db.getAllPendingMessages();
-			assert.strictEqual(pendingMessagesAfter.length, 1, "No new messages should be created");
+			assert.strictEqual(
+				pendingMessagesAfter.length,
+				1,
+				"No new messages should be created",
+			);
 		},
 		{ timeout: 5000 },
 	);
@@ -586,7 +624,8 @@ describe("MessageRouter - NAK - Retry with Backoff", () => {
 					db,
 					getLibp2p: () => ({}),
 					getPeerId: () => VALID_PEER_ID,
-					fetchRecipientPublicKey: async () => Buffer.from(testIdentityKeyPair.publicKey),
+					fetchRecipientPublicKey: async () =>
+						Buffer.from(testIdentityKeyPair.publicKey),
 					getNodeKeyPair: () => ({
 						privateKey: Buffer.from(testIdentityKeyPair.privateKey),
 						publicKey: Buffer.from(testIdentityKeyPair.publicKey),
@@ -602,7 +641,11 @@ describe("MessageRouter - NAK - Retry with Backoff", () => {
 			router.sendMessage(PEER_A, { text: "test" }, 10000);
 
 			const pendingMessages = db.getAllPendingMessages();
-			assert.strictEqual(pendingMessages.length, 1, "Message should be pending");
+			assert.strictEqual(
+				pendingMessages.length,
+				1,
+				"Message should be pending",
+			);
 
 			const messageId = pendingMessages[0].message_id;
 
@@ -615,7 +658,11 @@ describe("MessageRouter - NAK - Retry with Backoff", () => {
 
 			// Check that retry was scheduled
 			const retryableMessages = db.getRetryablePendingMessages();
-			assert.strictEqual(retryableMessages.length, 1, "Retry should be scheduled");
+			assert.strictEqual(
+				retryableMessages.length,
+				1,
+				"Retry should be scheduled",
+			);
 			assert.strictEqual(
 				retryableMessages[0].attempts,
 				1,
@@ -645,7 +692,8 @@ describe("MessageRouter - Vector Clock - Replay Protection", () => {
 					db,
 					getLibp2p: () => ({}),
 					getPeerId: () => VALID_PEER_ID,
-					fetchRecipientPublicKey: async () => Buffer.from(testIdentityKeyPair.publicKey),
+					fetchRecipientPublicKey: async () =>
+						Buffer.from(testIdentityKeyPair.publicKey),
 					getNodeKeyPair: () => ({
 						privateKey: Buffer.from(testIdentityKeyPair.privateKey),
 						publicKey: Buffer.from(testIdentityKeyPair.publicKey),
@@ -679,7 +727,11 @@ describe("MessageRouter - Vector Clock - Replay Protection", () => {
 
 			// Vector clock should not decrease
 			const newClock = db.getVectorClock(PEER_A);
-			assert.strictEqual(newClock, currentClock, "Vector clock should not regress");
+			assert.strictEqual(
+				newClock,
+				currentClock,
+				"Vector clock should not regress",
+			);
 		},
 		{ timeout: 5000 },
 	);
@@ -700,7 +752,8 @@ describe("MessageRouter - Retry Cleanup", () => {
 					db,
 					getLibp2p: () => ({}),
 					getPeerId: () => VALID_PEER_ID,
-					fetchRecipientPublicKey: async () => Buffer.from(testIdentityKeyPair.publicKey),
+					fetchRecipientPublicKey: async () =>
+						Buffer.from(testIdentityKeyPair.publicKey),
 					getNodeKeyPair: () => ({
 						privateKey: Buffer.from(testIdentityKeyPair.privateKey),
 						publicKey: Buffer.from(testIdentityKeyPair.publicKey),
@@ -718,11 +771,21 @@ describe("MessageRouter - Retry Cleanup", () => {
 			db.markPendingMessageDelivered(messageId);
 
 			// Add a failed message
-			db.queueMessage("msg-failed", { text: "test" }, PEER_A, Date.now() - 10000);
+			db.queueMessage(
+				"msg-failed",
+				{ text: "test" },
+				PEER_A,
+				Date.now() - 10000,
+			);
 			db.markPendingMessageFailed("msg-failed", "error");
 
 			// Add an expired pending message
-			db.queueMessage("msg-pending-expired", { text: "test" }, PEER_A, Date.now() - 10000);
+			db.queueMessage(
+				"msg-pending-expired",
+				{ text: "test" },
+				PEER_A,
+				Date.now() - 10000,
+			);
 
 			// Add a valid pending message
 			db.queueMessage(
@@ -736,11 +799,16 @@ describe("MessageRouter - Retry Cleanup", () => {
 			const deleted = db.deleteExpiredPendingMessages(Date.now() + 1000);
 
 			// Should delete expired and terminal messages
-			assert.ok(deleted >= 3, `Should delete at least 3 expired messages, got ${deleted}`);
+			assert.ok(
+				deleted >= 3,
+				`Should delete at least 3 expired messages, got ${deleted}`,
+			);
 
 			// Valid message should still exist
 			const pendingMessages = db.getAllPendingMessages();
-			const validExists = pendingMessages.some((m) => m.message_id === "msg-valid");
+			const validExists = pendingMessages.some(
+				(m) => m.message_id === "msg-valid",
+			);
 			assert.ok(validExists, "Valid pending message should still exist");
 		},
 		{ timeout: 5000 },
