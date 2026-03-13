@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import type { Libp2p, PeerId, Stream } from "@libp2p/interface";
 import { peerIdFromString } from "@libp2p/peer-id";
+import type { Multiaddr } from "@multiformats/multiaddr";
 import type {
 	DatabaseManager,
 	MessageReplicaEntry,
@@ -1002,8 +1003,17 @@ export class MessageRouter {
 						try {
 							const { multiaddr } = await import("@multiformats/multiaddr");
 							const ma = multiaddr(cachedPeer.multiaddrs[0]);
+							const maPeerIdResult = (
+								ma as Multiaddr & {
+									getPeerId?: () => PeerId | string;
+								}
+							).getPeerId?.();
 							const maPeerId =
-								typeof ma.getPeerId === "function" ? ma.getPeerId() : undefined;
+								typeof maPeerIdResult === "string"
+									? maPeerIdResult
+									: typeof maPeerIdResult?.toString === "function"
+										? maPeerIdResult.toString()
+										: undefined;
 
 							if (!maPeerId || maPeerId === peerId.toString()) {
 								try {
