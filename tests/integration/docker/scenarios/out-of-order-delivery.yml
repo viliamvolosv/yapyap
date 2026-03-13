@@ -1,0 +1,24 @@
+scenario:
+  name: out-of-order-delivery
+  description: Tests out-of-order message delivery with sequence buffering
+  steps:
+    - start: [node1, node2]
+    - wait: discovery
+    - send: node1 -> node2 (seq-100)
+    - verify: node2 processed_messages has sequence = 100
+    - send: node1 -> node2 (seq-102)  # Out of order
+    - verify: node2 buffers seq-102 (not yet committed)
+    - verify: node2 sequence clock = 100 (not yet advanced)
+    - send: node1 -> node2 (seq-101)  # Fill gap
+    - verify: node2 commits seq-101 to inbox
+    - verify: node2 sequence clock = 101
+    - verify: node2 commits seq-102 to inbox
+    - verify: node2 sequence clock = 102
+    - verify: inbox order is [seq-100, seq-101, seq-102]
+    - restart: node2
+    - wait: discovery
+    - send: node1 -> node2 (seq-103)
+    - verify: node2 sequence clock = 103
+    - verify: node2 commits seq-103 to inbox
+    - verify: no sequence regression after reconnect
+    - verify: node2 inbox contains all messages [seq-100, seq-101, seq-102, seq-103]

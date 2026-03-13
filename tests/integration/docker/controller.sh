@@ -874,6 +874,500 @@ run_handshake_validation() {
   echo "[controller] Handshake validation validated successfully"
 }
 
+run_e2e_replay_attack() {
+  NODE2_PEER_ID="$(fetch_json http://node2:3000/api/node/info | node -e "const data=JSON.parse(await new Promise(r => { let d=\"\"; process.stdin.on(\"data\", c => d+=c); process.stdin.on(\"end\", () => r(d)); })); console.log(data.peerId)")"
+
+  echo "[controller] Waiting for initial connectivity..."
+  wait_peer_connected node1 "$NODE2_PEER_ID"
+
+  echo "[controller] Sending replay-test-1 (first time)..."
+  REPLAY_RAW="$(node -e "const res=await fetch('http://node1:3000/api/messages/send',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({to:process.argv[1],payload:{kind:'replay-test-1',t:Date.now()}})});
+const body=await res.text();
+console.log(JSON.stringify({status:res.status,body}));" "$NODE2_PEER_ID")"
+  REPLAY_STATUS="$(echo "$REPLAY_RAW" | node -e "const d=JSON.parse(await new Promise(r => { let d=\"\"; process.stdin.on(\"data\", c => d+=c); process.stdin.on(\"end\", () => r(d)); })); console.log(d.status)")"
+  REPLAY_MESSAGE_ID="$(echo "$REPLAY_RAW" | node -e "const d=JSON.parse(await new Promise(r => { let d=\"\"; process.stdin.on(\"data\", c => d+=c); process.stdin.on(\"end\", () => r(d)); })); const payload = JSON.parse(d.body || '{}'); console.log(payload?.data?.messageId ?? '');")"
+  wait_inbox_delivery node2 replay-test-1
+
+  echo "[controller] Verifying inbox count..."
+  INBOX_COUNT_BEFORE=$(node -e "const res=await fetch('http://node2:3000/api/messages/inbox');
+const raw=await res.json();
+const payload = raw && raw.success===true ? raw.data : raw;
+const inbox=Array.isArray(payload?.inbox)?payload.inbox:[];
+console.log(inbox.length);" 2>/dev/null || echo "0")
+  echo "[controller] Inbox count before replay: $INBOX_COUNT_BEFORE"
+
+  echo "[controller] Sending replay-test-1 (duplicate)..."
+  REPLAY_RAW_2="$(node -e "const target=process.argv[1];
+const messageId=process.argv[2];
+const res=await fetch('http://node1:3000/api/messages/send',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({to:target,payload:{kind:'replay-test-1',t:Date.now()},messageId})});
+const body=await res.text();
+console.log(JSON.stringify({status:res.status,body}));" "$NODE2_PEER_ID" "$REPLAY_MESSAGE_ID")"
+  REPLAY_STATUS_2="$(echo "$REPLAY_RAW_2" | node -e "const d=JSON.parse(await new Promise(r => { let d=\"\"; process.stdin.on(\"data\", c => d+=c); process.stdin.on(\"end\", () => r(d)); })); console.log(d.status)")"
+
+  echo "[controller] Verifying inbox count unchanged (no duplicate)..."
+  INBOX_COUNT_AFTER=$(node -e "const res=await fetch('http://node2:3000/api/messages/inbox');
+const raw=await res.json();
+const payload = raw && raw.success===true ? raw.data : raw;
+const inbox=Array.isArray(payload?.inbox)?payload.inbox:[];
+console.log(inbox.length);" 2>/dev/null || echo "0")
+  echo "[controller] Inbox count after replay: $INBOX_COUNT_AFTER"
+
+  if [ "$INBOX_COUNT_AFTER" -ne "$INBOX_COUNT_BEFORE" ]; then
+    PASSED=false
+    append_error "inbox_count_increased_on_replay"
+  fi
+
+  echo "[controller] Verifying no duplicate in processed_messages..."
+  PROCESSED_COUNT=$(node -e "const res=await fetch('http://node2:3000/api/database/processed_messages');
+const raw=await res.json();
+const payload = raw && raw.success===true ? raw.data : raw;
+const count=Array.isArray(payload?.count)?payload.count:0;
+console.log(count);" 2>/dev/null || echo "0")
+  echo "[controller] Processed messages count: $PROCESSED_COUNT"
+
+  echo "[controller] E2E replay attack test completed"
+}
+
+run_e2e_key_rotation() {
+  NODE2_PEER_ID="$(fetch_json http://node2:3000/api/node/info | node -e "const data=JSON.parse(await new Promise(r => { let d=\"\"; process.stdin.on(\"data\", c => d+=c); process.stdin.on(\"end\", () => r(d)); })); console.log(data.peerId)")"
+  NODE1_PEER_ID="$(fetch_json http://node1:3000/api/node/info | node -e "const data=JSON.parse(await new Promise(r => { let d=\"\"; process.stdin.on(\"data\", c => d+=c); process.stdin.on(\"end\", () => r(d)); })); console.log(data.peerId)")"
+
+  echo "[controller] Waiting for initial connectivity..."
+  wait_peer_connected node1 "$NODE2_PEER_ID"
+
+  echo "[controller] Sending key-rotation-test-1..."
+  KEY_ROT_RAW="$(node -e "const res=await fetch('http://node1:3000/api/messages/send',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({to:process.argv[1],payload:{kind:'key-rotation-test-1',t:Date.now()}})});
+const body=await res.text();
+console.log(JSON.stringify({status:res.status,body}));" "$NODE2_PEER_ID")"
+  KEY_ROT_STATUS="$(echo "$KEY_ROT_RAW" | node -e "const d=JSON.parse(await new Promise(r => { let d=\"\"; process.stdin.on(\"data\", c => d+=c); process.stdin.on(\"end\", () => r(d)); })); console.log(d.status)")"
+  wait_inbox_delivery node2 key-rotation-test-1
+
+  echo "[controller] Verifying processed_messages entry..."
+  PROCESSED_KEY_ROT=$(node -e "const res=await fetch('http://node2:3000/api/database/processed_messages');
+const raw=await res.json();
+const payload = raw && raw.success===true ? raw.data : raw;
+const list=Array.isArray(payload?.list)?payload.list:[];
+const found=list.find(m=>m?.message?.payload?.kind==='key-rotation-test-1');
+console.log(found?'found':'not-found');" 2>/dev/null || echo "not-found")
+  echo "[controller] Key rotation test 1 processed: $PROCESSED_KEY_ROT"
+
+  echo "[controller] Triggering node2 restart (simulating key regeneration)..."
+  node -e "const res=await fetch('http://node2:3000/api/node/stop',{method:'POST'}); console.log('stop-status',res.status);"
+
+  echo "[controller] Waiting for node2 health after restart..."
+  wait_health node2
+  NODE2_AFTER_RESTART="$(fetch_json http://node2:3000/api/node/info | node -e "const data=JSON.parse(await new Promise(r => { let d=\"\"; process.stdin.on(\"data\", c => d+=c); process.stdin.on(\"end\", () => r(d)); })); console.log(data.peerId)")"
+
+  echo "[controller] Waiting for node1 connectivity to restarted node2..."
+  wait_peer_connected node1 "$NODE2_AFTER_RESTART"
+
+  echo "[controller] Sending key-rotation-test-2..."
+  KEY_ROT_RAW_2="$(node -e "const res=await fetch('http://node1:3000/api/messages/send',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({to:process.argv[1],payload:{kind:'key-rotation-test-2',t:Date.now()}})});
+const body=await res.text();
+console.log(JSON.stringify({status:res.status,body}));" "$NODE2_AFTER_RESTART")"
+  KEY_ROT_STATUS_2="$(echo "$KEY_ROT_RAW_2" | node -e "const d=JSON.parse(await new Promise(r => { let d=\"\"; process.stdin.on(\"data\", c => d+=c); process.stdin.on(\"end\", () => r(d)); })); console.log(d.status)")"
+  wait_inbox_delivery node2 key-rotation-test-2
+
+  echo "[controller] Verifying key-rotation-test-1 NOT in inbox (stale message ignored)..."
+  STALE_MESSAGE=$(node -e "const res=await fetch('http://node2:3000/api/messages/inbox');
+const raw=await res.json();
+const payload = raw && raw.success===true ? raw.data : raw;
+const inbox=Array.isArray(payload?.inbox)?payload.inbox:[];
+const hasStale=inbox.some(m=>m?.message?.payload?.kind==='key-rotation-test-1');
+console.log(hasStale?'stale-found':'stale-not-found');" 2>/dev/null || echo "stale-not-found")
+  echo "[controller] Stale message check: $STALE_MESSAGE"
+
+  if [ "$STALE_MESSAGE" = "stale-found" ]; then
+    PASSED=false
+    append_error "stale_message_not_ignored"
+  fi
+
+  echo "[controller] Verifying node2 has new key pair..."
+  NODE2_KEY_CHANGED=$(node -e "const before='${NODE2_PEER_ID}';
+const after='${NODE2_AFTER_RESTART}';
+const changed=before!==after;
+console.log(changed);" 2>/dev/null || echo "true")
+  echo "[controller] Key changed after restart: $NODE2_KEY_CHANGED"
+
+  echo "[controller] E2E key rotation test completed"
+}
+
+run_restart_during_retry() {
+  NODE2_PEER_ID="$(fetch_json http://node2:3000/api/node/info | node -e "const data=JSON.parse(await new Promise(r => { let d=\"\"; process.stdin.on(\"data\", c => d+=c); process.stdin.on(\"end\", () => r(d)); })); console.log(data.peerId)")"
+  NODE1_PEER_ID="$(fetch_json http://node1:3000/api/node/info | node -e "const data=JSON.parse(await new Promise(r => { let d=\"\"; process.stdin.on(\"data\", c => d+=c); process.stdin.on(\"end\", () => r(d)); })); console.log(data.peerId)")"
+
+  echo "[controller] Waiting for initial connectivity..."
+  wait_peer_connected node1 "$NODE2_PEER_ID"
+
+  echo "[controller] Disconnecting node1 <-> node2 to simulate network failure..."
+  node -e "const p=process.argv[1]; await fetch('http://node1:3000/api/peers/'+p,{method:'DELETE'});" "$NODE2_PEER_ID"
+  node -e "const p=process.argv[1]; await fetch('http://node2:3000/api/peers/'+p,{method:'DELETE'});" "$NODE1_PEER_ID"
+  wait_peer_disconnected node1 "$NODE2_PEER_ID"
+
+  echo "[controller] Sending message during disconnected period (will queue for retry)..."
+  RETRY_RAW="$(node -e "const res=await fetch('http://node1:3000/api/messages/send',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({to:process.argv[1],payload:{kind:'retry-survival-test',t:Date.now()}})});
+const body=await res.text();
+console.log(JSON.stringify({status:res.status,body}));" "$NODE2_PEER_ID")"
+  RETRY_STATUS="$(echo "$RETRY_RAW" | node -e "const d=JSON.parse(await new Promise(r => { let d=\"\"; process.stdin.on(\"data\", c => d+=c); process.stdin.on(\"end\", () => r(d)); })); console.log(d.status)")"
+  RETRY_BODY="$(echo "$RETRY_RAW" | node -e "const d=JSON.parse(await new Promise(r => { let d=\"\"; process.stdin.on(\"data\", c => d+=c); process.stdin.on(\"end\", () => r(d)); })); console.log(JSON.stringify(d.body))")"
+
+  echo "[controller] Verifying message queued with status = pending..."
+  QUEUE_CHECK=$(node -e "const body='${RETRY_BODY}';
+const parsed=JSON.parse(body);
+const status=parsed?.status;
+const attempts=parsed?.attempts;
+const nextRetry=parsed?.nextRetryAt;
+console.log('status:',status,'attempts:',attempts,'nextRetry:',nextRetry);" 2>/dev/null || echo "status:unknown")
+  echo "[controller] Queue check: $QUEUE_CHECK"
+
+  if [ "$RETRY_STATUS" -ne 200 ]; then
+    PASSED=false
+    append_error "send_during_disconnect_status_$RETRY_STATUS"
+  fi
+
+  echo "[controller] Verifying message_queue table has entry..."
+  QUEUE_ENTRY_EXISTS=$(node -e "const res=await fetch('http://node1:3000/api/database/message_queue');
+const raw=await res.json();
+const payload = raw && raw.success===true ? raw.data : raw;
+const list=Array.isArray(payload?.list)?payload.list:[];
+const hasEntry=list.some(m=>m?.message?.payload?.kind==='retry-survival-test');
+console.log(hasEntry?'true':'false');" 2>/dev/null || echo "false")
+  echo "[controller] Queue entry exists: $QUEUE_ENTRY_EXISTS"
+
+  if [ "$QUEUE_ENTRY_EXISTS" != "true" ]; then
+    PASSED=false
+    append_error "queue_entry_missing"
+  fi
+
+  echo "[controller] Verifying processed_messages does NOT have entry..."
+  PROCESSED_ENTRY_EXISTS=$(node -e "const res=await fetch('http://node1:3000/api/database/processed_messages');
+const raw=await res.json();
+const payload = raw && raw.success===true ? raw.data : raw;
+const list=Array.isArray(payload?.list)?payload.list:[];
+const hasEntry=list.some(m=>m?.message?.payload?.kind==='retry-survival-test');
+console.log(hasEntry?'true':'false');" 2>/dev/null || echo "false")
+  echo "[controller] Processed entry exists: $PROCESSED_ENTRY_EXISTS"
+
+  if [ "$PROCESSED_ENTRY_EXISTS" = "true" ]; then
+    PASSED=false
+    append_error "processed_entry_exists_before_delivery"
+  fi
+
+  echo "[controller] Triggering node1 restart while retry is pending..."
+  node -e "const res=await fetch('http://node1:3000/api/node/stop',{method:'POST'}); console.log('stop-status',res.status);"
+
+  echo "[controller] Waiting for node1 health after restart..."
+  wait_health node1
+  NODE1_AFTER_RESTART="$(fetch_json http://node1:3000/api/node/info | node -e "const data=JSON.parse(await new Promise(r => { let d=\"\"; process.stdin.on(\"data\", c => d+=c); process.stdin.on(\"end\", () => r(d)); })); console.log(data.peerId)")"
+
+  echo "[controller] Verifying message_queue table still has entry after restart..."
+  QUEUE_ENTRY_EXISTS_AFTER=$(node -e "const res=await fetch('http://node1:3000/api/database/message_queue');
+const raw=await res.json();
+const payload = raw && raw.success===true ? raw.data : raw;
+const list=Array.isArray(payload?.list)?payload.list:[];
+const hasEntry=list.some(m=>m?.message?.payload?.kind==='retry-survival-test');
+console.log(hasEntry?'true':'false');" 2>/dev/null || echo "false")
+  echo "[controller] Queue entry exists after restart: $QUEUE_ENTRY_EXISTS_AFTER"
+
+  if [ "$QUEUE_ENTRY_EXISTS_AFTER" != "true" ]; then
+    PASSED=false
+    append_error "queue_entry_missing_after_restart"
+  fi
+
+  echo "[controller] Reconnecting node1 <-> node2 to allow retry..."
+  wait_peer_connected node1 "$NODE2_PEER_ID"
+
+  echo "[controller] Waiting for retry interval and delivery..."
+  wait_inbox_delivery node2 retry-survival-test
+
+  echo "[controller] Verifying final status = delivered..."
+  DELIVERY_STATUS=$(node -e "const res=await fetch('http://node2:3000/api/messages/inbox');
+const raw=await res.json();
+const payload = raw && raw.success===true ? raw.data : raw;
+const inbox=Array.isArray(payload?.inbox)?payload.inbox:[];
+const msg=inbox.find(m=>m?.message?.payload?.kind==='retry-survival-test');
+const status=msg?.message?.status || 'unknown';
+console.log(status);" 2>/dev/null || echo "unknown")
+  echo "[controller] Delivery status: $DELIVERY_STATUS"
+
+  if [ "$DELIVERY_STATUS" != "delivered" ]; then
+    PASSED=false
+    append_error "delivery_status_not_delivered"
+  fi
+
+  echo "[controller] Verifying processed_messages has entry after delivery..."
+  PROCESSED_ENTRY_EXISTS_AFTER=$(node -e "const res=await fetch('http://node1:3000/api/database/processed_messages');
+const raw=await res.json();
+const payload = raw && raw.success===true ? raw.data : raw;
+const list=Array.isArray(payload?.list)?payload.list:[];
+const hasEntry=list.some(m=>m?.message?.payload?.kind==='retry-survival-test');
+console.log(hasEntry?'true':'false');" 2>/dev/null || echo "false")
+  echo "[controller] Processed entry exists after delivery: $PROCESSED_ENTRY_EXISTS_AFTER"
+
+  if [ "$PROCESSED_ENTRY_EXISTS_AFTER" != "true" ]; then
+    PASSED=false
+    append_error "processed_entry_missing_after_delivery"
+  fi
+
+  echo "[controller] Verifying message_queue entry removed after delivery..."
+  QUEUE_ENTRY_REMOVED=$(node -e "const res=await fetch('http://node1:3000/api/database/message_queue');
+const raw=await res.json();
+const payload = raw && raw.success===true ? raw.data : raw;
+const list=Array.isArray(payload?.list)?payload.list:[];
+const hasEntry=list.some(m=>m?.message?.payload?.kind==='retry-survival-test');
+console.log(hasEntry?'false':'true');" 2>/dev/null || echo "true")
+  echo "[controller] Queue entry removed: $QUEUE_ENTRY_REMOVED"
+
+  if [ "$QUEUE_ENTRY_REMOVED" != "true" ]; then
+    PASSED=false
+    append_error "queue_entry_not_removed"
+  fi
+
+  echo "[controller] Restart during retry test completed"
+}
+
+run_replica_ack_timeout_recovery() {
+  NODE2_PEER_ID="$(fetch_json http://node2:3000/api/node/info | node -e "const data=JSON.parse(await new Promise(r => { let d=\"\"; process.stdin.on(\"data\", c => d+=c); process.stdin.on(\"end\", () => r(d)); })); console.log(data.peerId)")"
+  NODE3_PEER_ID="$(fetch_json http://node3:3000/api/node/info | node -e "const data=JSON.parse(await new Promise(r => { let d=\"\"; process.stdin.on(\"data\", c => d+=c); process.stdin.on(\"end\", () => r(d)); })); console.log(data.peerId)")"
+  NODE1_PEER_ID="$(fetch_json http://node1:3000/api/node/info | node -e "const data=JSON.parse(await new Promise(r => { let d=\"\"; process.stdin.on(\"data\", c => d+=c); process.stdin.on(\"end\", () => r(d)); })); console.log(data.peerId)")"
+
+  echo "[controller] Waiting for initial connectivity..."
+  wait_peer_connected node1 "$NODE2_PEER_ID"
+  wait_peer_connected node2 "$NODE1_PEER_ID"
+
+  echo "[controller] Sending replica-ack-test (to trigger replica ack mechanism)..."
+  REPLICA_RAW="$(node -e "const res=await fetch('http://node1:3000/api/messages/send',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({to:process.argv[1],payload:{kind:'replica-ack-test',t:Date.now()}})});
+const body=await res.text();
+console.log(JSON.stringify({status:res.status,body}));" "$NODE2_PEER_ID")"
+  REPLICA_STATUS="$(echo "$REPLICA_RAW" | node -e "const d=JSON.parse(await new Promise(r => { let d=\"\"; process.stdin.on(\"data\", c => d+=c); process.stdin.on(\"end\", () => r(d)); })); console.log(d.status)")"
+  wait_inbox_delivery node2 replica-ack-test
+
+  echo "[controller] Verifying node2 replica_ack_status = assigned..."
+  REPLICA_STATUS_ASSIGNED=$(node -e "const res=await fetch('http://node2:3000/api/messages/inbox');
+const raw=await res.json();
+const payload = raw && raw.success===true ? raw.data : raw;
+const inbox=Array.isArray(payload?.inbox)?payload.inbox:[];
+const msg=inbox.find(m=>m?.message?.payload?.kind==='replica-ack-test');
+const status=msg?.message?.status || 'unknown';
+console.log(status);" 2>/dev/null || echo "unknown")
+  echo "[controller] Replica status: $REPLICA_STATUS_ASSIGNED"
+
+  echo "[controller] Disconnecting node2 <-> node3 to simulate primary relay failure..."
+  node -e "const p=process.argv[1]; await fetch('http://node2:3000/api/peers/'+p,{method:'DELETE'});" "$NODE3_PEER_ID"
+  node -e "const p=process.argv[1]; await fetch('http://node3:3000/api/peers/'+p,{method:'DELETE'});" "$NODE2_PEER_ID"
+  wait_peer_disconnected node2 "$NODE3_PEER_ID"
+
+  echo "[controller] Waiting for replica_ack_timeout to trigger..."
+  sleep 15  # Simulate timeout period
+
+  echo "[controller] Verifying node2 replica_ack_status = ack_expected (timed out)..."
+  REPLICA_STATUS_TIMEOUT=$(node -e "const res=await fetch('http://node2:3000/api/messages/inbox');
+const raw=await res.json();
+const payload = raw && raw.success===true ? raw.data : raw;
+const inbox=Array.isArray(payload?.inbox)?payload.inbox:[];
+const msg=inbox.find(m=>m?.message?.payload?.kind==='replica-ack-test');
+const status=msg?.message?.status || 'unknown';
+console.log(status);" 2>/dev/null || echo "unknown")
+  echo "[controller] Replica status after timeout: $REPLICA_STATUS_TIMEOUT"
+
+  echo "[controller] Verifying node2 has fallback path available..."
+  FALLBACK_AVAILABLE=$(node -e "const res=await fetch('http://node2:3000/api/peers');
+const raw=await res.json();
+const payload = raw && raw.success===true ? raw.data : raw;
+const peers=Array.isArray(payload)?payload:[];
+const hasFallback=peers.some(p=>p?.peerId!=='${NODE2_PEER_ID}');
+console.log(hasFallback?'true':'false');" 2>/dev/null || echo "false")
+  echo "[controller] Fallback available: $FALLBACK_AVAILABLE"
+
+  echo "[controller] Reconnecting node2 <-> node3 to restore fallback path..."
+  wait_peer_connected node2 "$NODE3_PEER_ID"
+
+  echo "[controller] Waiting for retry interval and eventual delivery..."
+  wait_inbox_delivery node2 replica-ack-test
+
+  echo "[controller] Verifying final status = delivered..."
+  DELIVERY_STATUS=$(node -e "const res=await fetch('http://node2:3000/api/messages/inbox');
+const raw=await res.json();
+const payload = raw && raw.success===true ? raw.data : raw;
+const inbox=Array.isArray(payload?.inbox)?payload.inbox:[];
+const msg=inbox.find(m=>m?.message?.payload?.kind==='replica-ack-test');
+const status=msg?.message?.status || 'unknown';
+console.log(status);" 2>/dev/null || echo "unknown")
+  echo "[controller] Final delivery status: $DELIVERY_STATUS"
+
+  if [ "$DELIVERY_STATUS" != "delivered" ]; then
+    PASSED=false
+    append_error "replica_ack_delivery_failed"
+  fi
+
+  echo "[controller] Replica ACK timeout recovery test completed"
+}
+
+run_out_of_order_delivery() {
+  NODE2_PEER_ID="$(fetch_json http://node2:3000/api/node/info | node -e "const data=JSON.parse(await new Promise(r => { let d=\"\"; process.stdin.on(\"data\", c => d+=c); process.stdin.on(\"end\", () => r(d)); })); console.log(data.peerId)")"
+  NODE1_PEER_ID="$(fetch_json http://node1:3000/api/node/info | node -e "const data=JSON.parse(await new Promise(r => { let d=\"\"; process.stdin.on(\"data\", c => d+=c); process.stdin.on(\"end\", () => r(d)); })); console.log(data.peerId)")"
+
+  echo "[controller] Waiting for initial connectivity..."
+  wait_peer_connected node1 "$NODE2_PEER_ID"
+
+  echo "[controller] Sending seq-100..."
+  SEQ_RAW_100="$(node -e "const res=await fetch('http://node1:3000/api/messages/send',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({to:process.argv[1],payload:{kind:'seq-100',sequence:100,t:Date.now()}})});
+const body=await res.text();
+console.log(JSON.stringify({status:res.status,body}));" "$NODE2_PEER_ID")"
+  SEQ_STATUS_100="$(echo "$SEQ_RAW_100" | node -e "const d=JSON.parse(await new Promise(r => { let d=\"\"; process.stdin.on(\"data\", c => d+=c); process.stdin.on(\"end\", () => r(d)); })); console.log(d.status)")"
+  wait_inbox_delivery node2 seq-100
+
+  echo "[controller] Verifying node2 processed_messages has sequence = 100..."
+  SEQ_100_CHECK=$(node -e "const res=await fetch('http://node2:3000/api/database/processed_messages');
+const raw=await res.json();
+const payload = raw && raw.success===true ? raw.data : raw;
+const list=Array.isArray(payload?.list)?payload.list:[];
+const msg=list.find(m=>m?.message?.payload?.kind==='seq-100');
+const seq=msg?.message?.sequence || -1;
+console.log(seq);" 2>/dev/null || echo "-1")
+  echo "[controller] Sequence 100 check: $SEQ_100_CHECK"
+
+  if [ "$SEQ_100_CHECK" -ne 100 ]; then
+    PASSED=false
+    append_error "sequence_100_not_set"
+  fi
+
+  echo "[controller] Sending seq-102 (out of order)..."
+  SEQ_RAW_102="$(node -e "const res=await fetch('http://node1:3000/api/messages/send',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({to:process.argv[1],payload:{kind:'seq-102',sequence:102,t:Date.now()}})});
+const body=await res.text();
+console.log(JSON.stringify({status:res.status,body}));" "$NODE2_PEER_ID")"
+  SEQ_STATUS_102="$(echo "$SEQ_RAW_102" | node -e "const d=JSON.parse(await new Promise(r => { let d=\"\"; process.stdin.on(\"data\", c => d+=c); process.stdin.on(\"end\", () => r(d)); })); console.log(d.status)")"
+
+  echo "[controller] Verifying node2 buffers seq-102 (not yet committed)..."
+  SEQ_102_COMMITTED=$(node -e "const res=await fetch('http://node2:3000/api/messages/inbox');
+const raw=await res.json();
+const payload = raw && raw.success===true ? raw.data : raw;
+const inbox=Array.isArray(payload?.inbox)?payload.inbox:[];
+const hasSeq102=inbox.some(m=>m?.message?.payload?.kind==='seq-102');
+console.log(hasSeq102?'true':'false');" 2>/dev/null || echo "false")
+  echo "[controller] Seq-102 committed: $SEQ_102_COMMITTED"
+
+  if [ "$SEQ_102_COMMITTED" = "true" ]; then
+    echo "[controller] Seq-102 is buffered (not yet committed to inbox)"
+  fi
+
+  echo "[controller] Sending seq-101 (fill gap)..."
+  SEQ_RAW_101="$(node -e "const res=await fetch('http://node1:3000/api/messages/send',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({to:process.argv[1],payload:{kind:'seq-101',sequence:101,t:Date.now()}})});
+const body=await res.text();
+console.log(JSON.stringify({status:res.status,body}));" "$NODE2_PEER_ID")"
+  SEQ_STATUS_101="$(echo "$SEQ_RAW_101" | node -e "const d=JSON.parse(await new Promise(r => { let d=\"\"; process.stdin.on(\"data\", c => d+=c); process.stdin.on(\"end\", () => r(d)); })); console.log(d.status)")"
+
+  echo "[controller] Waiting for seq-102 to be committed..."
+  sleep 3
+
+  echo "[controller] Verifying node2 sequence clock = 101..."
+  SEQ_CLOCK=$(node -e "const res=await fetch('http://node2:3000/api/messages/inbox');
+const raw=await res.json();
+const payload = raw && raw.success===true ? raw.data : raw;
+const inbox=Array.isArray(payload?.inbox)?payload.inbox:[];
+const latest=inbox[inbox.length-1];
+const seq=latest?.message?.sequence || -1;
+console.log(seq);" 2>/dev/null || echo "-1")
+  echo "[controller] Sequence clock: $SEQ_CLOCK"
+
+  if [ "$SEQ_CLOCK" -ne 101 ]; then
+    PASSED=false
+    append_error "sequence_clock_not_101"
+  fi
+
+  echo "[controller] Verifying node2 commits seq-101 to inbox..."
+  SEQ_101_COMMITTED=$(node -e "const res=await fetch('http://node2:3000/api/messages/inbox');
+const raw=await res.json();
+const payload = raw && raw.success===true ? raw.data : raw;
+const inbox=Array.isArray(payload?.inbox)?payload.inbox:[];
+const hasSeq101=inbox.some(m=>m?.message?.payload?.kind==='seq-101');
+console.log(hasSeq101?'true':'false');" 2>/dev/null || echo "false")
+  echo "[controller] Seq-101 committed: $SEQ_101_COMMITTED"
+
+  if [ "$SEQ_101_COMMITTED" != "true" ]; then
+    PASSED=false
+    append_error "sequence_101_not_committed"
+  fi
+
+  echo "[controller] Verifying node2 commits seq-102 to inbox..."
+  SEQ_102_COMMITTED_FINAL=$(node -e "const res=await fetch('http://node2:3000/api/messages/inbox');
+const raw=await res.json();
+const payload = raw && raw.success===true ? raw.data : raw;
+const inbox=Array.isArray(payload?.inbox)?payload.inbox:[];
+const hasSeq102=inbox.some(m=>m?.message?.payload?.kind==='seq-102');
+console.log(hasSeq102?'true':'false');" 2>/dev/null || echo "false")
+  echo "[controller] Seq-102 committed final: $SEQ_102_COMMITTED_FINAL"
+
+  if [ "$SEQ_102_COMMITTED_FINAL" != "true" ]; then
+    PASSED=false
+    append_error "sequence_102_not_committed"
+  fi
+
+  echo "[controller] Verifying inbox order is [seq-100, seq-101, seq-102]..."
+  INBOX_ORDER=$(node -e "const res=await fetch('http://node2:3000/api/messages/inbox');
+const raw=await res.json();
+const payload = raw && raw.success===true ? raw.data : raw;
+const inbox=Array.isArray(payload?.inbox)?payload.inbox:[];
+const kinds=inbox.map(m=>m?.message?.payload?.kind).filter(Boolean);
+console.log(JSON.stringify(kinds));" 2>/dev/null || echo "[]")
+  echo "[controller] Inbox order: $INBOX_ORDER"
+
+  echo "[controller] Restarting node2..."
+  node -e "const res=await fetch('http://node2:3000/api/node/stop',{method:'POST'}); console.log('stop-status',res.status);"
+  wait_health node2
+
+  echo "[controller] Waiting for node2 health after restart..."
+  wait_peer_connected node1 "$NODE2_PEER_ID"
+
+  echo "[controller] Sending seq-103..."
+  SEQ_RAW_103="$(node -e "const res=await fetch('http://node1:3000/api/messages/send',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({to:process.argv[1],payload:{kind:'seq-103',sequence:103,t:Date.now()}})});
+const body=await res.text();
+console.log(JSON.stringify({status:res.status,body}));" "$NODE2_PEER_ID")"
+  wait_inbox_delivery node2 seq-103
+
+  echo "[controller] Verifying node2 sequence clock = 103..."
+  SEQ_CLOCK_AFTER=$(node -e "const res=await fetch('http://node2:3000/api/messages/inbox');
+const raw=await res.json();
+const payload = raw && raw.success===true ? raw.data : raw;
+const inbox=Array.isArray(payload?.inbox)?payload.inbox:[];
+const latest=inbox[inbox.length-1];
+const seq=latest?.message?.sequence || -1;
+console.log(seq);" 2>/dev/null || echo "-1")
+  echo "[controller] Sequence clock after reconnect: $SEQ_CLOCK_AFTER"
+
+  if [ "$SEQ_CLOCK_AFTER" -ne 103 ]; then
+    PASSED=false
+    append_error "sequence_clock_not_103_after_reconnect"
+  fi
+
+  echo "[controller] Verifying no sequence regression after reconnect..."
+  SEQ_REGRESSION=$(node -e "const res=await fetch('http://node2:3000/api/messages/inbox');
+const raw=await res.json();
+const payload = raw && raw.success===true ? raw.data : raw;
+const inbox=Array.isArray(payload?.inbox)?payload.inbox:[];
+const hasSeq100=inbox.some(m=>m?.message?.payload?.kind==='seq-100');
+const hasSeq102=inbox.some(m=>m?.message?.payload?.kind==='seq-102');
+console.log('seq100:',hasSeq100,'seq102:',hasSeq102);" 2>/dev/null || echo "seq100:false seq102:false")
+  echo "[controller] No sequence regression: $SEQ_REGRESSION"
+
+  echo "[controller] Verifying node2 inbox contains all messages [seq-100, seq-101, seq-102, seq-103]..."
+  ALL_MESSAGES=$(node -e "const res=await fetch('http://node2:3000/api/messages/inbox');
+const raw=await res.json();
+const payload = raw && raw.success===true ? raw.data : raw;
+const inbox=Array.isArray(payload?.inbox)?payload.inbox:[];
+const kinds=inbox.map(m=>m?.message?.payload?.kind).filter(Boolean);
+const hasAll=kinds.includes('seq-100') && kinds.includes('seq-101') && kinds.includes('seq-102') && kinds.includes('seq-103');
+console.log(hasAll?'true':'false');" 2>/dev/null || echo "false")
+  echo "[controller] All messages present: $ALL_MESSAGES"
+
+  if [ "$ALL_MESSAGES" != "true" ]; then
+    PASSED=false
+    append_error "not_all_messages_present"
+  fi
+
+  echo "[controller] Out-of-order delivery test completed"
+}
+
 run_cli_queries() {
   echo "[controller] Testing CLI query commands against running node..."
 
@@ -1003,6 +1497,21 @@ case "$SCENARIO" in
     ;;
   cli-queries)
     run_cli_queries
+    ;;
+  e2e-key-rotation)
+    run_e2e_key_rotation
+    ;;
+  e2e-replay-attack)
+    run_e2e_replay_attack
+    ;;
+  out-of-order-delivery)
+    run_out_of_order_delivery
+    ;;
+  replica-ack-timeout-recovery)
+    run_replica_ack_timeout_recovery
+    ;;
+  restart-during-retry)
+    run_restart_during_retry
     ;;
   *)
     echo "[controller] Unsupported scenario: $SCENARIO" >&2

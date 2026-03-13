@@ -1,12 +1,13 @@
 import type Database from "better-sqlite3";
-import type { RoutingCacheEntry } from "../index.js";
+import type { RoutingCacheEntry, RoutingEntryInput } from "../index.js";
 
 export class RoutingCacheDatabase {
 	constructor(private db: Database.Database) {}
 
 	// Save or update a routing cache entry
-	saveRoutingEntry(entry: Omit<RoutingCacheEntry, "last_seen">): void {
+	saveRoutingEntry(entry: RoutingEntryInput): void {
 		const now = Date.now();
+		const lastSeen = entry.last_seen ?? now;
 		const stmt = this.db.prepare(`
       INSERT OR REPLACE INTO routing_cache
       (peer_id, multiaddrs, last_seen, is_available, ttl)
@@ -15,7 +16,7 @@ export class RoutingCacheDatabase {
 		stmt.run(
 			entry.peer_id,
 			JSON.stringify(entry.multiaddrs),
-			now,
+			lastSeen,
 			entry.is_available ? 1 : 0,
 			entry.ttl,
 		);

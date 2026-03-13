@@ -40,11 +40,7 @@ export const MessageCodec = {
 	 * Decode a msgpack buffer safely
 	 */
 	decode<T>(data: Uint8Array): T {
-		try {
-			return decode(data) as T;
-		} catch (err) {
-			throw new Error(`Message decode failed: ${String(err)}`);
-		}
+		return decode(data) as T;
 	},
 };
 
@@ -129,7 +125,13 @@ export const MessageFramer = {
 		}
 
 		const messageBytes = data.slice(4, 4 + messageLength);
-		return MessageCodec.decode<T>(messageBytes);
+		try {
+			return MessageCodec.decode<T>(messageBytes);
+		} catch (err) {
+			const message =
+				err instanceof Error ? err.message : String(err ?? "unknown");
+			throw new Error(`Message decode failed: ${message}`);
+		}
 	},
 
 	/**
@@ -150,8 +152,15 @@ export const MessageFramer = {
 			);
 			const messageLength = view.getUint32(0, false);
 
+			// Skip zero-length frames
+			if (messageLength === 0) {
+				offset += 4;
+				continue;
+			}
+
 			if (messageLength > MAX_FRAME_SIZE_BYTES) {
-				throw new Error(`Frame too large: ${messageLength} bytes`);
+				offset += 4;
+				continue;
 			}
 
 			if (offset + 4 + messageLength > buffer.length) {
@@ -163,8 +172,8 @@ export const MessageFramer = {
 				const message = MessageCodec.decode<T>(messageBytes);
 				messages.push(message);
 				offset += 4 + messageLength;
-			} catch (error) {
-				console.error("Error decoding message:", error);
+			} catch {
+				// Skip malformed message and continue
 				offset += 4 + messageLength;
 			}
 		}

@@ -27,6 +27,14 @@ export class ContactsDatabase {
 			contact.metadata,
 			contact.is_trusted ? 1 : 0,
 		);
+		const deleteIndex = this.db.prepare(
+			"DELETE FROM search_index WHERE peer_id = ?",
+		);
+		const insertIndex = this.db.prepare(
+			"INSERT INTO search_index (peer_id, alias, metadata) VALUES (?, ?, ?)",
+		);
+		deleteIndex.run(contact.peer_id);
+		insertIndex.run(contact.peer_id, contact.alias, contact.metadata);
 	}
 
 	// Get a single contact by peer ID

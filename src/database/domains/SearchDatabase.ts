@@ -8,7 +8,7 @@ export class SearchDatabase {
 	searchContacts(query: string): Contact[] {
 		const stmt = this.db.prepare(`
       SELECT * FROM contacts WHERE peer_id IN (
-        SELECT rowid FROM search_index WHERE search_index MATCH ?
+        SELECT peer_id FROM search_index WHERE search_index MATCH ?
       )
     `);
 		const results = stmt.all(query) as Contact[];

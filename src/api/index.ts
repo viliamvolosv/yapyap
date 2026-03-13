@@ -205,6 +205,8 @@ export class ApiModule {
 				return await this.handleMessageRequest(request, path, method);
 			} else if (path.startsWith("/api/database")) {
 				return await this.handleDatabaseRequest(request, path, method);
+			} else if (path === "/api/database/processed_messages") {
+				return this.getProcessedMessages();
 			} else {
 				return this.fail(404, "API endpoint not found");
 			}
@@ -1153,6 +1155,44 @@ export class ApiModule {
 						},
 					},
 				},
+				"/api/database/processed_messages": {
+					get: {
+						summary: "List processed messages",
+						description: "Retrieve messages that have been processed (inbox)",
+						operationId: "getProcessedMessages",
+						tags: ["Database"],
+						responses: {
+							"200": {
+								description: "List of processed messages",
+								content: {
+									"application/json": {
+										schema: {
+											allOf: [
+												{ $ref: "#/components/schemas/ApiResponse" },
+												{
+													properties: {
+														data: {
+															type: "object",
+															properties: {
+																count: { type: "number" },
+																messages: {
+																	type: "array",
+																	items: {
+																		$ref: "#/components/schemas/ProcessedMessageEntry",
+																	},
+																},
+															},
+														},
+													},
+												},
+											],
+										},
+									},
+								},
+							},
+						},
+					},
+				},
 				"/api/database/routing": {
 					get: {
 						summary: "List routing cache entries",
@@ -1290,6 +1330,8 @@ export class ApiModule {
 				return this.getMessageQueueEntries();
 			if (path === "/api/database/routing")
 				return this.getRoutingCacheEntries();
+			if (path === "/api/database/processed_messages")
+				return this.getProcessedMessages();
 			const peerId = this.getPathParam(path, 3);
 			if (peerId) return this.getContactDetails(peerId);
 		} else if (method === "POST" && path === "/api/database/contacts") {
@@ -1555,8 +1597,13 @@ export class ApiModule {
 			return this.fail(400, "Invalid target peerId");
 		}
 
+		const requestedMessageId =
+			typeof body.messageId === "string" && body.messageId.trim().length > 0
+				? body.messageId.trim()
+				: undefined;
+
 		const message: YapYapMessage = {
-			id: crypto.randomUUID(),
+			id: requestedMessageId ?? crypto.randomUUID(),
 			type: "data",
 			from: this.yapyapNode.getPeerId(),
 			to: targetId,
@@ -1756,6 +1803,24 @@ export class ApiModule {
 
 	private async getRoutingCacheEntries(): Promise<Response> {
 		return this.ok({ entries: [] });
+	}
+
+	private async getProcessedMessages(): Promise<Response> {
+		const entries = this.yapyapNode
+			.getDatabase()
+			.getRecentProcessedMessages(200);
+		return this.ok({
+			count: entries.length,
+			messages: entries.map((entry) => ({
+				message_id: (entry as { message_id: string }).message_id,
+				from_peer_id: (entry as { from_peer_id: string }).from_peer_id,
+				to_peer_id: (entry as { to_peer_id: string }).to_peer_id,
+				message_data: (entry as { message_data: string }).message_data,
+				sequence_number: (entry as { sequence_number: number | null })
+					.sequence_number,
+				processed_at: (entry as { processed_at: number }).processed_at,
+			})),
+		});
 	}
 
 	private handleWebSocketMessage(

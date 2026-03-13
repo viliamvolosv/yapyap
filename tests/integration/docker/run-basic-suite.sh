@@ -22,6 +22,11 @@ scenarios=(
   "handshake-validation"
   "privacy-validation"
   "cli-queries"
+  "e2e-replay-attack"
+  "e2e-key-rotation"
+  "restart-during-retry"
+  "replica-ack-timeout-recovery"
+  "out-of-order-delivery"
 )
 
 echo "========================================"

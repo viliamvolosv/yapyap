@@ -1,0 +1,33 @@
+# Offline Delivery Scenario for YapYap
+version: "1.0"
+description: "Test offline message delivery and retry logic"
+scenarios:
+  - name: "offline-message-retry"
+    steps:
+      - action: "start-node"
+        node: "node1"
+      - action: "start-node"
+        node: "node2"
+      - action: "connect-peers"
+        peers:
+          - "node1"
+          - "node2"
+      - action: "send-message"
+        from: "node1"
+        to: "node2"
+        content: "offline test"
+      - action: "disconnect-peers"
+      - action: "wait"
+        duration: "5s"
+      - action: "reconnect-peers"
+      - action: "verify-message-received"
+        from: "node2"
+        content: "offline test"
+      - action: "stop-node"
+        node: "node1"
+      - action: "stop-node"
+        node: "node2"
+artifacts:
+  - path: "results/node1/message-queue"
+  - path: "results/node2/message-queue"
+  - path: "results/retry-logs"

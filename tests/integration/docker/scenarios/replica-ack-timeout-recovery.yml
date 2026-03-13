@@ -1,0 +1,21 @@
+scenario:
+  name: replica-ack-timeout-recovery
+  description: Tests replica ACK timeout recovery with alternate relay
+  steps:
+    - start: [node1, node2, node3]  # node1=sender, node2=primary relay, node3=fallback
+    - wait: discovery
+    - send: node1 -> node2 (replica-ack-test)
+    - verify: node2 receives message
+    - verify: node2 sets status = transmitting
+    - verify: node2 replica_ack_status = assigned
+    - disconnect: node2 <-> node3
+    - wait: replica_ack_timeout
+    - verify: node2 replica_ack_status = ack_expected (timed out)
+    - verify: node2 has fallback path available (node3)
+    - verify: node2 switches to alternate relay
+    - reconnect: node2 <-> node3
+    - wait: retry interval
+    - verify: message eventually delivered via node3
+    - verify: final status = delivered
+    - verify: replica_ack_status = ack_received
+    - verify: audit trail shows timeout event and recovery event
