@@ -979,11 +979,11 @@ export class DatabaseManager {
       VALUES (?, ?, ?, ?, ?)
     `)
 			.run(
-			contact.peer_id,
-			contact.alias,
-			now,
-			normalizedMetadata,
-			contact.is_trusted ? 1 : 0,
+				contact.peer_id,
+				contact.alias,
+				now,
+				normalizedMetadata,
+				contact.is_trusted ? 1 : 0,
 			);
 		this.upsertContactSearchIndex({
 			peer_id: contact.peer_id,
@@ -1058,9 +1058,7 @@ export class DatabaseManager {
 		const deleted = this.db
 			.prepare(`DELETE FROM contacts WHERE peer_id = ?`)
 			.run(peerId).changes;
-		this.db
-			.prepare(`DELETE FROM search_index WHERE peer_id = ?`)
-			.run(peerId);
+		this.db.prepare(`DELETE FROM search_index WHERE peer_id = ?`).run(peerId);
 		return deleted;
 	}
 

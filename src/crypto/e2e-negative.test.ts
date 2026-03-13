@@ -18,7 +18,8 @@ function expect(received: unknown) {
 				(received as () => unknown)();
 			} catch (error) {
 				if (expected !== undefined) {
-					const message = error instanceof Error ? error.message : String(error);
+					const message =
+						error instanceof Error ? error.message : String(error);
 					if (expected instanceof RegExp) {
 						assert(
 							expected.test(message),
@@ -38,11 +39,16 @@ function expect(received: unknown) {
 		},
 		toContain(value: string) {
 			const text = typeof received === "string" ? received : String(received);
-			assert.ok(text.includes(value), `Expected "${text}" to include "${value}"`);
+			assert.ok(
+				text.includes(value),
+				`Expected "${text}" to include "${value}"`,
+			);
 		},
 		toBe(value: unknown) {
 			const actual =
-				typeof received === "function" ? (received as () => unknown)() : received;
+				typeof received === "function"
+					? (received as () => unknown)()
+					: received;
 			assert.strictEqual(actual, value);
 		},
 	};

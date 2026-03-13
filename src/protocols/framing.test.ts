@@ -5,7 +5,11 @@
 
 import assert from "node:assert";
 import { describe, test } from "node:test";
-import { MAX_FRAME_SIZE_BYTES, MessageCodec, MessageFramer } from "../core/protocols.js";
+import {
+	MAX_FRAME_SIZE_BYTES,
+	MessageCodec,
+	MessageFramer,
+} from "../core/protocols.js";
 
 // Test utilities
 function createTestMessage<T>(payload: T): T {
@@ -72,7 +76,7 @@ describe("MessageFramer - decode", () => {
 	});
 
 	test("Given incomplete message (less than 4 bytes), When decoded, Then throws error", () => {
-    const incomplete = new Uint8Array([0, 1, 2]);
+		const incomplete = new Uint8Array([0, 1, 2]);
 
 		assert.throws(() => MessageFramer.decode(incomplete), /insufficient data/);
 	});
@@ -80,7 +84,10 @@ describe("MessageFramer - decode", () => {
 	test("Given message with zero length, When decoded, Then throws error", () => {
 		const zeroLength = new Uint8Array([0, 0, 0, 0]);
 
-		assert.throws(() => MessageFramer.decode(zeroLength), /Message decode failed/);
+		assert.throws(
+			() => MessageFramer.decode(zeroLength),
+			/Message decode failed/,
+		);
 	});
 
 	test("Given truncated payload (size > remaining bytes), When decoded, Then throws error", () => {
@@ -133,15 +140,15 @@ describe("MessageFramer - decodeFrames", () => {
 		assert.strictEqual(result.remainder.length, 0, "Should have no remainder");
 
 		// Verify content
-	assert.deepStrictEqual(MessageCodec.decode(result.frames[0]), {
-		text: "first",
-	});
-	assert.deepStrictEqual(MessageCodec.decode(result.frames[1]), {
-		text: "second",
-	});
-	assert.deepStrictEqual(MessageCodec.decode(result.frames[2]), {
-		text: "third",
-	});
+		assert.deepStrictEqual(MessageCodec.decode(result.frames[0]), {
+			text: "first",
+		});
+		assert.deepStrictEqual(MessageCodec.decode(result.frames[1]), {
+			text: "second",
+		});
+		assert.deepStrictEqual(MessageCodec.decode(result.frames[2]), {
+			text: "third",
+		});
 	});
 
 	test("Given partial frame at end, When decoded, Then returns complete frames and partial remainder", () => {
@@ -310,7 +317,7 @@ describe("MessageFramer - splitMessages", () => {
 		// Create malformed message (zero length)
 		const malformed = new Uint8Array([0, 0, 0, 0]);
 
-	const combined = new Uint8Array([...encoded1, ...malformed, ...encoded2]);
+		const combined = new Uint8Array([...encoded1, ...malformed, ...encoded2]);
 
 		const result = MessageFramer.splitMessages(combined);
 
@@ -320,11 +327,11 @@ describe("MessageFramer - splitMessages", () => {
 			2,
 			"Should have two valid messages",
 		);
-	assert.strictEqual(
-		result.remaining.length,
-		0,
-		"Should have no remaining data",
-	);
+		assert.strictEqual(
+			result.remaining.length,
+			0,
+			"Should have no remaining data",
+		);
 	});
 
 	test("Given buffer with no complete messages, When split, Then returns no messages and full remaining", () => {

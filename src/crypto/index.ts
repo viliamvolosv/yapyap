@@ -5,6 +5,8 @@
 
 import * as crypto from "node:crypto";
 
+type JsonWebKeyLike = Record<string, unknown>;
+
 export interface EncryptionKeyPair {
 	publicKey: Uint8Array;
 	privateKey: Uint8Array;
@@ -144,12 +146,13 @@ function ensureX25519PublicKeyDer(
 	}
 
 	if (keyObject.asymmetricKeyType === "ed25519") {
-		const jwk = keyObject.export({ format: "jwk" }) as crypto.JsonWebKey;
-		if (!jwk.x) {
+		const jwk = keyObject.export({ format: "jwk" }) as JsonWebKeyLike;
+		const xComponent = typeof jwk.x === "string" ? jwk.x : undefined;
+		if (!xComponent) {
 			throw new Error(`Missing Ed25519 public key material for ${context}`);
 		}
 
-		const edRaw = Buffer.from(jwk.x, "base64url");
+		const edRaw = Buffer.from(xComponent, "base64url");
 		const montgomeryRaw = convertEd25519PublicToX25519(edRaw);
 		return Buffer.concat([
 			X25519_PUBLIC_KEY_PREFIX,
@@ -187,12 +190,13 @@ function ensureX25519PrivateKeyDer(
 	}
 
 	if (keyObject.asymmetricKeyType === "ed25519") {
-		const jwk = keyObject.export({ format: "jwk" }) as crypto.JsonWebKey;
-		if (!jwk.d) {
+		const jwk = keyObject.export({ format: "jwk" }) as JsonWebKeyLike;
+		const dComponent = typeof jwk.d === "string" ? jwk.d : undefined;
+		if (!dComponent) {
 			throw new Error(`Missing Ed25519 private key material for ${context}`);
 		}
 
-		const edRaw = Buffer.from(jwk.d, "base64url");
+		const edRaw = Buffer.from(dComponent, "base64url");
 		const montgomeryRaw = convertEd25519PrivateToX25519(edRaw);
 		return Buffer.concat([
 			X25519_PRIVATE_KEY_PREFIX,
@@ -347,7 +351,11 @@ export function decryptMessage(
 	const nonceBuffer = normalizeDecryptNonce(nonce);
 
 	// Use Node's crypto for AES-GCM decryption
-	const decipher = crypto.createDecipheriv("aes-256-gcm", derivedKey, nonceBuffer);
+	const decipher = crypto.createDecipheriv(
+		"aes-256-gcm",
+		derivedKey,
+		nonceBuffer,
+	);
 	// If ciphertext includes authTag, extract and set it
 	// Assume last 16 bytes are authTag (standard for AES-GCM)
 	const tagLength = 16;
@@ -357,9 +365,7 @@ export function decryptMessage(
 		);
 	}
 
-	const authTag = Buffer.from(
-		ciphertext.slice(ciphertext.length - tagLength),
-	);
+	const authTag = Buffer.from(ciphertext.slice(ciphertext.length - tagLength));
 	const encrypted = Buffer.from(
 		ciphertext.slice(0, ciphertext.length - tagLength),
 	);
@@ -438,7 +444,9 @@ export function deriveKeyFromPassword(
 		throw new Error("Key derivation failed: password must not be empty");
 	}
 	if (!salt || salt.length === 0) {
-		throw new Error("Key derivation failed: salt must contain at least one byte");
+		throw new Error(
+			"Key derivation failed: salt must contain at least one byte",
+		);
 	}
 	// Use Node's crypto for PBKDF2 key derivation
 	const keyMaterial = crypto.pbkdf2Sync(

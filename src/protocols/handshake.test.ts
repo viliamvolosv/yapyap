@@ -282,10 +282,17 @@ test("Handshake protocol - rejects unsupported version", async () => {
 			localKeys.privateKey,
 			localKeys.publicKey,
 		);
-		assert.strictEqual(response, null, "Handler should return null when version unsupported");
+		assert.strictEqual(
+			response,
+			null,
+			"Handler should return null when version unsupported",
+		);
 		const err = getLastProtocolError();
 		assert.ok(err, "Protocol error should be set");
-		assert.match(err!.message, /\[handshake\] Unsupported handshake protocol version/);
+		assert.match(
+			err?.message,
+			/\[handshake\] Unsupported handshake protocol version/,
+		);
 	} finally {
 		console.error = origConsoleErr;
 	}

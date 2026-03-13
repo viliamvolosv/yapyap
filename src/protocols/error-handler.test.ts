@@ -188,25 +188,22 @@ describe("handleProtocolErrorSync - Synchronous", () => {
 // ============================================================================
 
 describe("handleProtocolError - Error Wrapping", () => {
-	test(
-		"Given error with custom message, When wrapped, Then includes operation name prefix",
-		async () => {
-			const handler = async () => {
-				throw new Error("Custom error message");
-			};
+	test("Given error with custom message, When wrapped, Then includes operation name prefix", async () => {
+		const handler = async () => {
+			throw new Error("Custom error message");
+		};
 
-			clearLastProtocolError();
-			const result = await handleProtocolError("custom-operation", handler);
-			assert.strictEqual(result, null, "Should return null on error");
+		clearLastProtocolError();
+		const result = await handleProtocolError("custom-operation", handler);
+		assert.strictEqual(result, null, "Should return null on error");
 
-			const wrappedError = getLastProtocolError();
-			assert.ok(wrappedError, "Should capture wrapped error");
-			assert.ok(
-				wrappedError?.message.startsWith("[custom-operation]"),
-				"Error should start with operation name in brackets",
-			);
-		},
-	);
+		const wrappedError = getLastProtocolError();
+		assert.ok(wrappedError, "Should capture wrapped error");
+		assert.ok(
+			wrappedError?.message.startsWith("[custom-operation]"),
+			"Error should start with operation name in brackets",
+		);
+	});
 
 	test("Given error with no message, When wrapped, Then includes operation name", async () => {
 		const handler = async () => {
@@ -225,45 +222,39 @@ describe("handleProtocolError - Error Wrapping", () => {
 		);
 	});
 
-	test(
-		"Given error with special characters, When wrapped, Then includes them correctly",
-		async () => {
-			const handler = async () => {
-				throw new Error("Error with special chars: < > & \" '");
-			};
+	test("Given error with special characters, When wrapped, Then includes them correctly", async () => {
+		const handler = async () => {
+			throw new Error("Error with special chars: < > & \" '");
+		};
 
-			clearLastProtocolError();
-			const result = await handleProtocolError("custom-operation", handler);
-			assert.strictEqual(result, null, "Should return null on error");
+		clearLastProtocolError();
+		const result = await handleProtocolError("custom-operation", handler);
+		assert.strictEqual(result, null, "Should return null on error");
 
-			const wrappedError = getLastProtocolError();
-			assert.ok(wrappedError, "Should capture wrapped error");
-			assert.ok(
-				wrappedError?.message.includes("special chars"),
-				"Should preserve special characters",
-			);
-		},
-	);
+		const wrappedError = getLastProtocolError();
+		assert.ok(wrappedError, "Should capture wrapped error");
+		assert.ok(
+			wrappedError?.message.includes("special chars"),
+			"Should preserve special characters",
+		);
+	});
 
-	test(
-		"Given error with unicode, When wrapped, Then includes it correctly",
-		async () => {
-			const handler = async () => {
-				throw new Error("Error with unicode: 你好 世界 🌍");
-			};
+	test("Given error with unicode, When wrapped, Then includes it correctly", async () => {
+		const handler = async () => {
+			throw new Error("Error with unicode: 你好 世界 🌍");
+		};
 
-			clearLastProtocolError();
-			const result = await handleProtocolError("custom-operation", handler);
-			assert.strictEqual(result, null, "Should return null on error");
+		clearLastProtocolError();
+		const result = await handleProtocolError("custom-operation", handler);
+		assert.strictEqual(result, null, "Should return null on error");
 
-			const wrappedError = getLastProtocolError();
-			assert.ok(wrappedError, "Should capture wrapped error");
-			assert.ok(
-				wrappedError?.message.includes("unicode"),
-				"Should preserve unicode characters",
-			);
-		},
-	);
+		const wrappedError = getLastProtocolError();
+		assert.ok(wrappedError, "Should capture wrapped error");
+		assert.ok(
+			wrappedError?.message.includes("unicode"),
+			"Should preserve unicode characters",
+		);
+	});
 
 	test("Given handler throws multiple times, When called, Then consistently returns null", async () => {
 		const handler = async () => {

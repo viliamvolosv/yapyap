@@ -40,11 +40,7 @@ export const MessageCodec = {
 	 * Decode a msgpack buffer safely
 	 */
 	decode<T>(data: Uint8Array): T {
-		try {
-			return decode(data) as T;
-		} catch (err) {
-			throw err;
-		}
+		return decode(data) as T;
 	},
 };
 

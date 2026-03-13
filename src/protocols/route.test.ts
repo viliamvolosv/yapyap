@@ -10,7 +10,6 @@ import {
 	createRouteQuery,
 	createRouteResult,
 	handleRouteAnnounce,
-	handleRouteMessage,
 	handleRouteQuery,
 	handleRouteResult,
 	RoutingTable,

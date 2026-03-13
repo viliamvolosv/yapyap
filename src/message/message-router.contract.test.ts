@@ -425,7 +425,9 @@ function createMockDb(): DbMock {
 					expired.push(messageId);
 				}
 			}
-			expired.forEach((messageId) => pendingMessages.delete(messageId));
+			expired.forEach((messageId) => {
+				pendingMessages.delete(messageId);
+			});
 			return expired.length;
 		},
 		getAllVectorClocks: () => Object.fromEntries(vectorClocks),
