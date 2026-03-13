@@ -1691,6 +1691,49 @@ describe("MessageRouter", () => {
 		);
 	});
 
+	test("transmit dials cached multiaddr before peer ID", async () => {
+		const db = createDbMock();
+		const cachedMultiaddr = `/ip4/127.0.0.1/tcp/4001/p2p/${VALID_PEER_ID}`;
+		const dialTargets: string[] = [];
+
+		const context = {
+			...createContext(db),
+			getDiscoveredPeers: () => [
+				{
+					peer_id: VALID_PEER_ID,
+					multiaddrs: [cachedMultiaddr],
+					last_seen: Date.now(),
+				},
+			],
+			getLibp2p: () =>
+				({
+					async dialProtocol(target) {
+						dialTargets.push(target.toString());
+						return {
+							send: async () => {},
+							close: async () => {},
+						};
+					},
+				}) as never,
+			encodeResponse: (message: YapYapMessage) =>
+				Buffer.from(JSON.stringify(message), "utf8") as unknown as Uint8Array,
+		};
+
+		const router = new MessageRouter(context, {});
+
+		await router.send({
+			id: "msg-cached-multiaddr",
+			type: "data",
+			from: "peer-local",
+			to: VALID_PEER_ID,
+			payload: { ok: true },
+			timestamp: Date.now(),
+		});
+
+		assert.strictEqual(dialTargets.length, 1);
+		assert.strictEqual(dialTargets[0], cachedMultiaddr);
+	});
+
 	test("default reconnect attempts increased to 3", async () => {
 		const db = createDbMock();
 		let dialAttempts = 0;

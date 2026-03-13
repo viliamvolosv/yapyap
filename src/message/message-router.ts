@@ -1000,24 +1000,32 @@ export class MessageRouter {
 					// Try cached multiaddr first if available
 					if (cachedPeer?.multiaddrs && cachedPeer.multiaddrs.length > 0) {
 						try {
-							// Extract peer ID from the multiaddr by parsing the path
-							// Multiaddr format: /ip4/1.2.3.4/tcp/4001/p2p/<peer-id>
-							const parts = cachedPeer.multiaddrs[0].split("/").filter(Boolean);
-							const p2pIndex = parts.indexOf("p2p");
-							if (p2pIndex !== -1 && parts[p2pIndex + 1]) {
-								const extractedPeerId = peerIdFromString(parts[p2pIndex + 1]);
-								if (extractedPeerId.toString() === peerId.toString()) {
-									// Dial using the cached multiaddr
-									stream = await this.withTimeout(
-										libp2p.dialProtocol(
-											extractedPeerId,
-											"/yapyap/message/1.0.0",
-										),
-										this.options.transport?.dialTimeoutMs ??
-											DEFAULT_DIAL_TIMEOUT_MS,
-										"stream-dial-timeout",
-									);
+							const { multiaddr } = await import("@multiformats/multiaddr");
+							const ma = multiaddr(cachedPeer.multiaddrs[0]);
+							const maPeerId =
+								typeof ma.getPeerId === "function" ? ma.getPeerId() : undefined;
+
+							if (!maPeerId || maPeerId === peerId.toString()) {
+								try {
+									(
+										libp2p as unknown as {
+											peerStore?: {
+												addressBook?: {
+													set?: (id: PeerId, addrs: unknown[]) => void;
+												};
+											};
+										}
+									).peerStore?.addressBook?.set?.(peerId, [ma]);
+								} catch {
+									// Best effort: peer store seeding is optional.
 								}
+
+								stream = await this.withTimeout(
+									libp2p.dialProtocol(ma, "/yapyap/message/1.0.0"),
+									this.options.transport?.dialTimeoutMs ??
+										DEFAULT_DIAL_TIMEOUT_MS,
+									"stream-dial-timeout",
+								);
 							}
 						} catch (err) {
 							// Fall back to peer ID dial if multiaddr fails
