@@ -71,6 +71,20 @@ CREATE TABLE IF NOT EXISTS processed_messages (
   processed_at INTEGER NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS message_history (
+  message_id TEXT NOT NULL,
+  direction TEXT NOT NULL,
+  peer_id TEXT NOT NULL,
+  status TEXT,
+  message_data TEXT,
+  attempts INTEGER NOT NULL DEFAULT 0,
+  next_retry_at INTEGER,
+  processed_at INTEGER,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  PRIMARY KEY (message_id, direction)
+);
+
 CREATE TABLE IF NOT EXISTS peer_sequences (
   peer_id TEXT PRIMARY KEY,
   last_sequence INTEGER NOT NULL,
@@ -119,6 +133,9 @@ CREATE INDEX IF NOT EXISTS idx_message_replicas_message_id ON message_replicas(m
 CREATE INDEX IF NOT EXISTS idx_message_replicas_replica_peer_id ON message_replicas(replica_peer_id);
 CREATE INDEX IF NOT EXISTS idx_processed_messages_processed_at ON processed_messages(processed_at);
 CREATE INDEX IF NOT EXISTS idx_processed_messages_from_peer_id ON processed_messages(from_peer_id);
+CREATE INDEX IF NOT EXISTS idx_message_history_direction ON message_history(direction);
+CREATE INDEX IF NOT EXISTS idx_message_history_peer_id ON message_history(peer_id);
+CREATE INDEX IF NOT EXISTS idx_message_history_updated_at ON message_history(updated_at);
 CREATE INDEX IF NOT EXISTS idx_peer_sequences_updated_at ON peer_sequences(updated_at);
 CREATE INDEX IF NOT EXISTS idx_peer_vector_clocks_updated_at ON peer_vector_clocks(updated_at);
 CREATE INDEX IF NOT EXISTS idx_contacts_last_seen ON contacts(last_seen);

@@ -37,6 +37,19 @@ type ProcessedEntry = {
 	processed_at: number;
 };
 
+type MessageHistoryRecord = {
+	message_id: string;
+	direction: "inbound" | "outbound";
+	peer_id: string;
+	status?: string | null;
+	message_data?: string | null;
+	attempts: number;
+	next_retry_at?: number | null;
+	processed_at?: number | null;
+	created_at: number;
+	updated_at: number;
+};
+
 class MockDatabase {
 	private contacts = new Map<
 		string,
@@ -50,6 +63,7 @@ class MockDatabase {
 	>();
 	private queueEntries: PendingEntry[] = [];
 	private processedEntries: ProcessedEntry[] = [];
+	private historyEntries: MessageHistoryRecord[] = [];
 
 	getAllContacts() {
 		return Array.from(this.contacts.values());
@@ -81,12 +95,36 @@ class MockDatabase {
 		return this.processedEntries;
 	}
 
+	getMessageHistory(options?: {
+		direction?: "inbound" | "outbound";
+		peerId?: string;
+		limit?: number;
+		offset?: number;
+	}): MessageHistoryRecord[] {
+		let entries = this.historyEntries;
+		if (options?.direction) {
+			entries = entries.filter(
+				(entry) => entry.direction === options.direction,
+			);
+		}
+		if (options?.peerId) {
+			entries = entries.filter((entry) => entry.peer_id === options.peerId);
+		}
+		const offset = options?.offset ?? 0;
+		const limit = options?.limit ?? entries.length;
+		return entries.slice(offset, offset + limit);
+	}
+
 	setQueueEntries(entries: PendingEntry[]) {
 		this.queueEntries = entries;
 	}
 
 	setProcessedEntries(entries: ProcessedEntry[]) {
 		this.processedEntries = entries;
+	}
+
+	setHistoryEntries(entries: MessageHistoryRecord[]) {
+		this.historyEntries = entries;
 	}
 }
 
@@ -145,6 +183,10 @@ class MockNode {
 
 	getEncryptionPublicKeyHex(): string {
 		return Buffer.from(testRecipientKeyPair.publicKey).toString("hex");
+	}
+
+	async decryptMessage(_msg: YapYapMessage): Promise<unknown | null> {
+		return null;
 	}
 
 	async encryptMessage(
@@ -405,6 +447,70 @@ describe("ApiModule", () => {
 		).outbox;
 		assert.strictEqual(outbox.length, 1);
 		assert.strictEqual(outbox[0].message.id, "m1");
+	});
+
+	test("GET /api/messages/history returns filtered results", async () => {
+		const now = Date.now();
+		node.db.setHistoryEntries([
+			{
+				message_id: "m3",
+				direction: "outbound",
+				peer_id: VALID_PEER_ID,
+				status: "pending",
+				message_data: JSON.stringify({
+					id: "m3",
+					type: "data",
+					from: SELF_PEER_ID,
+					to: VALID_PEER_ID,
+					payload: { text: "history-outbound" },
+					timestamp: now,
+				}),
+				attempts: 1,
+				next_retry_at: now + 1000,
+				created_at: now,
+				updated_at: now,
+			},
+			{
+				message_id: "m4",
+				direction: "inbound",
+				peer_id: VALID_PEER_ID,
+				status: "received",
+				message_data: JSON.stringify({
+					id: "m4",
+					type: "data",
+					from: VALID_PEER_ID,
+					to: SELF_PEER_ID,
+					payload: { text: "history-inbound" },
+					timestamp: now,
+				}),
+				attempts: 0,
+				processed_at: now,
+				created_at: now,
+				updated_at: now,
+			},
+		]);
+
+		const res = await api.handleTestRequest(
+			new Request(
+				`http://localhost/api/messages/history?direction=inbound&limit=1&peerId=${VALID_PEER_ID}`,
+				{ method: "GET" },
+			),
+		);
+		const body = await json(res);
+
+		assert.strictEqual(res.status, 200);
+		assert.strictEqual(body.success, true);
+		const data = body.data as {
+			messages: Array<{
+				messageId: string;
+				direction: string;
+				message: { id: string };
+			}>;
+			count: number;
+		};
+		assert.strictEqual(data.count, 1);
+		assert.strictEqual(data.messages[0].direction, "inbound");
+		assert.strictEqual(data.messages[0].message.id, "m4");
 	});
 
 	test("POST /api/node/stop is forbidden outside development", async () => {

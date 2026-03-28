@@ -7,6 +7,7 @@ YapYap is a decentralized, peer-to-peer messenger node and CLI library built wit
 - Built on libp2p (TCP/WebSocket yamux transport, bootstrap + DHT discovery, autonat/relay fallbacks) with Noise XX/IK and Ed25519 for E2EE.
 - SQLite-backed persistence using `better-sqlite3` (`message_queue`, `processed_messages`, replica tables) plus LRU dedup caches and replica-aware retries.
 - CLI (`yapyap` binary) that ships `init`, `start`, `send`, `status`, `peers`, and HTTP API endpoints for automated control.
+- Message history logging that exposes inbound/outbound entries via `yapyap history` or `GET /api/messages/history`, with filters for peer, direction, limit, and offset.
 
 ## Getting started
 
@@ -31,6 +32,10 @@ curl -fsSL https://viliamvolosv.github.io/yapyap/install.sh | bash -s -- --metho
 4. Start the node locally via `npm run dev` or run the CLI: `node dist/cli.js start`
 
 **Requirements:** Node.js ≥22.12.0
+
+## Message history
+
+`yapyap history` reads the `message_history` table, returning inbound and outbound entries together. It accepts `--direction inbound|outbound|all`, `--peer-id` (peer filter), `--limit` (1-500) and `--offset` for pagination. The Node API exposes the same filters at `GET /api/messages/history`, and the response decrypts payloads when the key material is available so dashboards can safely display the latest activity and retry metadata.
 
 ## Development workflows
 - **Tests:** `npm test` (uses Node.js native test runner with `tsx`). Test files use `.test.ts` suffix.

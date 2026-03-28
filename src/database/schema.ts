@@ -101,6 +101,21 @@ export const yapyapSchema = {
       is_trusted BOOLEAN NOT NULL DEFAULT 0
     )
   `,
+	message_history: `
+    CREATE TABLE IF NOT EXISTS message_history (
+      message_id TEXT NOT NULL,
+      direction TEXT NOT NULL,
+      peer_id TEXT NOT NULL,
+      status TEXT,
+      message_data TEXT,
+      attempts INTEGER NOT NULL DEFAULT 0,
+      next_retry_at INTEGER,
+      processed_at INTEGER,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      PRIMARY KEY (message_id, direction)
+    )
+  `,
 	peer_metadata: `
     CREATE TABLE IF NOT EXISTS peer_metadata (
       peer_id TEXT NOT NULL,
@@ -148,5 +163,8 @@ export const yapyapSchema = {
 		"CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON sessions(expires_at);",
 		"CREATE INDEX IF NOT EXISTS idx_peer_sequences_updated_at ON peer_sequences(updated_at);",
 		"CREATE INDEX IF NOT EXISTS idx_peer_vector_clocks_updated_at ON peer_vector_clocks(updated_at);",
+		"CREATE INDEX IF NOT EXISTS idx_message_history_direction ON message_history(direction);",
+		"CREATE INDEX IF NOT EXISTS idx_message_history_peer_id ON message_history(peer_id);",
+		"CREATE INDEX IF NOT EXISTS idx_message_history_updated_at ON message_history(updated_at);",
 	],
 };

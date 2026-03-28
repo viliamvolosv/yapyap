@@ -134,6 +134,22 @@ yapyap receive [options]
 yapyap receive --api-port 4000
 ```
 
+#### `yapyap history` — Inspect inbound/outbound message history
+
+```bash
+yapyap history [options]
+```
+
+Fetches the global history table so you can see both inbox and outbox entries, filter by peer, and page through the newest records.
+
+**Options:**
+- `--direction <inbound|outbound|all>` — Limit to inbound or outbound messages (default `all`)
+- `--peer-id <peer-id>` — Show messages exchanged with a specific peer
+- `--limit <number>` — Maximum entries (1-500, default 100)
+- `--offset <number>` — Skip older entries for pagination (default 0)
+- `--api-port <number>` / `--api-url <url>` — Target a specialized node API if you run multiple instances
+
+Under the hood this calls `GET /api/messages/history`, which mirrors the same filters over the HTTP API and decrypts payloads when possible before showing them in the response.
 ---
 
 ### Contact Management

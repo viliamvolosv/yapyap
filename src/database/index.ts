@@ -75,6 +75,21 @@ export interface MessageReplicaEntry {
 	original_target_peer_id?: string;
 }
 
+export type MessageHistoryDirection = "inbound" | "outbound";
+
+export interface MessageHistoryEntry {
+	message_id: string;
+	direction: MessageHistoryDirection;
+	peer_id: string;
+	status: string | null;
+	message_data: string | null;
+	attempts: number;
+	next_retry_at: number | null;
+	processed_at: number | null;
+	created_at: number;
+	updated_at: number;
+}
+
 export interface ProcessedMessageEntry {
 	message_id: string;
 	from_peer_id: string;
@@ -201,6 +216,7 @@ export class DatabaseManager {
 		this.db.exec(yapyapSchema.peer_sequences);
 		this.db.exec(yapyapSchema.peer_vector_clocks);
 		this.db.exec(yapyapSchema.contacts);
+		this.db.exec(yapyapSchema.message_history);
 		this.db.exec(yapyapSchema.peer_metadata);
 		this.db.exec(yapyapSchema.sessions);
 		this.db.exec(yapyapSchema.search_index);
@@ -457,6 +473,7 @@ export class DatabaseManager {
 		deadlineAt: number,
 	): void {
 		const now = Date.now();
+		const serializedMessage = JSON.stringify(messageData);
 		this.db
 			.prepare(
 				`INSERT INTO pending_messages
@@ -472,12 +489,22 @@ export class DatabaseManager {
 			.run(
 				messageId,
 				targetPeerId,
-				JSON.stringify(messageData),
+				serializedMessage,
 				now,
 				now,
 				now,
 				deadlineAt,
 			);
+
+		this.upsertMessageHistory({
+			messageId,
+			direction: "outbound",
+			peerId: targetPeerId,
+			status: "pending",
+			messageData: serializedMessage,
+			attempts: 0,
+			nextRetryAt: now,
+		});
 	}
 
 	getPendingMessage(messageId: string): PendingMessageEntry | null {
@@ -515,6 +542,7 @@ export class DatabaseManager {
 				`UPDATE pending_messages SET attempts = attempts + 1, updated_at = ? WHERE message_id = ?`,
 			)
 			.run(Date.now(), messageId);
+		this.syncOutboundHistory(messageId);
 	}
 
 	scheduleRetry(messageId: string, nextRetryAt: number, reason?: string): void {
@@ -525,6 +553,7 @@ export class DatabaseManager {
          WHERE message_id = ?`,
 			)
 			.run(nextRetryAt, Date.now(), reason ?? null, messageId);
+		this.syncOutboundHistory(messageId);
 	}
 
 	getRecentPendingMessages(limit = 200): PendingMessageEntry[] {
@@ -558,6 +587,7 @@ export class DatabaseManager {
          WHERE message_id = ?`,
 			)
 			.run(Date.now(), messageId);
+		this.syncOutboundHistory(messageId);
 	}
 
 	markPendingMessageFailed(messageId: string, reason?: string): void {
@@ -568,6 +598,7 @@ export class DatabaseManager {
          WHERE message_id = ?`,
 			)
 			.run(Date.now(), reason ?? null, messageId);
+		this.syncOutboundHistory(messageId);
 	}
 
 	schedulePendingRetry(
@@ -586,6 +617,7 @@ export class DatabaseManager {
          WHERE message_id = ?`,
 			)
 			.run(nextRetryAt, Date.now(), reason ?? null, messageId);
+		this.syncOutboundHistory(messageId);
 	}
 
 	deleteExpiredPendingMessages(now = Date.now()): number {
@@ -595,6 +627,71 @@ export class DatabaseManager {
          WHERE deadline_at <= ? OR status IN ('delivered', 'failed')`,
 			)
 			.run(now).changes;
+	}
+
+	private upsertMessageHistory({
+		messageId,
+		direction,
+		peerId,
+		status = null,
+		messageData = null,
+		attempts = 0,
+		nextRetryAt = null,
+		processedAt = null,
+	}: {
+		messageId: string;
+		direction: MessageHistoryDirection;
+		peerId: string;
+		status?: string | null;
+		messageData?: string | null;
+		attempts?: number;
+		nextRetryAt?: number | null;
+		processedAt?: number | null;
+	}): void {
+		const now = Date.now();
+		this.db
+			.prepare(
+				`INSERT INTO message_history
+         (message_id, direction, peer_id, status, message_data, attempts, next_retry_at, processed_at, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(message_id, direction) DO UPDATE SET
+           peer_id = excluded.peer_id,
+           status = excluded.status,
+           message_data = excluded.message_data,
+           attempts = excluded.attempts,
+           next_retry_at = excluded.next_retry_at,
+           processed_at = excluded.processed_at,
+           updated_at = excluded.updated_at,
+           created_at = message_history.created_at`,
+			)
+			.run(
+				messageId,
+				direction,
+				peerId,
+				status,
+				messageData,
+				attempts,
+				nextRetryAt,
+				processedAt,
+				now,
+				now,
+			);
+	}
+
+	private syncOutboundHistory(messageId: string): void {
+		const entry = this.getPendingMessage(messageId);
+		if (!entry) {
+			return;
+		}
+		this.upsertMessageHistory({
+			messageId,
+			direction: "outbound",
+			peerId: entry.target_peer_id,
+			status: entry.status,
+			messageData: entry.message_data,
+			attempts: entry.attempts,
+			nextRetryAt: entry.next_retry_at,
+		});
 	}
 
 	getRecentProcessedMessages(limit = 50): ProcessedMessageEntry[] {
@@ -830,6 +927,41 @@ export class DatabaseManager {
 			.all(...messageIds) as PendingMessageEntry[];
 	}
 
+	getMessageHistory(options?: {
+		direction?: MessageHistoryDirection;
+		peerId?: string;
+		limit?: number;
+		offset?: number;
+	}): MessageHistoryEntry[] {
+		const direction = options?.direction;
+		const peerId = options?.peerId;
+		let limit = typeof options?.limit === "number" ? options.limit : 100;
+		limit = Math.max(1, Math.min(limit, 500));
+		let offset = typeof options?.offset === "number" ? options.offset : 0;
+		offset = Math.max(0, offset);
+		const conditions: string[] = [];
+		const params: unknown[] = [];
+		if (direction) {
+			conditions.push("direction = ?");
+			params.push(direction);
+		}
+		if (peerId) {
+			conditions.push("peer_id = ?");
+			params.push(peerId);
+		}
+		const whereClause =
+			conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+		return this.db
+			.prepare(
+				`SELECT * FROM message_history
+         ${whereClause}
+         ORDER BY updated_at DESC
+         LIMIT ?
+         OFFSET ?`,
+			)
+			.all(...params, limit, offset) as MessageHistoryEntry[];
+	}
+
 	getLastPeerSequence(peerId: string): number | null {
 		const result = this.db
 			.prepare(`SELECT last_sequence FROM peer_sequences WHERE peer_id = ?`)
@@ -890,6 +1022,7 @@ export class DatabaseManager {
 		const now = Date.now();
 		const tx = this.db.transaction(
 			(payload: PersistIncomingMessageInput): PersistIncomingMessageResult => {
+				const messageDataString = JSON.stringify(payload.messageData);
 				const processedInsert = this.db
 					.prepare(
 						`INSERT INTO processed_messages (message_id, from_peer_id, to_peer_id, message_data, sequence_number, processed_at)
@@ -900,7 +1033,7 @@ export class DatabaseManager {
 						payload.messageId,
 						payload.fromPeerId,
 						payload.toPeerId,
-						JSON.stringify(payload.messageData),
+						messageDataString,
 						payload.sequenceNumber ?? null,
 						now,
 					);
@@ -909,6 +1042,15 @@ export class DatabaseManager {
 					// Message already exists - return duplicate without side effects
 					return { applied: false, duplicate: true };
 				}
+
+				this.upsertMessageHistory({
+					messageId: payload.messageId,
+					direction: "inbound",
+					peerId: payload.fromPeerId,
+					status: "received",
+					messageData: messageDataString,
+					processedAt: now,
+				});
 
 				// Message was inserted - continue with sequence and vector clock updates
 				// First, get the current sequence number for the peer

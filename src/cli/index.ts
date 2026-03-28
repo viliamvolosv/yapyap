@@ -948,6 +948,104 @@ program
 	});
 
 program
+	.command("history")
+	.description("Fetch inbound/outbound message history")
+	.option(
+		"--direction <direction>",
+		"Filter history by direction (inbound|outbound|all)",
+	)
+	.option("--peer-id <peerId>", "Filter history by peer ID")
+	.option("--limit <number>", "Limit number of entries (default 100)")
+	.option("--offset <number>", "Pagination offset (default 0)")
+	.option("--api-url <url>", "Override API base URL")
+	.option("--api-port <number>", "Override API port")
+	.option("--no-wait", "Skip waiting for the node to be healthy")
+	.option("--verbose", "Enable verbose output for debugging")
+	.action(async (options) => {
+		const logger = createLogger();
+
+		if (!options.noWait) {
+			const health = await waitForNodeHealth(
+				{
+					apiUrl: options.apiUrl,
+					apiPort: options.apiPort,
+					verbose: options.verbose,
+				},
+				10000,
+			);
+			if (!health.healthy) {
+				logger.error(`Node is not ready: ${health.error}`);
+				logger.info("Make sure the node is running: yapyap start");
+				process.exit(1);
+			}
+		}
+
+		const validDirections = new Set(["inbound", "outbound", "all"]);
+		const params = new URLSearchParams();
+
+		if (options.direction) {
+			const normalized = options.direction.toLowerCase();
+			if (!validDirections.has(normalized)) {
+				logger.error("Invalid direction. Must be inbound, outbound, or all.");
+				process.exit(1);
+			}
+			params.set("direction", normalized);
+		}
+
+		if (options.peerId) {
+			params.set("peerId", options.peerId);
+		}
+
+		if (options.limit) {
+			const parsed = Number(options.limit);
+			if (!Number.isFinite(parsed) || parsed < 1) {
+				logger.error("Limit must be a positive integer.");
+				process.exit(1);
+			}
+			params.set("limit", Math.floor(parsed).toString());
+		}
+
+		if (options.offset) {
+			const parsed = Number(options.offset);
+			if (!Number.isFinite(parsed) || parsed < 0) {
+				logger.error("Offset must be a non-negative integer.");
+				process.exit(1);
+			}
+			params.set("offset", Math.floor(parsed).toString());
+		}
+
+		const query = params.toString();
+		const path = query
+			? `/api/messages/history?${query}`
+			: "/api/messages/history";
+
+		try {
+			const response = await apiRequest<{ messages: unknown[]; count: number }>(
+				{
+					apiUrl: options.apiUrl,
+					apiPort: options.apiPort,
+					verbose: options.verbose,
+				},
+				path,
+				"GET",
+			);
+
+			if (!response.success) {
+				printApiError(response);
+				process.exit(1);
+			}
+
+			console.log(JSON.stringify(response.data, null, 2));
+		} catch (error) {
+			logger.error({
+				msg: "Failed to fetch history",
+				error: error instanceof Error ? error.message : String(error),
+			});
+			process.exit(1);
+		}
+	});
+
+program
 	.command("status")
 	.description("Show node health and peer connections")
 	.option("--api-url <url>", "Override API base URL")

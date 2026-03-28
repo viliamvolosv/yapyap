@@ -362,6 +362,28 @@ export class ApiModule {
 							message: { $ref: "#/components/schemas/YapYapMessage" },
 						},
 					},
+					MessageHistoryEntry: {
+						type: "object",
+						properties: {
+							messageId: { type: "string" },
+							direction: {
+								type: "string",
+								enum: ["inbound", "outbound"],
+							},
+							peerId: { $ref: "#/components/schemas/PeerId" },
+							status: { type: "string", nullable: true },
+							attempts: { type: "integer" },
+							nextRetryAt: { type: "integer", nullable: true },
+							processedAt: { type: "integer", nullable: true },
+							createdAt: { type: "integer" },
+							updatedAt: { type: "integer" },
+							message: {
+								$ref: "#/components/schemas/YapYapMessage",
+								nullable: true,
+							},
+							decryptionError: { type: "string", nullable: true },
+						},
+					},
 					PeerInfo: {
 						type: "object",
 						properties: {
@@ -945,6 +967,92 @@ export class ApiModule {
 						},
 					},
 				},
+				"/api/messages/history": {
+					get: {
+						summary: "Get message history",
+						description:
+							"Read inbound and outbound message history with optional filters",
+						operationId: "getMessageHistory",
+						tags: ["Messages"],
+						parameters: [
+							{
+								name: "direction",
+								in: "query",
+								schema: {
+									type: "string",
+									enum: ["inbound", "outbound", "all"],
+									default: "all",
+								},
+								description: "Filter history by inbound/outbound direction",
+							},
+							{
+								name: "peerId",
+								in: "query",
+								schema: { $ref: "#/components/schemas/PeerId" },
+								description: "Return messages exchanged with a specific peer",
+							},
+							{
+								name: "limit",
+								in: "query",
+								schema: {
+									type: "integer",
+									minimum: 1,
+									maximum: 500,
+									default: 100,
+								},
+								description: "Maximum number of history entries to return",
+							},
+							{
+								name: "offset",
+								in: "query",
+								schema: {
+									type: "integer",
+									minimum: 0,
+									default: 0,
+								},
+								description: "Pagination offset",
+							},
+						],
+						responses: {
+							"200": {
+								description: "Message history entries",
+								content: {
+									"application/json": {
+										schema: {
+											allOf: [
+												{ $ref: "#/components/schemas/ApiResponse" },
+												{
+													properties: {
+														data: {
+															type: "object",
+															properties: {
+																messages: {
+																	type: "array",
+																	items: {
+																		$ref: "#/components/schemas/MessageHistoryEntry",
+																	},
+																},
+																count: { type: "integer" },
+																direction: { type: "string" },
+																peerId: {
+																	$ref: "#/components/schemas/PeerId",
+																	nullable: true,
+																},
+																limit: { type: "integer" },
+																offset: { type: "integer" },
+															},
+														},
+													},
+												},
+											],
+										},
+									},
+								},
+							},
+							"400": { $ref: "#/components/responses/ErrorResponse" },
+						},
+					},
+				},
 				"/api/database/contacts": {
 					get: {
 						summary: "List contacts",
@@ -1320,6 +1428,8 @@ export class ApiModule {
 		} else if (method === "GET") {
 			if (path === "/api/messages/inbox") return this.getInboxMessages();
 			if (path === "/api/messages/outbox") return this.getOutboxMessages();
+			if (path === "/api/messages/history")
+				return this.getMessageHistory(request);
 			if (this.getPathParam(path, 2)) return this.getMessageDetails();
 		}
 		return this.fail(404, "Endpoint not found");
@@ -1766,6 +1876,111 @@ export class ApiModule {
 					(entry as { message?: YapYapMessage }).message?.from === selfPeerId,
 			);
 		return this.ok({ outbox });
+	}
+
+	private async getMessageHistory(request: Request): Promise<Response> {
+		const url = new URL(request.url);
+		const params = url.searchParams;
+		const directionParam = params.get("direction");
+		let direction: "inbound" | "outbound" | undefined;
+
+		if (directionParam === "inbound" || directionParam === "outbound") {
+			direction = directionParam;
+		} else if (directionParam && directionParam !== "all") {
+			return this.fail(400, "Invalid direction filter");
+		}
+
+		const peerId =
+			params.has("peerId") && params.get("peerId") !== ""
+				? (params.get("peerId") ?? undefined)
+				: undefined;
+
+		const parseIntegerParam = (
+			raw: string | null,
+			min: number,
+			max: number,
+			defaultValue: number,
+		): number | null => {
+			if (raw === null) {
+				return defaultValue;
+			}
+			if (raw.trim() === "") {
+				return null;
+			}
+			const parsed = Number(raw);
+			if (
+				!Number.isFinite(parsed) ||
+				!Number.isInteger(parsed) ||
+				parsed < min ||
+				parsed > max
+			) {
+				return null;
+			}
+			return parsed;
+		};
+
+		const limit = parseIntegerParam(params.get("limit"), 1, 500, 100);
+		if (limit === null) {
+			return this.fail(400, "Invalid limit parameter");
+		}
+
+		const offset = parseIntegerParam(params.get("offset"), 0, 1000000, 0);
+		if (offset === null) {
+			return this.fail(400, "Invalid offset parameter");
+		}
+
+		const history = this.yapyapNode
+			.getDatabase()
+			.getMessageHistory({ direction, peerId, limit, offset });
+
+		const results = [];
+		for (const entry of history) {
+			let message: YapYapMessage | null = null;
+			if (entry.message_data) {
+				try {
+					message = JSON.parse(entry.message_data) as YapYapMessage;
+				} catch {
+					message = null;
+				}
+			}
+
+			let decryptionError: string | undefined;
+			if (
+				message &&
+				entry.direction === "inbound" &&
+				this.isEncryptedPayload(message.payload)
+			) {
+				const decrypted = await this.yapyapNode.decryptMessage(message);
+				if (decrypted !== null) {
+					message.payload = decrypted;
+				} else {
+					decryptionError = "decryption-failed";
+				}
+			}
+
+			results.push({
+				messageId: entry.message_id,
+				direction: entry.direction,
+				peerId: entry.peer_id,
+				status: entry.status,
+				attempts: entry.attempts,
+				nextRetryAt: entry.next_retry_at,
+				processedAt: entry.processed_at,
+				createdAt: entry.created_at,
+				updatedAt: entry.updated_at,
+				message,
+				decryptionError,
+			});
+		}
+
+		return this.ok({
+			messages: results,
+			count: results.length,
+			direction: directionParam ?? "all",
+			peerId: peerId ?? null,
+			limit,
+			offset,
+		});
 	}
 
 	private async getMessageDetails(): Promise<Response> {
