@@ -375,6 +375,12 @@ export class ApiModule {
 						type: "object",
 						properties: {
 							peerId: { $ref: "#/components/schemas/PeerId" },
+							publicKey: {
+								type: "string",
+								nullable: true,
+								description:
+									"Node E2E public key in hex-encoded DER SPKI format (X25519)",
+							},
 							connectedPeersCount: { type: "integer" },
 							inboundPeersCount: { type: "integer" },
 							uptime: { type: "number" },
@@ -1371,6 +1377,26 @@ export class ApiModule {
 		}
 	}
 
+	private isValidEncryptionPublicKeyHex(value: string): boolean {
+		if (!/^[0-9a-fA-F]+$/.test(value) || value.length % 2 !== 0) {
+			return false;
+		}
+
+		try {
+			const keyObject = crypto.createPublicKey({
+				key: Buffer.from(value, "hex"),
+				type: "spki",
+				format: "der",
+			});
+			return (
+				keyObject.asymmetricKeyType === "x25519" ||
+				keyObject.asymmetricKeyType === "ed25519"
+			);
+		} catch {
+			return false;
+		}
+	}
+
 	private async getNodeInfo(): Promise<Response> {
 		const libp2p = this.yapyapNode.getLibp2p();
 		const peerId = this.yapyapNode.getPeerId();
@@ -1386,36 +1412,61 @@ export class ApiModule {
 			connections.map((c) => c.remotePeer.toString()),
 		);
 
-		// Check how many bootstrap peers are connected
-		let bootstrapConnected = 0;
+		const configuredBootstrapPeerIds = new Set<string>();
+		const bootstrapConnectedPeerIds = new Set<string>();
+		const bootstrapConnectedAddrSet = new Set<string>();
+		const successfulBootstrapAddrs = new Set(
+			this.yapyapNode.getBootstrapDialSuccessAddrs?.() ?? [],
+		);
+
 		for (const addr of bootstrapAddrs) {
 			try {
-				// Extract peer ID from multiaddr by parsing the path
-				// Multiaddr format: /ip4/1.2.3.4/tcp/4001/p2p/<peer-id>
 				const parts = addr.split("/").filter(Boolean);
 				const p2pIndex = parts.indexOf("p2p");
 				if (p2pIndex !== -1 && parts[p2pIndex + 1]) {
 					const peerIdFromAddr = parts[p2pIndex + 1];
+					configuredBootstrapPeerIds.add(peerIdFromAddr);
 					if (connectedPeerIds.has(peerIdFromAddr)) {
-						bootstrapConnected++;
+						bootstrapConnectedPeerIds.add(peerIdFromAddr);
+						bootstrapConnectedAddrSet.add(addr);
 					}
+				} else if (successfulBootstrapAddrs.has(addr)) {
+					bootstrapConnectedAddrSet.add(addr);
 				}
 			} catch {
 				// Ignore invalid addresses
 			}
 		}
 
+		for (const peerId of this.yapyapNode.getBootstrapDialSuccessPeerIds()) {
+			if (configuredBootstrapPeerIds.has(peerId)) {
+				bootstrapConnectedPeerIds.add(peerId);
+			}
+		}
+
+		for (const addr of bootstrapAddrs) {
+			if (successfulBootstrapAddrs.has(addr)) {
+				bootstrapConnectedAddrSet.add(addr);
+			}
+		}
+
+		const bootstrapConnectedCount = Math.max(
+			bootstrapConnectedPeerIds.size,
+			bootstrapConnectedAddrSet.size,
+		);
+
 		return this.ok({
 			peerId,
+			publicKey: this.yapyapNode.getEncryptionPublicKeyHex(),
 			connectedPeersCount,
 			inboundPeersCount,
 			routingMetrics: {},
 			uptime: process.uptime(),
 			bootstrap: {
 				configured: bootstrapAddrs,
-				connected: bootstrapConnected,
+				connected: bootstrapConnectedCount,
 				total: bootstrapAddrs.length,
-				healthy: bootstrapAddrs.length === 0 || bootstrapConnected > 0,
+				healthy: bootstrapAddrs.length === 0 || bootstrapConnectedCount > 0,
 			},
 		});
 	}
@@ -1761,6 +1812,12 @@ export class ApiModule {
 			this.yapyapNode.getDatabase().saveContactLww(contact);
 
 			if (publicKey) {
+				if (!this.isValidEncryptionPublicKeyHex(publicKey)) {
+					return this.fail(
+						400,
+						"Invalid publicKey format (expected hex-encoded DER SPKI Ed25519/X25519 key)",
+					);
+				}
 				this.yapyapNode
 					.getDatabase()
 					.savePeerMetadata(peerId, "public_key", publicKey);

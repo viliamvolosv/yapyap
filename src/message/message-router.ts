@@ -194,6 +194,12 @@ export class MessageRouter {
 			let recipientPublicKey = await this.nodeContext.fetchRecipientPublicKey(
 				message.to,
 			);
+			if (!recipientPublicKey) {
+				await this.ensureRecipientPublicKey(message.to);
+				recipientPublicKey = await this.nodeContext.fetchRecipientPublicKey(
+					message.to,
+				);
+			}
 			const pendingKeyRefresh =
 				Boolean(recipientPublicKey) &&
 				Boolean(this.nodeContext.shouldRefreshPeerPublicKey?.(message.to));
@@ -994,9 +1000,8 @@ export class MessageRouter {
 			let stream: Stream | undefined;
 			try {
 				// Try to get cached peer info from routing_cache for this attempt
-				if (this.nodeContext.getDiscoveredPeers && attempt === 0) {
-					const cachedPeers = this.nodeContext.getDiscoveredPeers();
-					const cachedPeer = cachedPeers.find((p) => p.peer_id === message.to);
+				if (attempt === 0) {
+					const cachedPeer = this.getCachedPeerEntry(message.to);
 
 					// Try cached multiaddr first if available
 					if (cachedPeer?.multiaddrs && cachedPeer.multiaddrs.length > 0) {
@@ -1119,6 +1124,100 @@ export class MessageRouter {
 		throw new Error(
 			`${this.classifyTransportError(lastError)}:${String(lastError)}`,
 		);
+	}
+
+	private async ensureRecipientPublicKey(peerId: string): Promise<void> {
+		const libp2p = this.nodeContext.getLibp2p();
+		if (!libp2p) {
+			return;
+		}
+
+		const handshakeTimeout =
+			this.options.transport?.dialTimeoutMs ?? DEFAULT_DIAL_TIMEOUT_MS;
+		let peerIdObj: PeerId;
+		try {
+			peerIdObj = peerIdFromString(peerId);
+		} catch {
+			// Keep previous send() behavior for invalid peer IDs:
+			// encryption path should raise its own contract error.
+			return;
+		}
+		const cachedPeer = this.getCachedPeerEntry(peerId);
+		const dialTargets: Array<() => Promise<void>> = [];
+
+		if (cachedPeer?.multiaddrs?.length) {
+			dialTargets.push(async () => {
+				const { multiaddr } = await import("@multiformats/multiaddr");
+				const ma = multiaddr(cachedPeer.multiaddrs[0]);
+				await this.withTimeout(
+					libp2p.dial(ma),
+					handshakeTimeout,
+					"handshake-dial-timeout",
+				);
+			});
+		}
+
+		dialTargets.push(async () => {
+			await this.withTimeout(
+				libp2p.dial(peerIdObj),
+				handshakeTimeout,
+				"handshake-dial-timeout",
+			);
+		});
+
+		for (const dial of dialTargets) {
+			try {
+				await dial();
+				break;
+			} catch (error) {
+				console.warn(
+					`[message-router] handshake dial for ${peerId} failed: ${
+						error instanceof Error ? error.message : String(error)
+					}`,
+				);
+			}
+		}
+
+		if (this.nodeContext.waitForPeerPublicKey) {
+			try {
+				await this.nodeContext.waitForPeerPublicKey(peerId, 5_000);
+			} catch (error) {
+				console.warn(
+					`[message-router] waiting for ${peerId} public key timed out: ${
+						error instanceof Error ? error.message : String(error)
+					}`,
+				);
+			}
+		}
+	}
+
+	private getCachedPeerEntry(peerId: string):
+		| {
+				peer_id: string;
+				multiaddrs: string[];
+				last_seen: number;
+		  }
+		| undefined {
+		const discoveredPeers = this.nodeContext.getDiscoveredPeers?.() ?? [];
+		const cachedPeer = discoveredPeers.find((peer) => peer.peer_id === peerId);
+		if (cachedPeer?.multiaddrs?.length) {
+			return cachedPeer;
+		}
+
+		const routingEntry = this.nodeContext.db.getRoutingEntry(peerId);
+		if (routingEntry?.multiaddrs && routingEntry.multiaddrs.length > 0) {
+			const ttlMs = routingEntry.ttl ?? 0;
+			const now = Date.now();
+			if (ttlMs === 0 || routingEntry.last_seen + ttlMs > now) {
+				return {
+					peer_id: routingEntry.peer_id,
+					multiaddrs: routingEntry.multiaddrs,
+					last_seen: routingEntry.last_seen,
+				};
+			}
+		}
+
+		return undefined;
 	}
 
 	private async tryFallbackRelayRoutes(

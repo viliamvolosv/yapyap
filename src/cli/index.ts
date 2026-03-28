@@ -89,6 +89,15 @@ function resolveDataDir(dataDir?: string): string {
 	return dataDir || DEFAULT_DATA_DIR;
 }
 
+function extractPeerIdFromMultiaddr(addr: string): string | null {
+	const parts = addr.split("/").filter(Boolean);
+	const p2pIndex = parts.indexOf("p2p");
+	if (p2pIndex !== -1 && parts[p2pIndex + 1]) {
+		return parts[p2pIndex + 1];
+	}
+	return null;
+}
+
 function parseBootstrapAddrs(raw?: string): string[] {
 	if (!raw) return [];
 	return raw
@@ -179,6 +188,7 @@ async function apiRequest<T>(
 							`[verbose] Node starting up, retrying in ${delay}ms...`,
 						);
 					}
+
 					await sleep(delay);
 					continue;
 				}
@@ -612,6 +622,11 @@ program
 					try {
 						await libp2p.dial(multiaddr(addr));
 						logger.info({ addr }, "Bootstrap peer connected");
+						node.recordBootstrapAddressDialSuccess(addr);
+						const peerId = extractPeerIdFromMultiaddr(addr);
+						if (peerId) {
+							node.recordBootstrapDialSuccess(peerId);
+						}
 					} catch (error) {
 						logger.warn(
 							{

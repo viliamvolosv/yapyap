@@ -102,6 +102,7 @@ type DbMock = {
 		is_available: boolean;
 		ttl: number;
 	}>;
+	getRoutingEntry: (peerId: string) => RoutingCacheEntry | null;
 	upsertReplicatedMessage: (
 		messageId: string,
 		originalTargetPeerId: string,
@@ -282,6 +283,7 @@ function createDbMock(): DbMock {
 			});
 		},
 		getAllRoutingEntries: () => [],
+		getRoutingEntry: () => null,
 		upsertReplicatedMessage: (
 			messageId: string,
 			originalTargetPeerId: string,
@@ -1723,6 +1725,103 @@ describe("MessageRouter", () => {
 
 		await router.send({
 			id: "msg-cached-multiaddr",
+			type: "data",
+			from: "peer-local",
+			to: VALID_PEER_ID,
+			payload: { ok: true },
+			timestamp: Date.now(),
+		});
+
+		assert.strictEqual(dialTargets.length, 1);
+		assert.strictEqual(dialTargets[0], cachedMultiaddr);
+	});
+
+	test("transmit falls back to routing entry when discovered peer has no addresses", async () => {
+		const db = createDbMock();
+		const cachedMultiaddr = `/ip4/127.0.0.1/tcp/4001/p2p/${VALID_PEER_ID}`;
+		const dialTargets: string[] = [];
+
+		const context = {
+			...createContext(db),
+			getDiscoveredPeers: () => [
+				{
+					peer_id: VALID_PEER_ID,
+					multiaddrs: [],
+					last_seen: Date.now(),
+				},
+			],
+			getLibp2p: () =>
+				({
+					async dialProtocol(target) {
+						dialTargets.push(target.toString());
+						return {
+							send: async () => {},
+							close: async () => {},
+						};
+					},
+				}) as never,
+			encodeResponse: (message: YapYapMessage) =>
+				Buffer.from(JSON.stringify(message), "utf8") as unknown as Uint8Array,
+		};
+
+		db.getRoutingEntry = () => ({
+			peer_id: VALID_PEER_ID,
+			multiaddrs: [cachedMultiaddr],
+			last_seen: Date.now(),
+			is_available: false,
+			ttl: 60 * 60 * 1000,
+		});
+
+		const router = new MessageRouter(context, {});
+
+		await router.send({
+			id: "msg-routing-fallback",
+			type: "data",
+			from: "peer-local",
+			to: VALID_PEER_ID,
+			payload: { ok: true },
+			timestamp: Date.now(),
+		});
+
+		assert.strictEqual(dialTargets.length, 1);
+		assert.strictEqual(dialTargets[0], cachedMultiaddr);
+	});
+
+	test("transmit uses cached multiaddr when routing entry is unavailable", async () => {
+		const cachedMultiaddr = `/ip4/127.0.0.1/tcp/4001/p2p/${VALID_PEER_ID}`;
+		const routingEntry: RoutingCacheEntry = {
+			peer_id: VALID_PEER_ID,
+			multiaddrs: [cachedMultiaddr],
+			last_seen: Date.now(),
+			is_available: false,
+			ttl: 60 * 60 * 1000,
+		};
+		const dialTargets: string[] = [];
+
+		const db: DbMock = {
+			...createDbMock(),
+			getRoutingEntry: () => routingEntry,
+		};
+		const context = {
+			...createContext(db),
+			getLibp2p: () =>
+				({
+					async dialProtocol(target) {
+						dialTargets.push(target.toString());
+						return {
+							send: async () => {},
+							close: async () => {},
+						};
+					},
+				}) as never,
+			encodeResponse: (message: YapYapMessage) =>
+				Buffer.from(JSON.stringify(message), "utf8") as unknown as Uint8Array,
+		};
+
+		const router = new MessageRouter(context, {});
+
+		await router.send({
+			id: "msg-routing-entry",
 			type: "data",
 			from: "peer-local",
 			to: VALID_PEER_ID,

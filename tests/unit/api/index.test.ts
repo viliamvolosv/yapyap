@@ -94,6 +94,9 @@ class MockNode {
 	public db = new MockDatabase();
 	public failSend = false;
 	public sentMessages: YapYapMessage[] = [];
+	public bootstrapAddrs: string[] = [];
+	public bootstrapDialSuccessPeerIds: string[] = [];
+	public bootstrapDialSuccessAddrs: string[] = [];
 
 	getPeerId() {
 		return SELF_PEER_ID;
@@ -129,7 +132,19 @@ class MockNode {
 	}
 
 	getBootstrapAddrs(): string[] {
-		return [];
+		return this.bootstrapAddrs;
+	}
+
+	getBootstrapDialSuccessPeerIds(): string[] {
+		return this.bootstrapDialSuccessPeerIds;
+	}
+
+	getBootstrapDialSuccessAddrs(): string[] {
+		return this.bootstrapDialSuccessAddrs;
+	}
+
+	getEncryptionPublicKeyHex(): string {
+		return Buffer.from(testRecipientKeyPair.publicKey).toString("hex");
 	}
 
 	async encryptMessage(
@@ -309,6 +324,22 @@ describe("ApiModule", () => {
 		assert.strictEqual(deleteBody.success, true);
 	});
 
+	test("contacts endpoint rejects invalid publicKey", async () => {
+		const res = await api.handleTestRequest(
+			new Request("http://localhost/api/database/contacts", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({
+					peerId: VALID_PEER_ID,
+					publicKey: "null",
+				}),
+			}),
+		);
+		const body = await json(res);
+		assert.strictEqual(res.status, 400);
+		assert.strictEqual(body.success, false);
+	});
+
 	test("GET /api/messages/inbox and /api/messages/outbox filter by self peer id", async () => {
 		// Set up outbox (pending messages for sending)
 		node.db.setQueueEntries([
@@ -420,6 +451,51 @@ describe("ApiModule", () => {
 			// If libp2p not initialized, that's expected for this test
 			assert.ok(res.status >= 400);
 		}
+	});
+
+	test("bootstrap health uses successful dialed addresses without /p2p peer ids", async () => {
+		const bootstrapAddr = "/dns4/bootstrap.example.org/tcp/4001";
+		node.bootstrapAddrs = [bootstrapAddr];
+		node.bootstrapDialSuccessAddrs = [bootstrapAddr];
+		node.bootstrapDialSuccessPeerIds = [];
+
+		const res = await api.handleTestRequest(
+			new Request("http://localhost/api/node/info", { method: "GET" }),
+		);
+		const body = await json(res);
+		assert.strictEqual(res.status, 200);
+		assert.strictEqual(body.success, true);
+
+		const bootstrap = (
+			body.data as {
+				bootstrap: {
+					connected: number;
+					total: number;
+					healthy: boolean;
+				};
+			}
+		).bootstrap;
+
+		assert.strictEqual(bootstrap.total, 1);
+		assert.strictEqual(bootstrap.connected, 1);
+		assert.strictEqual(bootstrap.healthy, true);
+	});
+
+	test("GET /api/node/info includes E2E publicKey", async () => {
+		const res = await api.handleTestRequest(
+			new Request("http://localhost/api/node/info", { method: "GET" }),
+		);
+		const body = await json(res);
+		assert.strictEqual(res.status, 200);
+		assert.strictEqual(body.success, true);
+		assert.strictEqual(
+			typeof (body.data as { publicKey?: unknown }).publicKey,
+			"string",
+		);
+		assert.ok(
+			((body.data as { publicKey: string }).publicKey ?? "").length > 0,
+			"publicKey should be non-empty",
+		);
 	});
 
 	test("dialPeer uses cached multiaddrs from routing_cache", async () => {

@@ -11,7 +11,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { createServer, Socket } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { after, describe, it } from "node:test";
+import { after, afterEach, describe, it } from "node:test";
 
 interface NodeProcess {
 	process: ChildProcess;
@@ -241,6 +241,17 @@ describe("Message Delivery - Cached Multiaddr Integration", () => {
 	let senderNode: NodeProcess | undefined;
 	let receiverNode: NodeProcess | undefined;
 
+	afterEach(async () => {
+		if (senderNode) {
+			await stopNode(senderNode);
+			senderNode = undefined;
+		}
+		if (receiverNode) {
+			await stopNode(receiverNode);
+			receiverNode = undefined;
+		}
+	});
+
 	after(async () => {
 		if (senderNode) {
 			await stopNode(senderNode);
@@ -299,4 +310,77 @@ describe("Message Delivery - Cached Multiaddr Integration", () => {
 
 		await waitForInboxMessage(receiverApiPort, messageId);
 	});
+
+	it("keeps delivering even when routing cache entry is unavailable", async () => {
+		const receiverDir = await createTempDir("yapyap-receiver-");
+		const senderDir = await createTempDir("yapyap-sender-");
+		const receiverApiPort = await findFreePort();
+		const senderApiPort = await findFreePort();
+		const receiverListenPort = await findFreePort();
+		const senderListenPort = await findFreePort();
+
+		receiverNode = await startNode(
+			receiverDir,
+			receiverApiPort,
+			receiverListenPort,
+			true,
+		);
+		senderNode = await startNode(
+			senderDir,
+			senderApiPort,
+			senderListenPort,
+			true,
+		);
+
+		await Promise.all([
+			waitForHealth(receiverApiPort),
+			waitForHealth(senderApiPort),
+		]);
+		await waitForTcpPort(receiverListenPort);
+
+		const receiverPeerId = await getPeerId(receiverApiPort);
+		const receiverMultiaddr = `/ip4/127.0.0.1/tcp/${receiverListenPort}/p2p/${receiverPeerId}`;
+
+		await addContact(senderApiPort, receiverPeerId, [receiverMultiaddr]);
+		await setRoutingEntryAvailability(senderDir, receiverPeerId, false);
+
+		const { messageId, queued, details } = await sendMessage(
+			senderApiPort,
+			receiverPeerId,
+			"hello-with-unavailable-cache",
+		);
+		assert.strictEqual(
+			queued,
+			false,
+			`Expected delivery even when cache marked unavailable, but got queued details=${details}`,
+		);
+
+		await waitForInboxMessage(receiverApiPort, messageId);
+	});
 });
+
+async function runSqliteCommand(dataDir: string, sql: string): Promise<void> {
+	const dbPath = join(dataDir, "yapyap.db");
+	return new Promise((resolve, reject) => {
+		const child = spawn("sqlite3", [dbPath, sql], { stdio: "ignore" });
+		child.on("error", reject);
+		child.on("exit", (code) => {
+			if (code === 0) {
+				resolve();
+			} else {
+				reject(new Error(`sqlite3 exited with ${code}`));
+			}
+		});
+	});
+}
+
+async function setRoutingEntryAvailability(
+	dataDir: string,
+	peerId: string,
+	isAvailable: boolean,
+): Promise<void> {
+	const flag = isAvailable ? 1 : 0;
+	const sanitized = peerId.replace(/'/g, "''");
+	const sql = `UPDATE routing_cache SET is_available = ${flag} WHERE peer_id = '${sanitized}';`;
+	await runSqliteCommand(dataDir, sql);
+}

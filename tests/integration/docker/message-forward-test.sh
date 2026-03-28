@@ -208,6 +208,21 @@ for dir in "$SENDER_DIR" "$RELAY_DIR" "$RECEIVER_DIR"; do
     fi
 done
 
+echo -e "${YELLOW}Checking strict E2E encryption failures...${NC}"
+E2E_FAILURE_FOUND=0
+for dir in "$SENDER_DIR" "$RELAY_DIR" "$RECEIVER_DIR"; do
+    if grep -Fq "E2E encryption failed" "$dir/node.log"; then
+        echo -e "${RED}Strict failure in $(basename "$dir")/node.log: E2E encryption failed${NC}"
+        grep -Fn "E2E encryption failed" "$dir/node.log" | head -5
+        E2E_FAILURE_FOUND=1
+    fi
+done
+
+if [ "$E2E_FAILURE_FOUND" -ne 0 ]; then
+    echo -e "${RED}Strict assertion failed: E2E encryption errors detected${NC}"
+    exit 1
+fi
+
 echo -e "${GREEN}Test completed!${NC}"
 echo -e "${YELLOW}Logs: $TEST_DIR${NC}"
 

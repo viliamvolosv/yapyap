@@ -623,7 +623,9 @@ export class NetworkModule {
 			// Also save to database if available
 			if (this.db) {
 				const addrStrings = multiaddrs.map((m) => m.toString());
-				this.db.savePeerMultiaddrs(peerId.toString(), addrStrings);
+				if (addrStrings.length > 0) {
+					this.db.savePeerMultiaddrs(peerId.toString(), addrStrings);
+				}
 				this.db.markPeerAvailable(peerId.toString());
 			}
 		} catch (err) {

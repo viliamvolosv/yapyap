@@ -208,6 +208,30 @@ export class YapYapNode {
 	}
 
 	/**
+	 * Record a successful bootstrap dial attempt for health tracking
+	 */
+	public recordBootstrapDialSuccess(peerId: string): void {
+		if (!peerId) return;
+		this.bootstrapDialSuccesses.add(peerId);
+	}
+
+	public recordBootstrapAddressDialSuccess(addr: string): void {
+		if (!addr) return;
+		this.bootstrapDialSuccessAddrs.add(addr);
+	}
+
+	/**
+	 * Get peer IDs that were successfully contacted via bootstrap
+	 */
+	public getBootstrapDialSuccessPeerIds(): string[] {
+		return [...this.bootstrapDialSuccesses];
+	}
+
+	public getBootstrapDialSuccessAddrs(): string[] {
+		return [...this.bootstrapDialSuccessAddrs];
+	}
+
+	/**
 	 * Get discovered/cached peers from database
 	 */
 	public getDiscoveredPeers(): Array<{
@@ -351,6 +375,8 @@ export class YapYapNode {
 	private nodeState: NodeState;
 	private routingTable: RoutingTable;
 	private bootstrapAddrs: string[] = [];
+	private readonly bootstrapDialSuccesses = new Set<string>();
+	private readonly bootstrapDialSuccessAddrs = new Set<string>();
 
 	constructor(db: DatabaseManager) {
 		this.db = db;
@@ -865,6 +891,13 @@ export class YapYapNode {
 			privateKey: Buffer.from(this.identity.privateKey),
 			publicKey: Buffer.from(this.identity.publicKey),
 		};
+	}
+
+	getEncryptionPublicKeyHex(): string | null {
+		if (!this.encryptionKeyPair?.publicKey) {
+			return null;
+		}
+		return Buffer.from(this.encryptionKeyPair.publicKey).toString("hex");
 	}
 
 	/**
